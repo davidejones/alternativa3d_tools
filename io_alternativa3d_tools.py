@@ -1,13 +1,13 @@
 bl_info = {
 	'name': 'Export: Alternativa3d Tools',
-	'author': 'David E Jones, http://www.davidejones.com',
-	'version': (1, 0, 5),
+	'author': 'David E Jones, http://davidejones.com',
+	'version': (1, 0, 7),
 	'blender': (2, 5, 7),
 	'location': 'File > Import/Export;',
 	'description': 'Importer and exporter for Alternativa3D engine. Supports A3D and Actionscript"',
 	'warning': '',
 	'wiki_url': '',
-	'tracker_url': 'http://www.davidejones.com',
+	'tracker_url': 'http://davidejones.com',
 	'category': 'Import-Export'}
 
 import math, os, time, bpy, random, mathutils, re, ctypes, struct
@@ -34,14 +34,14 @@ def GetMeshVertexCount(Mesh):
 	
 def WritePackageHeader(file,Config):
 	file.write("//Alternativa3D Class Export For Blender 2.57 and above\n")
-	file.write("//Plugin Author: David E Jones, http://www.davidejones.com\n\n")
+	file.write("//Plugin Author: David E Jones, http://davidejones.com\n\n")
 	file.write("package {\n\n")
 	
 	if Config.A3DVersionSystem == 1:
 		# version 5.6.0
 		file.write("\timport alternativa.engine3d.core.Mesh;\n")
 		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
-		file.write("\timport alternativa.engine3d.materials.TextureMaterial;\n")
+		file.write("\timport alternativa.engine3d.materials.Texture;\n")
 		file.write("\timport alternativa.types.Texture;\n")
 		file.write("\timport flash.display.BlendMode;\n")
 		file.write("\timport flash.geom.Point;\n")
@@ -84,8 +84,10 @@ def WritePackageEnd(file):
 	file.write("}")
 	
 def WriteTexMaterial(file,image,id,Config):
-	base=os.path.basename(image.filepath)
-	basename, extension = os.path.splitext(base)
+	#base = 'Unknown'
+	#if hasattr(image, 'filepath'):
+	#	base=os.path.basename(image.filepath)
+	#basename, extension = os.path.splitext(base)
 	
 	if Config.A3DVersionSystem == 1:
 		if Config.CompilerOption == 1:
@@ -104,9 +106,78 @@ def WriteTexMaterial(file,image,id,Config):
 			file.write("\t\tprivate var bmp"+basename+":Bitmap = new Bitmap(new bd"+basename+"(0,0));\n")
 			file.write("\t\tprivate var "+id+":TextureMaterial = new TextureMaterial(bmp"+basename+".bitmapData, true, true);\n\n")
 	
-def WriteFillMaterial(file,color):
-	file.write("\t\t\tvar material:FillMaterial = new FillMaterial("+color+");\n\n")
+def setupMaterials(file,obj,Config):
+	#read the materials from the mesh and output them accordingly
+	mesh = obj.data
+	verts = mesh.vertices
+	mati = {}
+	
+	#mesh.materials
+	#mesh.vertex_colors
+	#MeshFace.material_index
+	
+	Materials = mesh.materials
+	if Materials.keys():
+		MaterialIndexes = {}
+		for Face in mesh.faces:
+			if Materials[Face.material_index] not in MaterialIndexes:
+				MaterialIndexes[Materials[Face.material_index]] = len(MaterialIndexes)
+		Materials = [Item[::-1] for Item in MaterialIndexes.items()]
+		Materials.sort()
+		x=0
+		for Material in Materials:
+			mati[x] = "material"+str(x)
+			WriteMaterial(file,"material"+str(x),Config, Material[1])
+			x += 1
+	return mati
+			
+def WriteMaterial(file,id,Config,Material=None):
+	if Material:
+		#print(Material.name)
+		Texture = GetMaterialTexture(Material)
+		if Texture:
+			#print(Texture)
+			if Config.A3DVersionSystem == 1:
+				#if flex
+				if Config.CompilerOption == 1:
+					file.write('\t\t[Embed(source="'+str(Texture)+'")] private static const bmp'+str(Material.name)+':Class;\n')
+					file.write('\t\tprivate static const '+str(id)+':Texture = new Texture(new bmp'+str(Material.name)+'().bitmapData, "'+str(Material.name)+'");\n\n')
+				else:
+					file.write("\t\t//"+str(Texture)+"\n")
+					file.write("\t\tprivate var bmp"+str(Material.name)+":Bitmap = new Bitmap(new bd"+str(Material.name)+"(0,0));\n")
+					file.write('\t\tprivate var '+str(id)+':Texture = new Texture(bmp'+str(Material.name)+'.bitmapData, "'+str(Material.name)+'");\n\n')
+			else:
+				#if flex
+				if Config.CompilerOption == 1:
+					file.write('\t\t[Embed(source="'+str(Texture)+'")] private static const bmp'+str(Material.name)+':Class;\n')
+					file.write('\t\tprivate static const '+str(id)+':TextureMaterial = new TextureMaterial(new bmp'+str(Material.name)+'().bitmapData, true, true);\n\n')
+				else:
+					file.write("\t\t//"+str(Texture)+"\n")
+					file.write("\t\tprivate var bmp"+str(Material.name)+":Bitmap = new Bitmap(new bd"+str(Material.name)+"(0,0));\n")
+					file.write("\t\tprivate var "+str(id)+":TextureMaterial = new TextureMaterial(bmp"+str(Material.name)+".bitmapData, true, true);\n\n")
+		else:
+			#no tex maybe vertex colour?
+			Diffuse = list(Material.diffuse_color)
+			Diffuse.append(Material.alpha)
+			Specularity = Material.specular_intensity
+			Specular = list(Material.specular_color)
 
+			file.write('\t\tprivate var '+id+':FillMaterial = new FillMaterial('+rgb2hex((Diffuse[0], Diffuse[1], Diffuse[2]))+');\n\n')
+	
+def rgb2hex(rgb):
+    #Given a len 3 rgb tuple of 0-1 floats, return the hex string
+    return '0x%02x%02x%02x' % tuple([round(val*255) for val in rgb])
+	
+def GetMaterialTexture(Material):
+    if Material:
+        #Create a list of Textures that have type "IMAGE"
+        ImageTextures = [Material.texture_slots[TextureSlot].texture for TextureSlot in Material.texture_slots.keys() if Material.texture_slots[TextureSlot].texture.type == "IMAGE"]
+        #Refine a new list with only image textures that have a file source
+        ImageFiles = [os.path.basename(Texture.image.filepath) for Texture in ImageTextures if Texture.image.source == "FILE"]
+        if ImageFiles:
+            return ImageFiles[0]
+    return None
+	
 def WriteClass85(file,obj,Config):
 	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
 	
@@ -115,37 +186,11 @@ def WriteClass85(file,obj,Config):
 	faces = []
 	uvt = []
 	ind = []
-	uvimages = []
-	uvimagevars = []
-	uvimagevarrefs = []
 	hasFaceUV = len(mesh.uv_textures) > 0
-	numVertices = GetMeshVertexCount(mesh)
+	numVertices = len(mesh.vertices)
 	
-	j=0
-	for f in mesh.faces:
-		faces.append( f )
-		if hasFaceUV:
-			if len(uvimages) > 0:
-				if uvimages.count(mesh.uv_textures.active.data[f.index].image) > 0:
-					#uvimagevars.append('material'+str(j))
-					p = uvimages.index(mesh.uv_textures.active.data[f.index].image)
-					#uvimagevars.append(uvimagevars[p])
-					#uvimagevars.append('test'+str(j))
-					uvimagevarrefs.append(uvimagevars[p])
-				else:
-					uvimages.append(mesh.uv_textures.active.data[f.index].image)
-					uvimagevars.append('material'+str(j))
-					uvimagevarrefs.append('material'+str(j))
-			else:
-				uvimages.append(mesh.uv_textures.active.data[f.index].image)
-				uvimagevars.append('material'+str(j))
-				uvimagevarrefs.append('material'+str(j))
-		j += 1
-		
-	x=0	
-	for im in uvimages:
-		WriteTexMaterial(file,im,uvimagevars[x],Config)
-		x += 1
+	#setup materials
+	mati = setupMaterials(file,obj,Config)
 		
 	file.write("\t\tprivate var attributes:Array;\n\n")
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
@@ -159,25 +204,18 @@ def WriteClass85(file,obj,Config):
 	file.write("\t\t\tvar g:Geometry = new Geometry();\n")
 	file.write("\t\t\tg.addVertexStream(attributes);\n")
 	file.write("\t\t\tg.numVertices = "+str(numVertices)+";\n\n")
-	
+				
+	# verts
 	file.write("\t\t\tvar vertices:Array = [\n")
-	fl = 0
-	Index = 0
-	for face in faces:
-		if len(face.vertices) > 0:
-			for i in range(len(face.vertices)):
-				#ind.append(verts[face.vertices[i]].index)
-				ind.append(Index)
-				hasFaceUV = len(mesh.uv_textures) > 0
-				if hasFaceUV:
-					uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
-					uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
-					uvt.append((uv[0],uv[1]))
-				file.write('\t\t\t\t%f, %f, %f,\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z) )
-				Index += 1
-		fl += 1
+	vl =0
+	for v in mesh.vertices:
+		if vl != len(mesh.vertices)-1:
+			file.write("\t\t\t\t%.6f, %.6f, %.6f,\n" % v.co[:])
+		else:
+			file.write("\t\t\t\t%.6f, %.6f, %.6f\n" % v.co[:])
+		vl += 1
 	file.write("\t\t\t];\n")
-		
+	
 	if len(uvt) > 0:
 		file.write("\t\t\tvar uvt:Array = [\n")
 		for u in uvt:
@@ -186,12 +224,9 @@ def WriteClass85(file,obj,Config):
 	else:
 		file.write("\t\t\tvar uvt:Array = new Array();\n")
 	
-	# verts
-	for v in mesh.vertices:
-		print("%.6f %.6f %.6f, " % v.co[:])
-	
 	#write out indices
-	mesh_faces = mesh.faces[:]	
+	mesh_faces = mesh.faces[:]
+	ind = 0
 	if len(mesh_faces) > 0:
 		file.write("\t\t\tvar ind:Array = [\n")
 		for i in range(len(mesh_faces)):
@@ -201,6 +236,7 @@ def WriteClass85(file,obj,Config):
 				#print("%i %i %i -1, " % fv)
 				if i != len(mesh_faces)-1:
 					file.write(",\n")
+				ind += 1
 			else:
 				file.write("\t\t\t\t%i, %i, %i,\n" % (fv[0], fv[1], fv[2]))
 				file.write("\t\t\t\t%i, %i, %i" % (fv[0], fv[2], fv[3]))
@@ -208,39 +244,26 @@ def WriteClass85(file,obj,Config):
 				#print("%i %i %i -1, " % (fv[0], fv[2], fv[3]))
 				if i != len(mesh_faces)-1:
 					file.write(",\n")
+				ind += 2
 		file.write("\t\t\t];\n\n")
 	else:
 		file.write("\t\t\tvar ind:Array = new Array();\n\n")
-			
-	#
-	#if len(ind) > 0:
-	#	file.write("\t\t\tvar ind:Array = [\n")
-	#	file.write("\t\t\t\t")
-	#	for ix in range(len(ind)):
-	#		file.write("%i" % (ind[ix]))
-	#		if ix != 0:
-	#			if (ix+1) % 3 == 0:
-	#				file.write(",\n\t\t\t\t")
-	#			else:
-	#				file.write(",")
-	#		else:
-	#			file.write(",")
-	#	file.write("\t\t\t];\n\n")
-	#else:
-	#	file.write("\t\t\tvar ind:Array = new Array();\n\n")
 	
 	file.write("\t\t\tg.setAttributeValues(VertexAttributes.POSITION, Vector.<Number>(vertices));\n")
-	file.write("\t\t\tg.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")
+	if len(uvt) > 0:
+		file.write("\t\t\tg.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")
+	else:
+		file.write("\t\t\t//g.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")
 	file.write("\t\t\tg.indices =  Vector.<uint>(ind);\n\n")
 	
 	file.write("\t\t\tthis.geometry = g;\n")
-	file.write("\t\t\tthis.addSurface(new FillMaterial(0xFF0000), 0, "+str(len(ind))+");\n")
+	file.write("\t\t\tthis.addSurface(new FillMaterial(0xFF0000), 0, "+str(ind)+");\n")
 	file.write("\t\t\tthis.calculateBoundBox();\n")
 	
 	file.write("\t\t}\n")
 	file.write("\t}\n")
-	
-def WriteClass76(file,obj,Config):
+
+def WriteClass77(file,obj,Config):
 	#base=os.path.basename(file.name)
 	#basename, extension = os.path.splitext(base)
 	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
@@ -248,47 +271,15 @@ def WriteClass76(file,obj,Config):
 	mesh = obj.data
 	#mesh = Mesh(obj.name)
 	#mesh = bpy.data.meshes[obj.name]
-	
 	verts = mesh.vertices
 	
-	faces = []
-	uvimages = []
-	uvimagevars = []
-	uvimagevarrefs = []
-	check = False
-	
-	hasFaceUV = len(mesh.uv_textures) > 0
-	
-	j=0
-	for f in mesh.faces:
-		faces.append( f )
-		if hasFaceUV:
-			if len(uvimages) > 0:
-				if uvimages.count(mesh.uv_textures.active.data[f.index].image) > 0:
-					#uvimagevars.append('material'+str(j))
-					p = uvimages.index(mesh.uv_textures.active.data[f.index].image)
-					#uvimagevars.append(uvimagevars[p])
-					#uvimagevars.append('test'+str(j))
-					uvimagevarrefs.append(uvimagevars[p])
-				else:
-					uvimages.append(mesh.uv_textures.active.data[f.index].image)
-					uvimagevars.append('material'+str(j))
-					uvimagevarrefs.append('material'+str(j))
-			else:
-				uvimages.append(mesh.uv_textures.active.data[f.index].image)
-				uvimagevars.append('material'+str(j))
-				uvimagevarrefs.append('material'+str(j))
-		j += 1
-		
-	x=0	
-	for im in uvimages:
-		WriteTexMaterial(file,im,uvimagevars[x],Config)
-		x += 1
+	#setup materials
+	mati = setupMaterials(file,obj,Config)
 	
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 	
 	cn=-1
-	for face in faces:
+	for face in mesh.faces:
 		cn +=1
 		file.write('\t\t\t\taddFace(Vector.<Vertex>([\n')
 		if len(face.vertices) > 0:
@@ -301,10 +292,64 @@ def WriteClass76(file,obj,Config):
 				else:
 					file.write('\t\t\t\t\taddVertex(%f, %f, %f, 0, 0),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z) )
 		if hasFaceUV:
-			file.write('\t\t\t\t]),'+uvimagevarrefs[face.index]+');\n\n')
+			#file.write('\t\t\t\t]),'+uvimagevarrefs[face.index]+');\n\n')
+			if mati[face.material_index]:
+				file.write('\t\t\t\t]),'+mati[face.material_index]+');\n\n')
+			else:
+				file.write('\t\t\t\t]),new FillMaterial(0xFF0000));\n\n')
 		else:
 			file.write('\t\t\t\t]), new FillMaterial(0xFF0000));\n\n')
 	
+	
+	#calculations
+	file.write("\t\t\tcalculateFacesNormals();\n")
+	file.write("\t\t\tcalculateVerticesNormals();\n")
+	file.write("\t\t\tcalculateBounds();\n")
+	
+	file.write("\t\t}\n")
+	file.write("\t}\n")
+
+def WriteClass76(file,obj,Config):
+	#base=os.path.basename(file.name)
+	#basename, extension = os.path.splitext(base)
+	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
+		
+	mesh = obj.data
+	#mesh = Mesh(obj.name)
+	#mesh = bpy.data.meshes[obj.name]
+	verts = mesh.vertices
+	
+	#setup materials
+	mati = setupMaterials(file,obj,Config)
+	
+	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
+	
+	cn=-1
+	for face in mesh.faces:
+		cn +=1
+		file.write('\t\t\t\taddFace(Vector.<Vertex>([\n')
+		if len(face.vertices) > 0:
+			for i in range(len(face.vertices)):
+				hasFaceUV = len(mesh.uv_textures) > 0
+				if hasFaceUV:
+					uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
+					uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
+					file.write('\t\t\t\t\taddVertex(%f, %f, %f, %f, %f),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z, uv[0], uv[1]) )
+				else:
+					file.write('\t\t\t\t\taddVertex(%f, %f, %f, 0, 0),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z) )
+		if hasFaceUV:
+			#file.write('\t\t\t\t]),'+uvimagevarrefs[face.index]+');\n\n')
+			if mati[face.material_index]:
+				file.write('\t\t\t\t]),'+mati[face.material_index]+');\n\n')
+			else:
+				file.write('\t\t\t\t]),new FillMaterial(0xFF0000));\n\n')
+		else:
+			file.write('\t\t\t\t]), new FillMaterial(0xFF0000));\n\n')
+	
+	
+	#calculations
+	file.write("\t\tcalculateNormals();\n")
+	file.write("\t\tcalculateBounds();\n")
 	
 	file.write("\t\t}\n")
 	file.write("\t}\n")
@@ -312,42 +357,16 @@ def WriteClass76(file,obj,Config):
 def WriteClass75(file,obj,Config):
 	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
 	
-	mesh = obj.data;
+	mesh = obj.data
 	verts = mesh.vertices
 	
-	faces = []
-	uvimages = []
-	uvimagevars = []
-	check = False
-	
-	j=0
-	for f in mesh.faces:
-		faces.append( f )
-		if len(uvimages) > 0:
-			p=0
-			for im in uvimages:
-				if im == mesh.uv_textures.active.data[f.index].image:
-					check = True
-					uvimagevars.append(uvimagevars[p])	
-				p += 1
-			if check == False:
-				uvimages.append(mesh.uv_textures.active.data[f.index].image)
-				uvimagevars.append('material'+str(j))
-				check = False
-		else:
-			uvimages.append(mesh.uv_textures.active.data[f.index].image)
-			uvimagevars.append('material'+str(j))
-		j += 1
-			
-	x=0	
-	for im in uvimages:
-		WriteTexMaterial(file,im,uvimagevars[x],Config)
-		x += 1
+	#setup materials
+	mati = setupMaterials(file,obj,Config)
 	
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 	file.write("\t\t\tvar g:Geometry = new Geometry();\n\n")
 	
-	for face in faces:
+	for face in mesh.faces:
 		file.write('\t\t\t\tg.addFace(Vector.<Vertex>([\n')
 		for i in range(len(face.vertices)):
 			hasFaceUV = len(mesh.uv_textures) > 0
@@ -355,7 +374,15 @@ def WriteClass75(file,obj,Config):
 				uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
 				uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
 				file.write('\t\t\t\t\tg.addVertex(%f, %f, %f, %f, %f),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z, uv[0], uv[1]) )
-		file.write('\t\t\t\t]),'+uvimagevars[face.index]+');\n\n')
+			else:
+				file.write('\t\t\t\t\tg.addVertex(%f, %f, %f, 0, 0),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z) )
+		if hasFaceUV:
+			if mati[face.material_index]:
+				file.write('\t\t\t\t]),'+mati[face.material_index]+');\n\n')
+			else:
+				file.write('\t\t\t\t]), new FillMaterial(0xFF0000));\n\n')
+		else:
+			file.write('\t\t\t\t]), new FillMaterial(0xFF0000));\n\n')
 	
 	file.write("\t\t\t//g.weldVertices();\n")
 	file.write("\t\t\t//g.weldFaces();\n")
@@ -366,49 +393,24 @@ def WriteClass75(file,obj,Config):
 	
 def WriteClass5(file,obj,Config):
 	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
-	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
-	
+		
 	mesh = obj.data;
 	verts = mesh.vertices
 	
-	faces = []
-	uvimages = []
-	uvimagevars = []
-	check = False
+	#setup materials
+	mati = setupMaterials(file,obj,Config)
 	
-	j=0
-	for f in mesh.faces:
-		faces.append( f )
-		if len(uvimages) > 0:
-			p=0
-			for im in uvimages:
-				if im == mesh.uv_textures.active.data[f.index].image:
-					check = True
-					uvimagevars.append(uvimagevars[p])	
-				p += 1
-			if check == False:
-				uvimages.append(mesh.uv_textures.active.data[f.index].image)
-				uvimagevars.append('material'+str(j))
-				check = False
-		else:
-			uvimages.append(mesh.uv_textures.active.data[f.index].image)
-			uvimagevars.append('material'+str(j))
-		j += 1
-			
-	x=0	
-	for im in uvimages:
-		WriteTexMaterial(file,im,uvimagevars[x],Config)
-		x += 1
+	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 	
 	count=0
 	for vert in mesh.vertices:
-		file.write('\t\t\t\tcreateVertex(%f, %f, %f, %i);\n' % (vert.co.x, vert.co.y, vert.co.z, count))
+		file.write('\t\t\tcreateVertex(%f, %f, %f, %i);\n' % (vert.co.x, vert.co.y, vert.co.z, count))
 		count += 1
 	file.write('\n')
 	
 	x=0
 	for meshface in mesh.faces:
-		file.write('\t\t\t\tcreateFace([')
+		file.write('\t\t\tcreateFace([')
 		k=0
 		for vert in meshface.vertices:
 			file.write('%i ' % (vert) )
@@ -416,7 +418,7 @@ def WriteClass5(file,obj,Config):
 				file.write(",")
 			k += 1
 		file.write('], '+str(x)+');\n')
-		file.write('\t\t\t\tsetUVsToFace(new Point(%f,%f), new Point(%f,%f), new Point(%f,%f), %i);\n' % (x,x,x,x,x,x,x))
+		file.write('\t\t\tsetUVsToFace(new Point(%f,%f), new Point(%f,%f), new Point(%f,%f), %i);\n' % (x,x,x,x,x,x,x))
 		x += 1
 	
 	file.write("\t\t}\n")
@@ -442,7 +444,7 @@ def asexport(file,Config):
 		if Config.A3DVersionSystem == 5:
 			WriteClass85(file,obj,Config)
 		elif Config.A3DVersionSystem == 4:
-			WriteClass76(file,obj,Config)
+			WriteClass77(file,obj,Config)
 		elif Config.A3DVersionSystem == 3:
 			WriteClass76(file,obj,Config)
 		elif Config.A3DVersionSystem == 2:
@@ -680,9 +682,41 @@ class A3DImporter(bpy.types.Operator):
 		return {'RUNNING_MODAL'}	
 
 #==================================
+# Custom Meshes
+#==================================		
+class AddA3DLogo(bpy.types.Operator):
+	bl_idname = "mesh.primitive_a3dlogo_add"
+	bl_label = "Add A3D Logo"
+	bl_options = {'REGISTER', 'UNDO'}
+		
+	def execute(self, context):
+		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
+		coords=[(-1.0, -1.0, -1.0), (1.0, -1.0, -1.0), (1.0, 1.0 ,-1.0), (-1.0, 1.0,-1.0), (0.0, 0.0, 1.0)]
+		faces=[ (2,1,0,3), (0,1,4,0), (1,2,4,1), (2,3,4,2), (3,0,4,3)]
+		
+		# create a new mesh  
+		me = bpy.data.meshes.new("a3dlogo") 
+		
+		# create an object with that mesh
+		ob = bpy.data.objects.new("a3dlogo", me)   
+		
+		# position object at 3d-cursor
+		ob.location = bpy.context.scene.cursor_location   
+		
+		# Link object to scene
+		bpy.context.scene.objects.link(ob)  
+
+		# Fill the mesh with verts, edges, faces 
+		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
+		me.update(calc_edges=True)    # Update mesh with new data	
+		return {'FINISHED'}
+#==================================
 # REGISTRATION
 #==================================
 
+def menu_func(self, context):
+    self.layout.operator(AddA3DLogo.bl_idname, text="A3D Logo", icon='MESH_TORUS')
+	
 def menu_func_import(self, context):
 	self.layout.operator(A3DImporter.bl_idname, text='Alternativa3D Binary (.a3d)')
 
@@ -694,11 +728,13 @@ def register():
 	bpy.utils.register_module(__name__)
 	bpy.types.INFO_MT_file_import.append(menu_func_import)
 	bpy.types.INFO_MT_file_export.append(menu_func_export)
+	bpy.types.INFO_MT_mesh_add.append(menu_func)
 	
 def unregister():
 	bpy.utils.unregister_module(__name__)
 	bpy.types.INFO_MT_file_import.remove(menu_func_import)
 	bpy.types.INFO_MT_file_export.remove(menu_func_export)
+	bpy.types.INFO_MT_mesh_add.remove(menu_func)
 
 	
 if __name__ == '__main__':
