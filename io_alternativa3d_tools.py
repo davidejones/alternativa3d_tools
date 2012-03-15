@@ -1,7 +1,7 @@
 bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
-	'version': (1, 0, 8),
+	'version': (1, 0, 9),
 	'blender': (2, 5, 7),
 	'location': 'File > Import/Export;',
 	'description': 'Importer and exporter for Alternativa3D engine. Supports A3D and Actionscript"',
@@ -10,7 +10,7 @@ bl_info = {
 	'tracker_url': 'http://davidejones.com',
 	'category': 'Import-Export'}
 
-import math, os, time, bpy, random, mathutils, re, ctypes, struct, binascii
+import math, os, time, bpy, random, mathutils, re, ctypes, struct, binascii, zlib, tempfile
 from bpy import ops
 from bpy.props import *
 
@@ -186,6 +186,10 @@ def rgb2hex(rgb):
     #Given a len 3 rgb tuple of 0-1 floats, return the hex string
     return '0x%02x%02x%02x' % tuple([round(val*255) for val in rgb])
 	
+def rgbtohtmlcolor(rgb):
+	hexcolor = '#%02x%02x%02x' % rgb
+	return hexcolor
+	
 def GetMaterialTexture(Material):
     if Material:
         #Create a list of Textures that have type "IMAGE"
@@ -265,7 +269,7 @@ def WriteClass85(file,obj,Config):
 	if len(uvt) > 0:
 		file.write("\t\t\tvar uvt:Array = [\n")
 		for u in uvt:
-			file.write("\t\t\t\t"+u[0][0]+","+u[0][1]+"")
+			file.write("\t\t\t\t"+str(u[0])+","+str(u[1])+"")
 			if i != len(uvt)-1:
 				file.write(",\n")
 			else:
@@ -740,7 +744,7 @@ class ASExporter(bpy.types.Operator):
 		except Exception as e:
 			print(e)
 			file.close()
-		return 'FINISHED'
+		return {'FINISHED'}
 	def invoke (self, context, event):		
 		context.window_manager.fileselect_add(self)
 		return {'RUNNING_MODAL'}
@@ -756,27 +760,44 @@ def loadA3d(filename):
 	# open a3d file
 	file = open(filename,'rb')
 			
-	#readversion
+	# read package length
+	a3dpackage = A3DPackage(file)
+	
+	#set current position
+	curpos = file.tell()
+	
+	if a3dpackage.packed == 1:
+		#decompress into variable
+		data = file.read(a3dpackage.length)
+		data = zlib.decompress(data)
+		file.close()
+		
+		#file = open("C:/Users/David/Desktop/defaultModel_21-11-2011_13-47-51/model/box-extract.bin","wb")
+		#file.write(data)
+		#file.close()
+		
+		#file1 = open("tempextract.bin",'wb')
+		#file1.write(data)
+		#file1.close()
+		
+		#file = open("tempextract.bin",'rb')
+		#file.seek(curpos)
+		file = tempfile.TemporaryFile()
+		file.write(data)
+		file.seek(0)
+		
+	# read null mask
+	a3dnull = A3DNull(file)
+	#print(a3dnull.mask)
+	#print(a3dnull.byte_list)
+	
 	ver = A3DVersion(file)
 	print('A3D Version %i.%i' %(ver.baseversion,ver.pointversion))
+		
+	#read data
+	a3d2 = A3D2(file,a3dnull.mask)
 	
-	#read a3dbox
-	a3dbox = A3DBox(file)
-	
-	#read a3dgeometry
-	a3dgeom = A3DGeometry(file)
-	
-	#read image
-	#a3dimg = A3DImage(file)
-	
-	#read map
-	#a3dmap = A3DMap(file)
-	
-	#read material
-	#a3dmat = A3DMaterial(file)
-	
-	#read object
-	#a3dobj = A3DObject(file)
+	file.close()
 	
 	return {'FINISHED'}
 	
@@ -799,236 +820,937 @@ class A3DImporter(bpy.types.Operator):
 # Common Functions/Classes
 #==================================
 
-class A3DVersion:
+class A3DPackage:
 	def __init__(self, file):
-		temp_data = file.read(struct.calcsize('H'))
-		self.baseversion = int(struct.unpack('>H', temp_data)[0]) 
-		temp_data = file.read(struct.calcsize('H'))
-		self.pointversion = int(struct.unpack('>H', temp_data)[0])
-
-class A3DBox:
-	def __init__(self, file):
-		#temp_data = file.read(struct.calcsize('i'))
-		#self.id = struct.unpack('i', temp_data)
-		#(vector float) [minX, minY, minZ, maxX, maxY, maxZ] 
-		#self.box = box
-		# ???? skip extra bytes if needed
-		#temp_data = ord(file.read(1))
-		#tem = temp_data%2
-		#if tem != 0:
-		#	file.seek(file.tell() + tem)
-		#skip unknown
-		#file.seek(file.tell() + 39)
-		
-		#read first byte 84,85,87
+		#read first byte
 		temp_data = ord(file.read(1))
 		
-		#get units, eg 84 would be 4
-		rem = temp_data % 10
-		rem += 2
+		#get byte as binary string
+		temp_data = bin(temp_data)[2:].rjust(8, '0')
 		
-		# skip rem length
-		file.seek(file.tell() + rem)
+		#remaining 6bits
+		#print(temp_data[2:7])
+		
+		#first bit
+		if temp_data[0] == '0':
+			temp = ord(file.read(1))
+			temp = bin(temp)[2:].rjust(8, '0')
+			plen = temp_data[2:8] + temp
+			print('Package length %i bytes' % int(plen,2))
+			self.length = int(plen,2)
+			
+			#second bit
+			if temp_data[1] == '0':
+				self.packed = 0
+				print('Package not packed')
+			elif temp_data[1] == '1':
+				self.packed = 1
+				print('Package is packed')
+			else:
+				print('Error reading package Z')
 				
-		#read how many objects
-		oblen = ord(file.read(1))
-		print('Number of Meshes: %i' %(oblen))
-		
-		for x in range(oblen):
-			#read numfloats usually 6
-			fllen = ord(file.read(1))
+		elif temp_data[0] == '1':
+			#read 3 bytes
+			temp = ord(file.read(1))
+			temp = bin(temp)[2:].rjust(8, '0')
+			temp1 = ord(file.read(1))
+			temp1 = bin(temp1)[2:].rjust(8, '0')
+			temp2 = ord(file.read(1))
+			temp2 = bin(temp2)[2:].rjust(8, '0')
+			plen = temp_data[1:8] + temp + temp1 + temp2
+			print('Package length of %i bytes' % int(plen,2))
 			
-			#read 6 floats
-			for i in range(fllen):
-				file.seek(file.tell() + 4)			
+			self.length = int(plen,2)
 			
-			# skip 3 bytes
-			file.seek(file.tell() + 3)
-			
-			# read obj id
-			obid = ord(file.read(1))
-			
-		# skip 4 bytes
-		file.seek(file.tell() + 5)
+			# if first bit is one then its auto packed
+			self.packed = 1
+			print('Package is packed')
+		else:
+			print('Error reading package L')
 
-class A3DGeometry:
+class A3DNull:
 	def __init__(self, file):
-		#self.id = id
-		#self.indexbuffer = ib
-		#self.vertexbuffer = vb
-		
-		# INDEX BUFFER
-		#read length of indexes
-		#ilen = ord(file.read(1))
-		#temp_data = file.read(struct.calcsize('>H'))
-		#ilen = int(struct.unpack('>H', temp_data)[0])
-		#print('ilen %i' %ilen)
-		#fc = int(ilen/2)
-		
-		#bitmask to get most significant bit
-		bm1 = int("10000000", 2)
-		#bm1 = int("100000000000", 2)
-		
-		#8bit integer bitmask
-		#bm2 = int("0000111111111111", 2)
-		bm2 = int("11110000", 2)
+		#setup byte list/mask
+		self.byte_list = []
+		self.mask = ""
 		
 		#read first byte
-		temp = ord(file.read(1))
+		temp_data = ord(file.read(1))
 		
-		intsz1 = bm1 & temp
-		print('intsz1 %i' %intsz1)
+		#get byte as binary string
+		temp_data = bin(temp_data)[2:].rjust(8, '0')
 		
-		#if msb is 0 then its 1 byte
-		if intsz1 < 128:
-			ilen = temp
-		else:	
-			if intsz1 >= 192:
-				xdata = file.read(bc)
-				tdat = binascii.hexlify(xdata)
-				ilen = int(tdat)
+		#first bit		
+		if temp_data[0] == '0':
+			#short null
+			print('Short null-mask')
+			if temp_data[1] == '0':
+				if temp_data[2] == '0':
+					#00
+					nulldata = temp_data[3:8]
+					#print('Null mask %s' % str(nulldata))
+					print('(LL=00) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
+					print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
+				elif temp_data[2] == '1':
+					#01
+					temp = ord(file.read(1))
+					temp = bin(temp)[2:].rjust(8, '0')
+					nulldata = temp_data[3:8] + temp
+					#print('Null mask %s' % str(nulldata))
+					print('(LL=01) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
+					print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
+				else:
+					print('Error reading short Null...')
+			elif temp_data[1] == '1':
+				if temp_data[2] == '0':
+					#10
+					temp = ord(file.read(1))
+					temp = bin(temp)[2:].rjust(8, '0')
+					temp1 = ord(file.read(1))
+					temp1 = bin(temp1)[2:].rjust(8, '0')
+					nulldata = temp_data[3:8] + temp + temp1
+					#print('Null mask %s' % str(nulldata))
+					print('(LL=10) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
+					print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
+				elif temp_data[2] == '1':
+					#11
+					temp = ord(file.read(1))
+					temp = bin(temp)[2:].rjust(8, '0')
+					temp1 = ord(file.read(1))
+					temp1 = bin(temp1)[2:].rjust(8, '0')
+					temp2 = ord(file.read(1))
+					temp2 = bin(temp2)[2:].rjust(8, '0')
+					nulldata = temp_data[3:8] + temp + temp1 + temp2
+					#print('Null mask %s' % str(nulldata))
+					print('(LL=11) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
+					print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
+				else:
+					print('Error reading short Null...')
 			else:
-				#go back a byte
-				file.seek(file.tell() - 1)
-				
-				temp_data = file.read(struct.calcsize('>H'))
-				val = int(struct.unpack('>H', temp_data)[0])
-				print('val %i' %val)
-				#ilen = bm2 & val
-				ilen = val - 32768 # 0x8000
-		
-		print('ilen %i' %ilen)
-		fc = int(ilen/2)
-		
-		#read indexes
-		faces = []
-		tupl = []
-		for i in range(fc):
-			temp_data = file.read(struct.calcsize('H'))
-			f = int(struct.unpack('H', temp_data)[0])
-			tupl.append(f)
-			if (i+1)%3 == 0:
-				#print('%i,%i,%i' % (tupl[0],tupl[1],tupl[2]))
-				faces.append((tupl[0],tupl[1],tupl[2]))	
-				tupl = []
-		
-		self.indexbuffer = faces
-		
-		#skip 5 bytes, not sure what this is
-		file.seek(file.tell() + 5)
-		
-		#read length of attributes array
-		alen = ord(file.read(1))
-		
-		#read attributes array
-		attributes = []
-		for x in range(alen):
-			t = ord(file.read(1))
-			attributes.append(t)
-		
-		#set to class
-		self.attributes = attributes
-		
-		# VERTEX BUFFER
-		#vlen = ord(file.read(1))
-		#print('vlen %i' %vlen)
-		
-		#read first byte of vlen
-		temp = ord(file.read(1))
-		
-		#get int size 0 or 8?
-		intsz2 = bm1 & temp
-		print('intsz2 %i' %intsz2)
-		
-		#if msb is 0 then its 1 byte
-		if intsz2 < 128:
-			vlen = temp
+				print('Error reading short Null..')
 		else:
-			#count set bits
-			tz = bm2 & temp
-			bc = bitCount(tz)
-			#print("bc2 %i" %bc)
-			
-			if tz >= 192:
-				xdata = file.read(bc)
-				tdat = binascii.hexlify(xdata)
-				vlen = int(tdat,16)
+			#long null
+			print('Long null-mask')
+			#read L
+			if temp_data[1] == '0':
+				nulldata = temp_data[2:8]
+				#print('Null mask %s' % str(nulldata))
+				print('(L=0) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
+				print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
+				#read bytes
+				for x in range(int(nulldata,2)):
+					byt = file.read(1)
+					self.mask += '{0:08b}'.format(ord(byt))
+					self.byte_list.append('%02X' % ord(byt))
+			elif temp_data[1] == '1':
+				temp = ord(file.read(1))
+				temp = bin(temp)[2:].rjust(8, '0')
+				temp1 = ord(file.read(1))
+				temp1 = bin(temp1)[2:].rjust(8, '0')
+				nulldata = temp_data[2:8] + temp + temp1
+				#print('Null mask %s' % str(nulldata))
+				print('(L=1) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
+				print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
+				#read bytes
+				for x in range(int(nulldata,2)):
+					byt = file.read(1)
+					self.mask += '{0:08b}'.format(ord(byt))
+					self.byte_list.append('%02X' % ord(byt))
 			else:
-				#go back a byte
-				file.seek(file.tell() - 1)
+				print('Error reading long Null..')
 				
-				temp_data = file.read(struct.calcsize('>H'))
-				val = int(struct.unpack('>H', temp_data)[0])
-				print('val %i' %val)
-				#ilen = bm2 & val
-				vlen = val - 32768
+class A3DMessageData:
+	def __init__(self, file):
+		#read byte
+		temp_data = ord(file.read(1))
 		
-		#if bylen has bytes left over then either skip them or read them as part of bytelength
-		#rem = vlen%2
-		#if rem != 0:
-			#file.seek(file.tell() + rem)
-			#rembyte = ord(file.read(1))
-			#vlen = vlen + rembyte
-			#vlen = vlen * 2
-			#vlen = vlen - 10
+		#get bits of byte
+		temp_data = bin(temp_data)[2:].rjust(8, '0')
 		
-		#how many floats in the length of bytes
-		flts = int(vlen/4)
+		print(temp_data)
+		
+		if temp_data[0] == '0':
+			numelements = temp_data[1:7]
+		elif temp_data[0] == '1':
+			if temp_data[0:2] == '10':
+				temp = ord(file.read(1))
+				temp = bin(temp)[2:].rjust(8, '0')
+				numelements = temp_data[2:7] + temp
+			elif temp_data[0:2] == '11':
+				temp = ord(file.read(1))
+				temp = bin(temp)[2:].rjust(8, '0')
+				temp1 = ord(file.read(1))
+				temp1 = bin(temp1)[2:].rjust(8, '0')
+				numelements = temp_data[2:7] + temp + temp1
+			else:
+				print('Error reading message data')
+		else:
+			print('Error reading message data')
+		
+		#print("Numelements:"+numelements)
+		print('Number of elements in message data %i' % int(numelements,2))
+		
+		ver = A3DVersion(file)
+		print('A3D Version %i.%i' %(ver.baseversion,ver.pointversion))
+		
+class A3D2:
+	def __init__(self, file, mask):
+	
+		# define 19 classes
+		funcs = {
+			0: A3D2AmbientLight, 
+			1: A3D2AnimationClip, 
+			2: A3D2Track,
+			3: A3D2Box,
+			4: A3D2CubeMap,
+			5: A3D2Decal,
+			6: A3D2DirectionalLight,
+			7: A3D2Image,
+			8: A3D2IndexBuffer,
+			9: A3D2Joint,
+			10: A3D2Map,
+			11: A3D2Material,
+			12: A3D2Mesh,
+			13: A3D2Object,
+			14: A3D2OmniLight,
+			15: A3D2Skin,
+			16: A3D2SpotLight,
+			17: A3D2Sprite,
+			18: A3D2VertexBuffer
+		}
+		
+		#for key, val in funcs.items():
+		#	key()
+	
+		i = 0
+		j = 0
+		for x in range(len(mask)):
+			#print('i is %i' % i)
+			#print('j is %i' % j)
+			#print('mask is %s' % mask[j])
+			
+			#exit if we gone past amount
+			if i > 18:
+				break
+			
+			if mask[j] == '0':
+				t = funcs[i](file,mask,j+1)
+				j = t.ind
+			elif mask[j] == '1':
+				j += 1
+			i += 1
+			
+		
+
+class readArray:
+	def __init__(self, file):
+		numelements = 0
+		temp_data = ord(file.read(1))
+		temp_data = bin(temp_data)[2:].rjust(8, '0')
+		if temp_data[0] == '0':
+			numelements = temp_data[1:8]
+		elif temp_data[0] == '1':
+			if temp_data[0:2] == '10':
+				temp = ord(file.read(1))
+				temp = bin(temp)[2:].rjust(8, '0')
+				numelements = temp_data[2:8] + temp
+			elif temp_data[0:2] == '11':
+				temp = ord(file.read(1))
+				temp = bin(temp)[2:].rjust(8, '0')
+				temp1 = ord(file.read(1))
+				temp1 = bin(temp1)[2:].rjust(8, '0')
+				numelements = temp_data[2:8] + temp + temp1
+			else:
+				print('Error reading array')
+		else:
+			print('Error reading array')
+		#print('Array Length %s' % numelements)
+		#print('Array Length %i' % int(numelements,2))
+		self.length = int(numelements,2)
+		
+class readString:
+	def __init__(self, file):
+		numelements = 0
+		name = ''
+		temp_data = ord(file.read(1))
+		temp_data = bin(temp_data)[2:].rjust(8, '0')
+		if temp_data[0] == '0':
+			numelements = temp_data[1:8]
+		elif temp_data[0] == '1':
+			if temp_data[0:2] == '10':
+				temp = ord(file.read(1))
+				temp = bin(temp)[2:].rjust(8, '0')
+				numelements = temp_data[2:8] + temp
+			elif temp_data[0:2] == '11':
+				temp = ord(file.read(1))
+				temp = bin(temp)[2:].rjust(8, '0')
+				temp1 = ord(file.read(1))
+				temp1 = bin(temp1)[2:].rjust(8, '0')
+				numelements = temp_data[2:8] + temp + temp1
+			else:
+				print('Error reading string type 1')
+		else:
+			print('Error reading string')
+			
+		nlen = int(numelements,2)
+		for x in range(nlen):
+			name += chr(ord(file.read(1)))
+		self.name = name
+		
+class A3D2AmbientLight:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("AmbientLight (%i)" % array.length)
+		print("===================")
+		
+		for i in range(array.length):
+			
+			if mask[self.ind] == '0':
+				#boundBoxId
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+				print("boundBoxId: %i" % temp_data[0])
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			#color
+			temp = file.read(4)
+			temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+			RGBint = temp_data[0]
+			Blue =  RGBint & 255
+			Green = (RGBint >> 8) & 255
+			Red =   (RGBint >> 16) & 255		
+			print("color: %s" % rgbtohtmlcolor((Red, Green, Blue)))
+			
+			#id
+			temp = file.read(8)
+			#print("id: %i" % int(temp))
+			
+			#intensity
+			temp = file.read(4)
+			s = struct.unpack('>f',temp)
+			print("intensity: %f" %s[0])
+			
+			if mask[self.ind] == '0':
+				#name
+				string = readString(file)
+				print(string.name)
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			if mask[self.ind] == '0':
+				#parentId
+				temp = file.read(8)
+				#print("parentId: %i" % int(temp))
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			if mask[self.ind] == '0':
+				#transform
+				transform = A3D2Transform(file)
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			#visible
+			visible = ord(file.read(1))
+			print("visible: %i" % visible)
+
+class A3D2Transform:
+	def __init__(self, file):		
+		self.matrix = A3DMatrix(file)
+		
+class A3DMatrix:
+	def __init__(self, file):
+		
+		temp = file.read(4)
+		self.a = struct.unpack('>f',temp)
+		temp = file.read(4)
+		self.b = struct.unpack('>f',temp)
+		temp = file.read(4)
+		self.c = struct.unpack('>f',temp)
+		temp = file.read(4)
+		self.d = struct.unpack('>f',temp)
+		temp = file.read(4)
+		self.e = struct.unpack('>f',temp)
+		temp = file.read(4)
+		self.f = struct.unpack('>f',temp)
+		temp = file.read(4)
+		self.g = struct.unpack('>f',temp)
+		temp = file.read(4)
+		self.h = struct.unpack('>f',temp)
+		temp = file.read(4)
+		self.i = struct.unpack('>f',temp)
+		temp = file.read(4)
+		self.j = struct.unpack('>f',temp)
+		temp = file.read(4)
+		self.k = struct.unpack('>f',temp)
+		temp = file.read(4)
+		self.l = struct.unpack('>f',temp)
+		
+class A3D2AnimationClip:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("AnimationClip (%i)" % array.length)
+		print("===================")
+		
+		for i in range(array.length):
+			#id
+			temp = file.read(4)
+			print(temp)
+			temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+			#loop
+			loop = ord(file.read(1))
+			print("loop: %i" % loop)
+			#name
+			string = readString(file)
+			print(string.name)
+			#objectIDs array of int64
+			#tracks array of int 4
+	
+class A3D2Track:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("Track (%i)" % array.length)
+		print("===================")
+
+class A3D2Box:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("Box (%i)" % array.length)
+		print("===================")
+		
+		for i in range(array.length):
+			arrayfl = readArray(file)
+			print("box floats: (%i)" % arrayfl.length)
+			for x in range(arrayfl.length):
+				temp = file.read(4)
+			temp = file.read(4)
+			temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+			print("id: %i" % temp_data[0])
+		
+class A3D2CubeMap:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("CubeMap (%i)" % array.length)
+		print("===================")
+	
+class A3D2Decal:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("Decal (%i)" % array.length)
+		print("===================")
+	
+class A3D2DirectionalLight:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("DirectionalLight (%i)" % array.length)
+		print("===================")
+		
+		for i in range(array.length):
+			if mask[self.ind] == '0':
+				#boundBoxId
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+				print("boundBoxId: %i" % temp_data[0])
+				self.ind += 1
+			else:
+				self.ind += 1
+			
+			#color
+			temp = file.read(4)
+			temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+			RGBint = temp_data[0]
+			Blue =  RGBint & 255
+			Green = (RGBint >> 8) & 255
+			Red =   (RGBint >> 16) & 255		
+			print("color: %s" % rgbtohtmlcolor((Red, Green, Blue)))
+			
+			#id
+			temp = file.read(8)
+			#print("id: %i" % int(temp))
+			
+			#intensity
+			temp = file.read(4)
+			s = struct.unpack('>f',temp)
+			print("intensity: %f" %s[0])
+			
+			if mask[self.ind] == '0':
+				#name
+				string = readString(file)
+				print(string.name)
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			if mask[self.ind] == '0':
+				#parentId
+				temp = file.read(8)
+				#print("parentId: %i" % int(temp))
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			if mask[self.ind] == '0':
+				#transform
+				transform = A3D2Transform(file)
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			#visible
+			visible = ord(file.read(1))
+			print("visible: %i" % visible)
+	
+class A3D2Image:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("Image (%i)" % array.length)
+		print("===================")
+	
+class A3D2IndexBuffer:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		self.indices = []
+		
+		print("===================")
+		print("IndexBuffer (%i)" % array.length)
+		print("===================")
+		
+		for i in range(array.length):
+			byarray = readArray(file)
+			print('bytearray(%i)' % byarray.length)
+			for x in range(int(byarray.length/2)):
+				byte = file.read(struct.calcsize('H'))
+				self.indices.append(int(struct.unpack('<H', byte)[0]))
+			print(self.indices)			
+			temp = file.read(4)
+			temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+			print("id: %i" % temp_data[0])
+			temp = file.read(4)
+			temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+			print("indexcount: %i" % temp_data[0])
+
+class A3D2Joint:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("Joint (%i)" % array.length)
+		print("===================")
+	
+class A3D2Map:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("Map (%i)" % array.length)
+		print("===================")
+	
+class A3D2Material:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("Material (%i)" % array.length)
+		print("===================")
+		
+		for i in range(array.length):
+			if mask[self.ind] == '0':
+				#diffuseMapId
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+				print("diffuseMapId: %i" % temp_data[0])
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			if mask[self.ind] == '0':
+				#glossinessMapId
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+				print("glossinessMapId: %i" % temp_data[0])
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			#id
+			temp = file.read(4)
+			temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+			print("id: %i" % temp_data[0])
+			
+			if mask[self.ind] == '0':
+				#lightMapId
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+				print("lightMapId: %i" % temp_data[0])
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			if mask[self.ind] == '0':
+				#normalMapId
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+				print("normalMapId: %i" % temp_data[0])
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			if mask[self.ind] == '0':
+				#opacityMapId
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+				print("opacityMapId: %i" % temp_data[0])
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			if mask[self.ind] == '0':
+				#reflectionCubeMapId
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+				print("reflectionCubeMapId: %i" % temp_data[0])
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			if mask[self.ind] == '0':
+				#specularMapId
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+				print("specularMapId: %i" % temp_data[0])
+				self.ind += 1
+			else:
+				self.ind += 1
+	
+class A3D2Mesh:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("Mesh (%i)" % array.length)
+		print("===================")
+		
+		for i in range(array.length):
+			if mask[self.ind] == '0':
+				#boundBoxId
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+				print("boundBoxId: %i" % temp_data[0])
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			#id
+			temp = file.read(8)
+			print('id:')
+			
+			#indexBufferId
+			temp = file.read(4)
+			temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+			print("indexBufferId: %i" % temp_data[0])
+			
+			if mask[self.ind] == '0':
+				#name
+				string = readString(file)
+				print(string.name)
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			if mask[self.ind] == '0':
+				#parentid
+				temp = file.read(8)
+				print('parentid:')
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			surfarray = readArray(file)
+			for j in range(surfarray.length):
+				s = A3D2Surface(file, mask, self.ind)
+				self.ind = s.ind
+			
+			if mask[self.ind] == '0':
+				#transform
+				transform = A3D2Transform(file)
+				print('transform:')
+				self.ind += 1
+			else:
+				self.ind += 1
+				
+			#vertexbuffers
+			vbufarray = readArray(file)
+			print('vertexbuffers (%i)' % vbufarray.length)
+			for a in range(vbufarray.length):
+				temp = file.read(4)
+				
+			#visible
+			visible = ord(file.read(1))
+			print("visible: %i" % visible)
+				
+class A3D2Surface:
+	def __init__(self, file, mask, ind):		
+		self.ind = ind
+		
+		#indexBufferId
+		temp = file.read(4)
+		temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+		print("indexBegin: %i" % temp_data[0])
+		
+		if mask[self.ind] == '0':
+			#materialId
+			temp = file.read(4)
+			temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+			print("materialId: %i" % temp_data[0])
+			self.ind += 1
+		else:
+			self.ind += 1
+		
+		#numTriangles
+		temp = file.read(4)
+		temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+		print("numTriangles: %i" % temp_data[0])
+	
+class A3D2Object:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+				
+		print("===================")
+		print("Object (%i)" % array.length)
+		print("===================")
+		
+		for x in range(array.length):		
+			if mask[self.ind] == '0':
+				#boundBoxId
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+				print("boundBoxId: %i" % temp_data[0])
+				self.ind += 1
+			else:
+				self.ind += 1
+			
+			#id
+			temp = file.read(8)
+			print('id:')
+			
+			if mask[self.ind] == '0':
+				#name
+				string = readString(file)
+				print(string.name)
+				self.ind += 1
+			else:
+				self.ind += 1
+			
+			if mask[self.ind] == '0':
+				#parentid
+				temp = file.read(8)
+				print('parentid:')
+				self.ind += 1
+			else:
+				self.ind += 1
+						
+			if mask[self.ind] == '0':
+				#transform
+				transform = A3D2Transform(file)
+				print('transform:')
+				self.ind += 1
+			else:
+				self.ind += 1
+			
+			#visible
+			visible = ord(file.read(1))
+			print("visible: %i" % visible)
+	
+class A3D2OmniLight:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("OmniLight (%i)" % array.length)
+		print("===================")
+	
+class A3D2SpotLight:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("SpotLight (%i)" % array.length)
+		print("===================")
+			
+class A3D2Sprite:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("Sprite (%i)" % array.length)
+		print("===================")
+	
+class A3D2Skin:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("Skin (%i)" % array.length)
+		print("===================")
+	
+class A3D2VertexBuffer:
+	def __init__(self, file, mask, ind):
+		array = readArray(file)
+		
+		self.ind = ind
+		
+		print("===================")
+		print("VertexBuffer (%i)" % array.length)
+		print("===================")
+		
+		self.atts = []
+		self.ByteBuffer = ''
+		
+		for x in range(array.length):
+			#attributes
+			atarray = readArray(file)
+			for i in range(atarray.length):
+				temp = file.read(4)
+				temp_data = struct.unpack('>L', temp)
+				self.atts.append(temp_data[0])
+			print(self.atts)
+			#byteBuffer
+			bufarray = readArray(file)
+			print('bufarray size (%i)' % bufarray.length)
+			#self.ByteBuffer = file.read(bufarray.length)
+			#for j in range(bufarray.length):
+				#temp = file.read(1)
+				#buff.append(temp)
+				#temp = file.read(struct.calcsize('f'))
+				#dat = int(struct.unpack('<f',temp)[0])
+				#buff.append(dat)
+			
+		
+		
+		coords = []
+		norms = []
+		tangents = []
+		joints = []
+		texcoords = []
+		faces = []
 		flcount = 0
+		flts = int(bufarray.length/4)
 		
-		for a in range(len(attributes)):
-			if attributes[a] == 0:
+		for a in range(len(self.atts)):
+			if self.atts[a] == 0:
 				#POSITION
 				flcount += 3
-			elif attributes[a] == 1:
+			elif self.atts[a] == 1:
 				#NORMAL
 				flcount += 3	
-			elif attributes[a] == 2:
-				#TANGENT
-				print('tan:')
-			elif attributes[a] == 3:
-				#BINORMAL
-				print('bin:')
-			elif attributes[a] == 4:
-				#COLOR
-				print('color:')
-			elif attributes[a] == 5:
+			elif self.atts[a] == 2:
+				#TANGENT4
+				flcount += 4
+			elif self.atts[a] == 3:
+				#JOINT
+				flcount += 4
+			elif self.atts[a] == 4:
 				#TEXCOORD
 				flcount += 2		
-			elif attributes[a] == 6:
-				#USER_DEF
-				print('udef:')
 			else:
 				print('Cannot understand attribute')
 		
-		print("flcount: %i" %flcount)
-		print("flts: %i" %flts)
 		points = int(flts/flcount)
-		
-		#read coords
-		coords = []
+				
 		for i in range(points):
-			if 0 in attributes:
+			if 0 in self.atts:
+				#POSITION
 				temp_data = file.read(struct.calcsize('3f'))
 				x, y, z = struct.unpack('<3f', temp_data)
 				#print('pos: %f, %f, %f' % (x, y, z))
 				coords.append((x, y, z))
-			if 1 in attributes:
+			if 1 in self.atts:
+				#NORMAL
 				temp_data = file.read(struct.calcsize('3f'))
 				uva, uvb, uvc = struct.unpack('<3f', temp_data)
 				#print('norm: %f, %f, %f' % (uva, uvb, uvc))
-			if 5 in attributes:
-				#print('yo')
-				#temp_data = file.read(struct.calcsize('3f'))
-				#u, v, w = struct.unpack('<3f', temp_data)
-				#print('tex: %f, %f, %f' % (u, v, w))
+				norms.append((uva, uvb, uvc))
+			if 2 in self.atts:
+				#TANGENT4
+				temp_data = file.read(struct.calcsize('4f'))
+				x, y, z, binormalDirection = struct.unpack('<4f', temp_data)
+				tangents.append((x,y,z,binormalDirection))
+			if 3 in self.atts:
+				#JOINT
+				temp_data = file.read(struct.calcsize('4f'))
+				Aindex, Aweight, Bindex, Bweight = struct.unpack('<4f', temp_data)
+				joints.append((Aindex,Aweight,Bindex,Bweight))
+			if 4 in self.atts:
+				#TEXCOORD
 				temp_data = file.read(struct.calcsize('2f'))
 				s, t = struct.unpack('<2f', temp_data)
-				print('tex: %f, %f' % (s, t))
-				#temp_data = file.read(struct.calcsize('4f'))
-				#u1, v1, u2, v2 = struct.unpack('<4f', temp_data)
-				#print('tex: %f, %f, %f, %f' % (u1,v1,u2,v2))
-			
+				texcoords.append((s,t))
+				
+		#id
+		temp = file.read(4)
+		temp_data = struct.unpack('>L', temp) # > for big endian, < for little endian
+		print("id: %i" % temp_data[0])
+		#vertexCount
+		temp_data = file.read(struct.calcsize('H'))
+		print("vertexCount: %i" % int(struct.unpack('>H', temp_data)[0]))
+		
 		# create a new mesh  
 		me = bpy.data.meshes.new("temp") 
 		
@@ -1044,82 +1766,14 @@ class A3DGeometry:
 		# Fill the mesh with verts, edges, faces 
 		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
 		me.update(calc_edges=True)    # Update mesh with new data
+
+class A3DVersion:
+	def __init__(self, file):
+		temp_data = file.read(struct.calcsize('H'))
+		self.baseversion = int(struct.unpack('>H', temp_data)[0]) 
+		temp_data = file.read(struct.calcsize('H'))
+		self.pointversion = int(struct.unpack('>H', temp_data)[0])
 		
-class A3DObject:
-	def __init__(self, id, trans, name, parentid, mesh, geometry, boundbox, visible):
-		self.id = id
-		self.transformation = trans
-		self.name = name
-		self.parentid = parentid
-		self.mesh = mesh
-		self.geometry = geometry
-		self.boundbox = boundbox
-		self.visible = visible
-
-class A3DSurface:
-	def __init__(self, material, indexbegin, numtriangles):
-		self.material = material
-		self.indexbegin = indexbegin
-		self.numtriangles = numtriangles
-
-class A3DVertexBuffer:
-	def __init__(self, numverts, attribs, verts):
-		self.numverts = numverts
-		self.attribs = attribs
-		self.verts = verts
-
-class A3DIndexBuffer:
-	def __init__(self, numindex, indices):
-		self.numindex = numindex
-		self.indices = indices
-
-class A3DTransformation:
-	def __init__(self,file):
-		self.matrix = A3DMatrix(a,b,c,d,e,f,g,h,i,j,k,l)
-
-class A3DMatrix:
-	def __init__(self,a,b,c,d,e,f,g,h,i,j,k,l):
-		self.a = a
-		self.b = b
-		self.c = c
-		self.l = l
-		
-class A3DAnimation:
-	def __init__(self, id, propid, keys, values):
-		self.id = id
-		self.propertyid = propid
-		self.keys = keys
-		self.values = values
-		
-class A3DMaterial:
-	def __init__(self, id, dmap, lmap, nmap):
-		self.id = id
-		self.diffusemap = dmap
-		self.lightmap = lmap
-		self.normalmap = nmap
-
-class A3DMap:
-	def __init__(self, id, image):
-		self.id = id
-		self.image = image
-		self.channel = channel
-		self.uScale = uScale
-		self.vScale = vScale
-		self.uOffset = uOffset
-		self.vOffset = vOffset
-		
-class A3DImage:
-	def __init__(self, url):
-		self.url = url
-
-# count num of active bits		
-def bitCount(int_type):
-    count = 0
-    while(int_type):
-        int_type &= int_type - 1
-        count += 1
-    return(count)
-
 #==================================
 # Custom Meshes
 #==================================		
