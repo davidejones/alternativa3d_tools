@@ -351,7 +351,7 @@ def WriteClass85(file,obj,Config):
 				uvt.append(uv)
 				# ^ uv_coord_list
 	else:
-		print("no textures")
+		#no textures
 		for face in mesh.faces:
 			if len(face.vertices) > 0:
 				ins.append(face.vertices[0])
