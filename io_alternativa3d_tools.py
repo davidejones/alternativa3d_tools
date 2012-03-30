@@ -1,7 +1,7 @@
 bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
-	'version': (1, 1, 1),
+	'version': (1, 1, 2),
 	'blender': (2, 5, 7),
 	'location': 'File > Import/Export;',
 	'description': 'Importer and exporter for Alternativa3D engine. Supports A3D and Actionscript"',
@@ -15,19 +15,262 @@ import bpy_extras.io_utils
 from bpy import ops
 from bpy.props import *
 
+#==================================
+# Common Functions
+#==================================
+def rgb2hex(rgb):
+    #Given a len 3 rgb tuple of 0-1 floats, return the hex string
+    return '0x%02x%02x%02x' % tuple([round(val*255) for val in rgb])
 
+def rgbtohtmlcolor(rgb):
+	hexcolor = '#%02x%02x%02x' % rgb
+	return hexcolor
+
+def cleanupString(input):
+	output = input
+	#output = output.replace('.','')
+	#remove anything that isn't letter number or underscore
+	reg = re.compile(r'[^A-Za-z0-9_]+')
+	output = re.sub(reg,"",output)
+	return output
+#==================================
+# Incomplete Functions - custom obj shit i made
+#==================================
+def WriteSkyBox(file,obj,Config):
+
+	mesh = obj.data;
+
+	if Config.A3DVersionSystem == 1:
+		# version 5.6.0
+		# do nothing
+		print()
+	elif Config.A3DVersionSystem == 2:
+		# version 7.5.1
+		# do nothing
+		print()
+	elif Config.A3DVersionSystem == 3:
+		# version 7.6.0
+		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
+		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif Config.A3DVersionSystem == 4:
+		# version 7.7.0
+		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
+		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif Config.A3DVersionSystem == 5:
+		# version 7.8.0
+		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
+		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif Config.A3DVersionSystem == 6:
+		# version 8.5.0
+		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
+		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
+		# version 8.8.0
+		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
+		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	else:
+		print("version not found")
+
+def WriteOccluder(file,obj,Config):
+	if Config.A3DVersionSystem == 1:
+		# version 5.6.0
+		# do nothing
+		print()
+	elif Config.A3DVersionSystem == 2:
+		# version 7.5.1
+		# do nothing
+		print()
+	elif Config.A3DVersionSystem == 3:
+		# version 7.6.0
+		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
+		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif Config.A3DVersionSystem == 4:
+		# version 7.7.0
+		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
+		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif Config.A3DVersionSystem == 5:
+		# version 7.8.0
+		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
+		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif Config.A3DVersionSystem == 6:
+		# version 8.5.0
+		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
+		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
+		# version 8.8.0
+		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
+		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	else:
+		print("version not found")
+
+def WriteSprite3d(file,obj,Config):
+	if Config.A3DVersionSystem == 1:
+		# version 5.6.0
+		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
+		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif Config.A3DVersionSystem == 2:
+		# version 7.5.1
+		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
+		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif Config.A3DVersionSystem == 3:
+		# version 7.6.0
+		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
+		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif Config.A3DVersionSystem == 4:
+		# version 7.7.0
+		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
+		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif Config.A3DVersionSystem == 5:
+		# version 7.8.0
+		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
+		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif Config.A3DVersionSystem == 6:
+		# version 8.5.0
+		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
+		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
+	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
+		# version 8.8.0
+		file.write("\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
+	else:
+		print("version not found")
+	
 #==================================
 # EXPORTER - Actionscript (.as)
 #==================================
 
-#Container for the exporter settings
+# Exporter (.as) settings container
 class ASExporterSettings:
-	def __init__(self,A3DVersionSystem=1,CompilerOption=1,ExportMode=1,DocClass=False,CopyImgs=True):
+	def __init__(self,A3DVersionSystem=1,CompilerOption=1,ExportMode=1,DocClass=False,CopyImgs=True,ByClass=False):
 		self.A3DVersionSystem = int(A3DVersionSystem)
 		self.CompilerOption = int(CompilerOption)
 		self.ExportMode = int(ExportMode)
 		self.DocClass = bool(DocClass)
 		self.CopyImgs = bool(CopyImgs)
+		self.ByClass = bool(ByClass)
+
+# Exporter (.as) class thats called from menu
+class ASExporter(bpy.types.Operator):
+	bl_idname = "ops.asexporter"
+	bl_label = "Export to AS (Alternativa)"
+	bl_description = "Export to AS (Alternativa)"
+	
+	#export options
+	#alternativa3d versions
+	A3DVersions = []
+	A3DVersions.append(("1", "5.6.0", ""))
+	A3DVersions.append(("2", "7.5.1", ""))
+	A3DVersions.append(("3", "7.6.0", ""))
+	A3DVersions.append(("4", "7.7.0", ""))
+	A3DVersions.append(("5", "7.8.0", ""))
+	A3DVersions.append(("6", "8.5.0", ""))
+	A3DVersions.append(("7", "8.8.0", ""))
+	A3DVersions.append(("8", "8.12.0", ""))
+	A3DVersions.append(("9", "8.17.0", ""))
+	A3DVersions.append(("10", "8.27.0", ""))
+	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D to export to", items=A3DVersions, default="10")
+	#flash or flex?
+	Compilers = []
+	Compilers.append(("1", "Flex", ""))
+	Compilers.append(("2", "Flash", ""))
+	CompilerOption = EnumProperty(name="Use With", description="Select the compiler you will be using", items=Compilers, default="1")
+	#export selection
+	ExportModes = []
+	ExportModes.append(("1", "Selected Objects", ""))
+	ExportModes.append(("2", "All Objects", ""))
+	ExportMode = EnumProperty(name="Export", description="Select which objects to export", items=ExportModes, default="1")
+	#export document class?
+	DocClass = BoolProperty(name="Create Document Class", description="Create document class that makes use of exported data", default=False)
+	CopyImgs = BoolProperty(name="Copy Images", description="Copy images to destination folder of export", default=True)
+	ByClass = BoolProperty(name="Use ByteArray Data (v8.27+)", description="Exports mesh data to compressed bytearray in as3", default=False)
+	
+	filepath = bpy.props.StringProperty()
+
+	def execute(self, context):
+		filePath = self.properties.filepath
+		fp = self.properties.filepath
+		if not filePath.lower().endswith('.as'):
+			filePath += '.as'
+		try:
+			print('Output file : %s' %filePath)
+			#file = open(filePath, 'wb')
+			file = open(filePath, 'w')
+			Config = ASExporterSettings(A3DVersionSystem=self.A3DVersionSystem,CompilerOption=self.CompilerOption,ExportMode=self.ExportMode, DocClass=self.DocClass,CopyImgs=self.CopyImgs,ByClass=self.ByClass)
+			asexport(file,Config,fp)
+			
+			file.close()
+		except Exception as e:
+			print(e)
+			file.close()
+		return {'FINISHED'}
+	def invoke (self, context, event):		
+		context.window_manager.fileselect_add(self)
+		return {'RUNNING_MODAL'}
+
+# Exporter (.as) function		
+def asexport(file,Config,fp):
+	print('Export to Alternativa3d Class started...\n')
+	
+	#write as3 package header
+	WritePackageHeader(file,Config)
+		
+	if Config.ExportMode == 1:
+		#get selected objects that are mesh
+		objs = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+		print('Export selection only...\n')
+	else:
+		#get all objects that are mesh
+		objs = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+		print('Export all meshes...\n')
+	
+	#write each mesh class
+	aobjs = []
+	for obj in objs:
+	
+		#convert quads to triangles
+		bpy.ops.object.mode_set(mode="OBJECT", toggle = False)
+		bpy.ops.object.mode_set(mode="EDIT", toggle = True)
+		mesh = obj.data
+		for f in mesh.faces:
+			f.select = True	
+		bpy.ops.mesh.quads_convert_to_tris()
+		#Return to object mode
+		bpy.ops.object.mode_set(mode="EDIT", toggle = False)
+		bpy.ops.object.mode_set(mode="OBJECT", toggle = True)
+		
+
+		if "a3dtype" in obj:
+			aobjs.append(obj)
+		else:
+			if Config.A3DVersionSystem == 10:
+				WriteClass8270(file,obj,Config)
+			elif (Config.A3DVersionSystem == 6) or (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 8):
+				WriteClass85(file,obj,Config)
+			elif Config.A3DVersionSystem == 5:
+				WriteClass77(file,obj,Config)
+			elif Config.A3DVersionSystem == 4:
+				WriteClass77(file,obj,Config)
+			elif Config.A3DVersionSystem == 3:
+				WriteClass76(file,obj,Config)
+			elif Config.A3DVersionSystem == 2:
+				WriteClass75(file,obj,Config)
+			elif Config.A3DVersionSystem == 1:
+				WriteClass5(file,obj,Config)
+			else:
+				print("No Alternativa Version\n")
+		
+		#Copy images
+		if Config.CopyImgs:
+			print("copy images...\n")
+			copyImages(obj,fp)
+
+	#close off package
+	WritePackageEnd(file)
+	
+	#Create document class
+	if Config.DocClass:
+		WriteDocuClass(file,aobjs,Config)
+	
+	print('Export Completed...\n')
 
 def GetMeshVertexCount(Mesh):
     VertexCount = 0
@@ -58,40 +301,16 @@ def WritePackageHeader(file,Config):
 		file.write("\timport alternativa.engine3d.core.Geometry;\n")
 		file.write("\timport __AS3__.vec.Vector;\n")
 		file.write("\timport flash.display.Bitmap;\n\n")
-	elif Config.A3DVersionSystem == 3:
-		# version 7.6.0
+	elif (Config.A3DVersionSystem == 3) or (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5):
+		# version 7.6.0, 7.7.0, 7.8.0
 		file.write("\timport alternativa.engine3d.objects.Mesh;\n")
 		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
 		file.write("\timport alternativa.engine3d.materials.TextureMaterial;\n")
 		file.write("\timport alternativa.engine3d.core.Vertex;\n")
 		file.write("\timport __AS3__.vec.Vector;\n")
 		file.write("\timport flash.display.Bitmap;\n\n")
-	elif Config.A3DVersionSystem == 4:
-		# version 7.7.0
-		file.write("\timport alternativa.engine3d.objects.Mesh;\n")
-		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
-		file.write("\timport alternativa.engine3d.materials.TextureMaterial;\n")
-		file.write("\timport alternativa.engine3d.core.Vertex;\n")
-		file.write("\timport __AS3__.vec.Vector;\n")
-		file.write("\timport flash.display.Bitmap;\n\n")
-	elif Config.A3DVersionSystem == 5:
-		# version 7.8.0
-		file.write("\timport alternativa.engine3d.objects.Mesh;\n")
-		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
-		file.write("\timport alternativa.engine3d.materials.TextureMaterial;\n")
-		file.write("\timport alternativa.engine3d.core.Vertex;\n")
-		file.write("\timport __AS3__.vec.Vector;\n")
-		file.write("\timport flash.display.Bitmap;\n\n")
-	elif Config.A3DVersionSystem == 6:
-		# version 8.5.0
-		file.write("\timport alternativa.engine3d.objects.Mesh;\n")
-		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
-		file.write("\timport alternativa.engine3d.materials.TextureMaterial;\n")
-		file.write("\timport alternativa.engine3d.core.Vertex;\n")
-		file.write("\timport __AS3__.vec.Vector;\n")
-		file.write("\timport flash.display.Bitmap;\n\n")
-	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
-		# version 8.8.0, 8.12.0, 8.17.0, 8.27.0
+	elif (Config.A3DVersionSystem == 6) or (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
+		# version 8.5.0, 8.8.0, 8.12.0, 8.17.0, 8.27.0
 		file.write("\timport alternativa.engine3d.core.VertexAttributes;\n")
 		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
 		file.write("\timport alternativa.engine3d.materials.TextureMaterial;\n")
@@ -99,35 +318,16 @@ def WritePackageHeader(file,Config):
 		file.write("\timport alternativa.engine3d.objects.Mesh;\n")
 		file.write("\timport alternativa.engine3d.resources.Geometry;\n")
 		file.write("\timport __AS3__.vec.Vector;\n")
-		file.write("\timport flash.display.Bitmap;\n\n")
+		file.write("\timport flash.display.Bitmap;\n")
+		if Config.ByClass == 1:
+			file.write("\timport flash.utils.ByteArray;\n")
+			file.write("\timport flash.utils.Endian;\n")
+		file.write("\n")
 	else:
 		print("version not found")
 	
 def WritePackageEnd(file):
 	file.write("}")
-	
-def WriteTexMaterial(file,image,id,Config):
-	#base = 'Unknown'
-	#if hasattr(image, 'filepath'):
-	#	base=os.path.basename(image.filepath)
-	#basename, extension = os.path.splitext(base)
-	
-	if Config.A3DVersionSystem == 1:
-		if Config.CompilerOption == 1:
-			file.write('\t\t[Embed(source="'+base+'")] private static const bmp'+basename+':Class;\n')
-			file.write('\t\tprivate static const '+id+':Texture = new Texture(new bmp'+basename+'().bitmapData, "'+basename+'");\n\n')
-		else:
-			file.write("\t\t//"+base+"\n")
-			file.write("\t\tprivate var bmp"+basename+":Bitmap = new Bitmap(new bd"+basename+"(0,0));\n")
-			file.write('\t\tprivate var "+id+":Texture = new Texture(bmp'+basename+'.bitmapData, "'+basename+'");\n\n')
-	else:
-		if Config.CompilerOption == 1:
-			file.write('\t\t[Embed(source="'+base+'")] private static const bmp'+basename+':Class;\n')
-			file.write('\t\tprivate static const '+id+':TextureMaterial = new TextureMaterial(new bmp'+basename+'().bitmapData, true, true);\n\n')
-		else:
-			file.write("\t\t//"+base+"\n")
-			file.write("\t\tprivate var bmp"+basename+":Bitmap = new Bitmap(new bd"+basename+"(0,0));\n")
-			file.write("\t\tprivate var "+id+":TextureMaterial = new TextureMaterial(bmp"+basename+".bitmapData, true, true);\n\n")
 	
 def setupMaterials(file,obj,Config):
 	#read the materials from the mesh and output them accordingly
@@ -185,18 +385,8 @@ def WriteMaterial(file,id,Config,Material=None):
 					file.write("\t\t//"+str(Texture)+"\n")
 					file.write("\t\tprivate var bmp"+str(nme)+":Bitmap = new Bitmap(new bd"+str(nme)+"(0,0));\n")
 					file.write("\t\tprivate var "+str(id)+":TextureMaterial = new TextureMaterial(bmp"+str(nme)+".bitmapData, true, true);\n\n")
-			#if version 8.5.0
-			elif Config.A3DVersionSystem == 6:
-				#if flex
-				if Config.CompilerOption == 1:
-					file.write('\t\t[Embed(source="'+str(Texture)+'")] private static const bmp'+str(nme)+':Class;\n')
-					file.write('\t\tprivate static const '+str(id)+':TextureMaterial = new TextureMaterial(new bmp'+str(nme)+'().bitmapData);\n\n')
-				else:
-					file.write("\t\t//"+str(Texture)+"\n")
-					file.write("\t\tprivate var bmp"+str(nme)+":Bitmap = new Bitmap(new bd"+str(nme)+"(0,0));\n")
-					file.write("\t\tprivate var "+str(id)+":TextureMaterial = new TextureMaterial(bmp"+str(nme)+".bitmapData);\n\n")
-			#if version 8.8.0, 8.12.0, 8.17.0, 8.27.0
-			elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
+			#if version 8.5.0, 8.8.0, 8.12.0, 8.17.0, 8.27.0
+			elif (Config.A3DVersionSystem == 6) or (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
 				#if flex
 				if Config.CompilerOption == 1:
 					file.write('\t\t[Embed(source="'+str(Texture)+'")] private static const bmp'+str(nme)+':Class;\n')
@@ -216,14 +406,6 @@ def WriteMaterial(file,id,Config,Material=None):
 
 			file.write('\t\tprivate var '+id+':FillMaterial = new FillMaterial('+rgb2hex((Diffuse[0], Diffuse[1], Diffuse[2]))+');\n\n')
 	
-def rgb2hex(rgb):
-    #Given a len 3 rgb tuple of 0-1 floats, return the hex string
-    return '0x%02x%02x%02x' % tuple([round(val*255) for val in rgb])
-	
-def rgbtohtmlcolor(rgb):
-	hexcolor = '#%02x%02x%02x' % rgb
-	return hexcolor
-	
 def GetMaterialTexture(Material):
     if Material:
         #Create a list of Textures that have type "IMAGE"
@@ -233,14 +415,6 @@ def GetMaterialTexture(Material):
         if ImageFiles:
             return ImageFiles[0]
     return None
-
-def cleanupString(input):
-	output = input
-	#output = output.replace('.','')
-	#remove anything that isn't letter number or underscore
-	reg = re.compile(r'[^A-Za-z0-9_]+')
-	output = re.sub(reg,"",output)
-	return output
 
 def copyImages(obj,filepath):
 	mesh = obj.data
@@ -260,6 +434,327 @@ def copyImages(obj,filepath):
 				rel = bpy_extras.io_utils.path_reference(img.filepath, source_dir, dest_dir, 'COPY', "", copy_set)
 	bpy_extras.io_utils.path_reference_copy(copy_set)
 
+def exportDataFile(verts,uvt,indices):
+	print("writing file")
+	realfile = open("C:/Users/David/Desktop/New folder (4)/test.bin","wb")
+	file = tempfile.TemporaryFile(mode ='w+b')
+	
+	#version file
+	#compression on/off
+	
+	#length of verts -short
+	print("verts="+str(len(verts)*3))
+	file.write(struct.pack("<H", len(verts)*3))
+	for v in verts:
+		file.write(struct.pack("<f", v[0]))
+		file.write(struct.pack("<f", v[1]))
+		file.write(struct.pack("<f", v[2]))
+	
+	#length of uvts -short
+	print("uvt="+str(len(uvt)*2))
+	file.write(struct.pack("<H", len(uvt)*2))
+	for uv in uvt:
+		file.write(struct.pack("<f", uv[0]))
+		file.write(struct.pack("<f", uv[1]))
+	
+	#length of indices -short
+	print("indices="+str(len(indices)))
+	file.write(struct.pack("<H", len(indices)))
+	for i in indices:
+		file.write(struct.pack("<I", i))
+		
+	#materials
+	# -name
+	# -
+		
+	
+	#rewind
+	file.seek(0)
+	
+	#write compressed version
+	realfile.write(zlib.compress(file.read()))
+	
+	#write regular version
+	#realfile.write(file.read())
+	
+	file.close()
+	realfile.close()
+
+def writeByteArrayValues(file,verts,uvt,indices):
+	file.write("\t\t\tvalues= new <uint>[")
+
+	tfile = tempfile.TemporaryFile(mode ='w+b')
+	#length of verts -short
+	tfile.write(struct.pack("<H", len(verts)*3))
+	for v in verts:
+		tfile.write(struct.pack("<f", v[0]))
+		tfile.write(struct.pack("<f", v[1]))
+		tfile.write(struct.pack("<f", v[2]))
+	
+	#length of uvts -short
+	tfile.write(struct.pack("<H", len(uvt)*2))
+	for uv in uvt:
+		tfile.write(struct.pack("<f", uv[0]))
+		tfile.write(struct.pack("<f", uv[1]))
+	
+	#length of indices -short
+	tfile.write(struct.pack("<H", len(indices)))
+	for i in indices:
+		tfile.write(struct.pack("<I", i))
+	
+	#rewind	
+	tfile.seek(0)
+	
+	#compress
+	indata = tfile.read()
+	outdata = zlib.compress(indata)
+	tfile.close()
+	tfile = tempfile.TemporaryFile(mode ='w+b')
+	tfile.write(outdata)
+	tfile.seek(0)
+	
+	try:
+		byte = tfile.read(1)
+		while byte != "":
+			if len(byte) > 0:
+				#file.write("%X," % int(byte))
+				file.write("0x%X," % struct.unpack('B', byte))
+				byte = tfile.read(1)
+			else:
+				break
+	finally:
+		tfile.close()
+		
+	file.write("];\n")
+
+def WriteObjPosRot(file,obj):
+	file.write("\t\t\tthis.rotationX = %.6f;\n" % obj.rotation_euler[0])
+	file.write("\t\t\tthis.rotationY = %.6f;\n" % obj.rotation_euler[1])
+	file.write("\t\t\tthis.rotationZ = %.6f;\n" % obj.rotation_euler[2])
+	file.write("\t\t\tthis.x = %.6f;\n" % obj.location[0])
+	file.write("\t\t\tthis.y = %.6f;\n" % obj.location[1])
+	file.write("\t\t\tthis.z = %.6f;\n" % obj.location[2])
+	file.write("\t\t\tthis.scaleX = %.6f;\n" % obj.scale[0])
+	file.write("\t\t\tthis.scaleY = %.6f;\n" % obj.scale[1])
+	file.write("\t\t\tthis.scaleZ = %.6f;\n" % obj.scale[2])
+
+def WriteClass8270(file,obj,Config):
+	mesh = obj.data
+	verts = mesh.vertices
+	Materials = mesh.materials
+	hasFaceUV = len(mesh.uv_textures) > 0
+	vs = []
+	uvt = []
+	ins = []
+	nr = []
+	
+	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
+	
+	#setup materials
+	mati = setupMaterials(file,obj,Config)
+	
+	#if bytearray
+	if Config.ByClass == 1:
+		file.write("\t\tprivate var values:Vector.<uint>;\n")
+		file.write("\t\tprivate var bytedata:ByteArray = new ByteArray();\n")
+	
+	#write attributes/geom
+	file.write("\t\tprivate var attributes:Array;\n\n")
+	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
+	file.write("\t\t\tattributes = new Array();\n")
+	file.write("\t\t\tattributes[0] = VertexAttributes.POSITION;\n")
+	file.write("\t\t\tattributes[1] = VertexAttributes.POSITION;\n")
+	file.write("\t\t\tattributes[2] = VertexAttributes.POSITION;\n")
+	file.write("\t\t\tattributes[3] = VertexAttributes.TEXCOORDS[0];\n")
+	file.write("\t\t\tattributes[4] = VertexAttributes.TEXCOORDS[0];\n")
+	if Config.ByClass == 0:
+		file.write("\t\t\tattributes[5] = VertexAttributes.NORMAL;\n")
+		file.write("\t\t\tattributes[6] = VertexAttributes.NORMAL;\n")
+		file.write("\t\t\tattributes[7] = VertexAttributes.NORMAL;\n")
+		file.write("\t\t\tattributes[8] = VertexAttributes.TANGENT4;\n")
+		file.write("\t\t\tattributes[9] = VertexAttributes.TANGENT4;\n")
+		file.write("\t\t\tattributes[10] = VertexAttributes.TANGENT4;\n")
+		file.write("\t\t\tattributes[11] = VertexAttributes.TANGENT4;\n\n")
+	file.write("\t\t\tvar g:Geometry = new Geometry();\n")
+	file.write("\t\t\tg.addVertexStream(attributes);\n")
+	
+	vertices_list = []
+	vertices_co_list = []
+	vertices_index_list = []
+	normals_list = []
+	uv_coord_list = []
+	new_index = 0
+	uvtex = mesh.uv_textures.active
+	if hasFaceUV:
+		for uv_index, uv_itself in enumerate(uvtex.data):
+			uvs = uv_itself.uv1, uv_itself.uv2, uv_itself.uv3, uv_itself.uv4
+			for vertex_index, vertex_itself in enumerate(mesh.faces[uv_index].vertices):
+				vertex = mesh.vertices[vertex_itself]
+				vertices_list.append(vertex_itself)
+				vertices_co_list.append(vertex.co.xyz)
+				normals_list.append(vertex.normal.xyz)
+				vertices_index_list.append(new_index)
+				new_index += 1
+				uv_coord_list.append(uvs[vertex_index])
+				vs.append([vertices_co_list[-1][0],vertices_co_list[-1][1],vertices_co_list[-1][2]])
+				nr.append([normals_list[-1][0],normals_list[-1][1],normals_list[-1][2]])
+				ins.append(vertices_index_list[-1])
+				uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
+				uvt.append(uv)
+	else:
+		# if there are no image textures, output the old way
+		for face in mesh.faces:
+			if len(face.vertices) > 0:
+				ins.append(face.vertices[0])
+				ins.append(face.vertices[1])
+				ins.append(face.vertices[2])
+				for i in range(len(face.vertices)):
+					hasFaceUV = len(mesh.uv_textures) > 0
+					if hasFaceUV:
+						uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
+						uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
+						uvt.append(uv)
+		for v in mesh.vertices:
+			vs.append([v.co[0],v.co[1],v.co[2]])
+			nr.append([v.normal[0],v.normal[1],v.normal[2]])
+			
+	file.write("\t\t\tg.numVertices = "+str(len(vs))+";\n\n")
+	
+	
+	if Config.ByClass == 0:
+		#write vertices
+		if len(vs) > 0:
+			file.write("\t\t\tvar vertices:Array = [\n")
+			for v in vs:
+				#file.write("\t\t\t\t%.6f, %.6f, %.6f,\n" % (v[0],v[1],v[2]))
+				file.write("\t\t\t\t%.6g, %.6g, %.6g,\n" % (v[0],v[1],v[2]))
+			file.write("\t\t\t];\n")
+		else:
+			file.write("\t\t\tvar vertices:Array = new Array();\n")
+		
+		#write uv coords
+		if len(uvt) > 0:
+			file.write("\t\t\tvar uvt:Array = [\n")
+			for u in uvt:
+				#file.write("\t\t\t\t"+str(u[0])+","+str(u[1]+","))
+				file.write("\t\t\t\t%.4g,%.4g,\n" % (u[0],u[1]))
+			file.write("\t\t\t];\n")
+		else:
+			file.write("\t\t\tvar uvt:Array = new Array();\n")
+		
+		#write indices
+		if len(ins) > 0:
+			file.write("\t\t\tvar ind:Array = [\n")
+			x=0
+			for t in ins:
+				if x == 0:
+					file.write("\t\t\t\t")
+				file.write("%i," % (t))
+				if x >= 2:
+					file.write("\n")
+					x=-1
+				x = x+1
+			file.write("\t\t\t];\n")
+		else:
+			file.write("\t\t\tvar ind:Array = new Array();\n")
+		
+		#write normals
+		if len(nr) > 0:
+			file.write("\t\t\tvar normals:Array = [\n")
+			for n in nr:
+				#file.write("\t\t\t\t%.6f, %.6f, %.6f,\n" % (n[0],n[1],n[2]))
+				file.write("\t\t\t\t%.6g, %.6g, %.6g,\n" % (n[0],n[1],n[2]))
+			file.write("\t\t\t];\n")
+		else:
+			file.write("\t\t\tvar normals:Array = new Array();\n")
+			
+		#write tangents
+		file.write("\t\t\tvar tangent:Array = new Array();\n\n")
+		
+		#set attributes
+		file.write("\t\t\tg.setAttributeValues(VertexAttributes.POSITION, Vector.<Number>(vertices));\n")
+		if len(uvt) > 0:
+			file.write("\t\t\tg.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")
+		else:
+			file.write("\t\t\t//g.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")	
+			
+		if len(nr) > 0:
+			file.write("\t\t\tg.setAttributeValues(VertexAttributes.NORMAL, Vector.<Number>(normals));\n")
+		else:
+			file.write("\t\t\t//g.setAttributeValues(VertexAttributes.NORMAL, Vector.<Number>(normals));\n")
+		file.write("\t\t\t//g.setAttributeValues(VertexAttributes.TANGENT4, Vector.<Number>(tangent));\n")
+		
+		#set geometry
+		file.write("\t\t\tg.indices =  Vector.<uint>(ind);\n\n")
+		file.write("\t\t\t//g.calculateNormals();\n")
+		file.write("\t\t\t//g.calculateTangents(0);\n")
+		file.write("\t\t\tthis.geometry = g;\n")
+	else:
+		writeByteArrayValues(file,vs,uvt,ins)
+		file.write("\t\t\tfor each(var b:uint in values)\n")
+		file.write("\t\t\t{\n")
+		file.write("\t\t\t\tbytedata.writeByte(b);\n")
+		file.write("\t\t\t}\n")
+		file.write("\t\t\tvar vertices:Array = new Array();\n")
+		file.write("\t\t\tvar uvt:Array = new Array();\n")
+		file.write("\t\t\tvar ind:Array = new Array();\n")
+		file.write("\t\t\tbytedata.endian = Endian.LITTLE_ENDIAN;\n")
+		file.write("\t\t\tbytedata.uncompress();\n")
+		file.write("\t\t\tbytedata.position=0;\n")
+		file.write("\t\t\tvar vlen:uint = bytedata.readUnsignedShort();\n")
+		file.write("\t\t\tg.numVertices = vlen/3;\n")
+		file.write("\t\t\tfor(var i:int = 0; i < vlen; i++){vertices.push(bytedata.readFloat());}\n")
+		file.write("\t\t\tvar uvlen:uint = bytedata.readUnsignedShort();\n")
+		file.write("\t\t\tfor(var x:int = 0; x < uvlen; x++){uvt.push(bytedata.readFloat());}\n")
+		file.write("\t\t\tvar ilen:uint = bytedata.readUnsignedShort();\n")
+		file.write("\t\t\tfor(var j:int = 0; j < ilen; j++){ind.push(bytedata.readUnsignedInt());}\n")
+		file.write("\t\t\tg.setAttributeValues(VertexAttributes.POSITION, Vector.<Number>(vertices));\n")
+		file.write("\t\t\tif(uvlen > 0){g.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));}\n")
+		file.write("\t\t\tg.indices =  Vector.<uint>(ind);\n\n")
+		file.write("\t\t\tg.calculateNormals();\n")
+		file.write("\t\t\tg.calculateTangents(0);\n")
+		file.write("\t\t\tthis.geometry = g;\n")
+
+	
+	#collect surface data, indexbegin/numtriangles etc
+	c=0
+	triangles = -1
+	lastmat = None
+	start,end,items,mts = [],[],[],[]
+	for face in mesh.faces:
+		triangles = triangles + 1
+		if face.material_index <= len(Materials)-1:
+			srcmat = Materials[face.material_index]
+			if srcmat not in items:
+				start.append(face.index * 3)
+				if c != 0:
+					end.append(triangles)
+					triangles = 0
+				mts.append(cleanupString(str(srcmat.name)))
+			else:
+				if srcmat != lastmat:
+					start.append(face.index * 3)
+					if c != 0:
+						end.append(triangles)
+						triangles = 0
+					mts.append(cleanupString(str(srcmat.name)))
+			lastmat = srcmat
+			items.append(srcmat)
+			c = c+1
+	end.append(triangles+1)
+	
+	#set surfaces
+	if len(mts) > 0:
+		for x in range(len(mts)):
+			file.write("\t\t\tthis.addSurface("+mts[x]+", "+str(start[x])+", "+str(end[x])+");\n")
+	else:
+		file.write("\t\t\t//this.addSurface(new FillMaterial(0xFF0000), 0, "+str(len(ins))+");\n")
+	
+	#finishup
+	file.write("\t\t\tthis.calculateBoundBox();\n")
+	file.write("\t\t}\n")
+	file.write("\t}\n")
+	
 def WriteClass85(file,obj,Config):
 	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
 	
@@ -368,6 +863,9 @@ def WriteClass85(file,obj,Config):
 			nr.append([v.normal[0],v.normal[1],v.normal[2]])
 	#test
 	
+	if Config.ByClass == 1:
+		exportDataFile(vs,uvt,ins)
+
 	file.write("\t\t\tg.numVertices = "+str(len(vs))+";\n\n")
 	
 	file.write("\t\t\tvar vertices:Array = [\n")
@@ -597,17 +1095,6 @@ def WriteClass85(file,obj,Config):
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 	
-def WriteObjPosRot(file,obj):
-	file.write("\t\t\tthis.rotationX = %.6f;\n" % obj.rotation_euler[0])
-	file.write("\t\t\tthis.rotationY = %.6f;\n" % obj.rotation_euler[1])
-	file.write("\t\t\tthis.rotationZ = %.6f;\n" % obj.rotation_euler[2])
-	file.write("\t\t\tthis.x = %.6f;\n" % obj.location[0])
-	file.write("\t\t\tthis.y = %.6f;\n" % obj.location[1])
-	file.write("\t\t\tthis.z = %.6f;\n" % obj.location[2])
-	file.write("\t\t\tthis.scaleX = %.6f;\n" % obj.scale[0])
-	file.write("\t\t\tthis.scaleY = %.6f;\n" % obj.scale[1])
-	file.write("\t\t\tthis.scaleZ = %.6f;\n" % obj.scale[2])
-
 def WriteClass77(file,obj,Config):
 	#base=os.path.basename(file.name)
 	#basename, extension = os.path.splitext(base)
@@ -801,104 +1288,6 @@ def WriteClass5(file,obj,Config):
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 
-def WriteSkyBox(file,obj,Config):
-
-	mesh = obj.data;
-
-	if Config.A3DVersionSystem == 1:
-		# version 5.6.0
-		# do nothing
-		print()
-	elif Config.A3DVersionSystem == 2:
-		# version 7.5.1
-		# do nothing
-		print()
-	elif Config.A3DVersionSystem == 3:
-		# version 7.6.0
-		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
-		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 4:
-		# version 7.7.0
-		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
-		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 5:
-		# version 7.8.0
-		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
-		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 6:
-		# version 8.5.0
-		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
-		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
-		# version 8.8.0
-		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
-		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	else:
-		print("version not found")
-	
-def WriteOccluder(file,obj,Config):
-	if Config.A3DVersionSystem == 1:
-		# version 5.6.0
-		# do nothing
-		print()
-	elif Config.A3DVersionSystem == 2:
-		# version 7.5.1
-		# do nothing
-		print()
-	elif Config.A3DVersionSystem == 3:
-		# version 7.6.0
-		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
-		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 4:
-		# version 7.7.0
-		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
-		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 5:
-		# version 7.8.0
-		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
-		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 6:
-		# version 8.5.0
-		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
-		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
-		# version 8.8.0
-		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
-		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	else:
-		print("version not found")
-	
-def WriteSprite3d(file,obj,Config):
-	if Config.A3DVersionSystem == 1:
-		# version 5.6.0
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 2:
-		# version 7.5.1
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 3:
-		# version 7.6.0
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 4:
-		# version 7.7.0
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 5:
-		# version 7.8.0
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 6:
-		# version 8.5.0
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
-		# version 8.8.0
-		file.write("\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-	else:
-		print("version not found")
-	
 def WriteDocuClass(file,aobjs,Config):
 	WritePackageHeader(file,Config)
 	file.write("\tpublic class main extends Sprite {\n\n")
@@ -916,118 +1305,44 @@ def WriteDocuClass(file,aobjs,Config):
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 	WritePackageEnd(file)
-	
-def asexport(file,Config,fp):
-	print('Export to Alternativa3d Class started...\n')
-	
-	#write as3 package header
-	WritePackageHeader(file,Config)
-		
-	if Config.ExportMode == 1:
-		#get selected objects that are mesh
-		objs = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
-		print('Export selection only...\n')
-	else:
-		#get all objects that are mesh
-		objs = [obj for obj in bpy.data.objects if obj.type == 'MESH']
-		print('Export all meshes...\n')
-	
-	#write each mesh class
-	aobjs = []
-	for obj in objs:
-	
-		#convert quads to triangles
-		bpy.ops.object.mode_set(mode="OBJECT", toggle = False)
-		bpy.ops.object.mode_set(mode="EDIT", toggle = True)
-		mesh = obj.data
-		for f in mesh.faces:
-			f.select = True	
-		bpy.ops.mesh.quads_convert_to_tris()
-		#Return to object mode
-		bpy.ops.object.mode_set(mode="EDIT", toggle = False)
-		bpy.ops.object.mode_set(mode="OBJECT", toggle = True)
-		
 
-		if "a3dtype" in obj:
-			aobjs.append(obj)
-		else:
-			if (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
-				WriteClass85(file,obj,Config)
-			elif Config.A3DVersionSystem == 6:
-				WriteClass85(file,obj,Config)
-			elif Config.A3DVersionSystem == 5:
-				WriteClass77(file,obj,Config)
-			elif Config.A3DVersionSystem == 4:
-				WriteClass77(file,obj,Config)
-			elif Config.A3DVersionSystem == 3:
-				WriteClass76(file,obj,Config)
-			elif Config.A3DVersionSystem == 2:
-				WriteClass75(file,obj,Config)
-			elif Config.A3DVersionSystem == 1:
-				WriteClass5(file,obj,Config)
-			else:
-				print("No Alternativa Version\n")
-		
-		#Copy images
-		if Config.CopyImgs:
-			print("copy images...\n")
-			copyImages(obj,fp)
 
-	#close off package
-	WritePackageEnd(file)
+#==================================
+# A3D EXPORTER
+#==================================
+
+#Container for the exporter settings
+class A3DExporterSettings:
+	def __init__(self,A3DVersionSystem=1,ExportMode=1):
+		self.A3DVersionSystem = int(A3DVersionSystem)
+		self.ExportMode = int(ExportMode)
+		
+class A3DExporter(bpy.types.Operator):
+	bl_idname = "ops.a3dexporter"
+	bl_label = "Export to A3D (Alternativa)"
+	bl_description = "Export to A3D (Alternativa)"
 	
-	#Create document class
-	if Config.DocClass:
-		WriteDocuClass(file,aobjs,Config)
-	
-	print('Export Completed...\n')
-#-------------------------------------------------------------------------------
-class ASExporter(bpy.types.Operator):
-	bl_idname = "ops.asexporter"
-	bl_label = "Export to AS (Alternativa)"
-	bl_description = "Export to AS (Alternativa)"
-	
-	#export options
-	#alternativa3d versions
 	A3DVersions = []
-	A3DVersions.append(("1", "5.6.0", ""))
-	A3DVersions.append(("2", "7.5.1", ""))
-	A3DVersions.append(("3", "7.6.0", ""))
-	A3DVersions.append(("4", "7.7.0", ""))
-	A3DVersions.append(("5", "7.8.0", ""))
-	A3DVersions.append(("6", "8.5.0", ""))
-	A3DVersions.append(("7", "8.8.0", ""))
-	A3DVersions.append(("8", "8.12.0", ""))
-	A3DVersions.append(("9", "8.17.0", ""))
-	A3DVersions.append(("10", "8.27.0", ""))
-	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D to export to", items=A3DVersions, default="10")
-	#flash or flex?
-	Compilers = []
-	Compilers.append(("1", "Flex", ""))
-	Compilers.append(("2", "Flash", ""))
-	CompilerOption = EnumProperty(name="Use With", description="Select the compiler you will be using", items=Compilers, default="1")
-	#export selection
+	A3DVersions.append(("1.0", "2.0", ""))
+	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D .A3D to export to", items=A3DVersions, default="1")
+	
 	ExportModes = []
 	ExportModes.append(("1", "Selected Objects", ""))
 	ExportModes.append(("2", "All Objects", ""))
 	ExportMode = EnumProperty(name="Export", description="Select which objects to export", items=ExportModes, default="1")
-	#export document class?
-	DocClass = BoolProperty(name="Create Document Class", description="Create document class that makes use of exported data", default=False)
-	CopyImgs = BoolProperty(name="Copy Images", description="Copy images to destination folder of export", default=True)
+	
 	
 	filepath = bpy.props.StringProperty()
 
 	def execute(self, context):
 		filePath = self.properties.filepath
-		fp = self.properties.filepath
-		if not filePath.lower().endswith('.as'):
-			filePath += '.as'
+		if not filePath.lower().endswith('.a3d'):
+			filePath += '.a3d'
 		try:
 			print('Output file : %s' %filePath)
-			#file = open(filePath, 'wb')
-			file = open(filePath, 'w')
-			Config = ASExporterSettings(A3DVersionSystem=self.A3DVersionSystem,CompilerOption=self.CompilerOption,ExportMode=self.ExportMode, DocClass=self.DocClass,CopyImgs=self.CopyImgs)
-			asexport(file,Config,fp)
+			file = open(filePath, 'wb')
+			Config = A3DExporterSettings(A3DVersionSystem=self.A3DVersionSystem,ExportMode=self.ExportMode)
+			a3dexport(file,Config)
 			
 			file.close()
 		except Exception as e:
@@ -1038,12 +1353,57 @@ class ASExporter(bpy.types.Operator):
 		context.window_manager.fileselect_add(self)
 		return {'RUNNING_MODAL'}
 
+def a3dexport(file,Config):
+	print('Export to Alternativa3d binary started...\n')
+			
+	if Config.ExportMode == 1:
+		#export selected only
+		objs = [obj for obj in bpy.context.selected_objects]
+		print('Export selection only...\n')
+	else:
+		#export whole scene
+		objs = [obj for obj in bpy.data.objects]		
+		print('Export all meshes...\n')
+	
+	objs_mesh = []
+	objs_arm = []
+	objs_lights = []
+	objs_cameras = []
+	
+	for obj in objs_mesh:
+		if obj.type == 'MESH':
+			objs_mesh.append(obj)
+		if obj.type == 'ARMATURE':
+			objs_arm.append(obj)
+		if obj.type == 'LAMP':
+			objs_lights.append(obj)
+		if obj.type == 'CAMERA':
+			objs_cameras.append(obj)
+	
+	#writepackage	
+	#write null mask
+	#write message data
+	
+	print('Export Completed...\n')
+
 #==================================
-# EXPORTER - A3d
+# A3D IMPORTER
 #==================================
-#==================================
-# IMPORTER - A3d
-#==================================
+
+class A3DImporter(bpy.types.Operator):
+	bl_idname = "ops.a3dimporter"
+	bl_label = "Import A3D (Alternativa)"
+	bl_description = "Import A3D (Alternativa)"
+	
+	filepath= StringProperty(name="File Path", description="Filepath used for importing the A3D file", maxlen=1024, default="")
+
+	def execute(self, context):
+		loadA3d(self.filepath)
+		return {'FINISHED'}
+	def invoke (self, context, event):
+		wm = context.window_manager
+		wm.fileselect_add(self)
+		return {'RUNNING_MODAL'}	
 
 def loadA3d(filename):	
 	# open a3d file
@@ -1089,24 +1449,9 @@ def loadA3d(filename):
 	file.close()
 	
 	return {'FINISHED'}
-	
-class A3DImporter(bpy.types.Operator):
-	bl_idname = "ops.a3dimporter"
-	bl_label = "Import A3D (Alternativa)"
-	bl_description = "Import A3D (Alternativa)"
-	
-	filepath= StringProperty(name="File Path", description="Filepath used for importing the A3D file", maxlen=1024, default="")
-
-	def execute(self, context):
-		loadA3d(self.filepath)
-		return {'FINISHED'}
-	def invoke (self, context, event):
-		wm = context.window_manager
-		wm.fileselect_add(self)
-		return {'RUNNING_MODAL'}	
 
 #==================================
-# Common Functions/Classes
+# A3D SHARED
 #==================================
 
 class A3DPackage:
@@ -1327,9 +1672,7 @@ class A3D2:
 				j = t.ind
 			elif mask[j] == '1':
 				j += 1
-			i += 1
-			
-		
+			i += 1	
 
 class readArray:
 	def __init__(self, file):
@@ -2225,8 +2568,10 @@ def menu_func_import(self, context):
 	self.layout.operator(A3DImporter.bl_idname, text='Alternativa3D Binary (.a3d)')
 
 def menu_func_export(self, context):
-	default_path = bpy.data.filepath.replace('.blend', '.as')
-	self.layout.operator(ASExporter.bl_idname, text='Alternativa3D Class (.as)').filepath = default_path
+	as_path = bpy.data.filepath.replace('.blend', '.as')
+	a3d_path = bpy.data.filepath.replace('.blend', '.a3d')
+	self.layout.operator(ASExporter.bl_idname, text='Alternativa3D Class (.as)').filepath = as_path
+	self.layout.operator(A3DExporter.bl_idname, text='Alternativa3D Binary (.a3d)').filepath = a3d_path
 	
 def register():
 	bpy.utils.register_module(__name__)
