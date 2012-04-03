@@ -48,7 +48,7 @@ Changelog
 - added check to see if importing .a3d file version 1 or 2
 
 ### 1.1.2
-- Added support for bytearray class
+- Added support for compressed bytearray data in class rather than values v.8.27.0+ only
 
 ### 1.1.1
 - Updated version 8 class export with textures. 
@@ -154,6 +154,106 @@ package {
 }
 ```
 
+### Version 7.8.0
+```actionscript
+//Alternativa3D Class Export For Blender 2.57 and above
+//Plugin Author: David E Jones, http://davidejones.com
+
+package {
+
+	import alternativa.engine3d.objects.Mesh;
+	import alternativa.engine3d.materials.FillMaterial;
+	import alternativa.engine3d.materials.TextureMaterial;
+	import alternativa.engine3d.core.Vertex;
+	import __AS3__.vec.Vector;
+	import flash.display.Bitmap;
+
+	public class Cube extends Mesh {
+
+		private var Material:FillMaterial = new FillMaterial(0xcccccc);
+
+		public function Cube() {
+
+				addFace(Vector.<Vertex>([
+					addVertex(1.000000, 0.999999, 1.000000, 0, 0),
+					addVertex(1.000000, 1.000000, -1.000000, 0, 0),
+					addVertex(-1.000000, 1.000000, -1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+				addFace(Vector.<Vertex>([
+					addVertex(1.000000, 0.999999, 1.000000, 0, 0),
+					addVertex(-1.000000, 1.000000, -1.000000, 0, 0),
+					addVertex(-1.000000, 1.000000, 1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+				addFace(Vector.<Vertex>([
+					addVertex(-1.000000, -1.000000, -1.000000, 0, 0),
+					addVertex(-1.000000, -1.000000, 1.000000, 0, 0),
+					addVertex(-1.000000, 1.000000, 1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+				addFace(Vector.<Vertex>([
+					addVertex(-1.000000, -1.000000, -1.000000, 0, 0),
+					addVertex(-1.000000, 1.000000, 1.000000, 0, 0),
+					addVertex(-1.000000, 1.000000, -1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+				addFace(Vector.<Vertex>([
+					addVertex(1.000000, -1.000000, -1.000000, 0, 0),
+					addVertex(0.999999, -1.000001, 1.000000, 0, 0),
+					addVertex(-1.000000, -1.000000, -1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+				addFace(Vector.<Vertex>([
+					addVertex(0.999999, -1.000001, 1.000000, 0, 0),
+					addVertex(-1.000000, -1.000000, 1.000000, 0, 0),
+					addVertex(-1.000000, -1.000000, -1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+				addFace(Vector.<Vertex>([
+					addVertex(1.000000, 1.000000, -1.000000, 0, 0),
+					addVertex(1.000000, 0.999999, 1.000000, 0, 0),
+					addVertex(1.000000, -1.000000, -1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+				addFace(Vector.<Vertex>([
+					addVertex(1.000000, 0.999999, 1.000000, 0, 0),
+					addVertex(0.999999, -1.000001, 1.000000, 0, 0),
+					addVertex(1.000000, -1.000000, -1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+				addFace(Vector.<Vertex>([
+					addVertex(1.000000, 0.999999, 1.000000, 0, 0),
+					addVertex(-1.000000, 1.000000, 1.000000, 0, 0),
+					addVertex(0.999999, -1.000001, 1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+				addFace(Vector.<Vertex>([
+					addVertex(-1.000000, 1.000000, 1.000000, 0, 0),
+					addVertex(-1.000000, -1.000000, 1.000000, 0, 0),
+					addVertex(0.999999, -1.000001, 1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+				addFace(Vector.<Vertex>([
+					addVertex(1.000000, 1.000000, -1.000000, 0, 0),
+					addVertex(1.000000, -1.000000, -1.000000, 0, 0),
+					addVertex(-1.000000, -1.000000, -1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+				addFace(Vector.<Vertex>([
+					addVertex(1.000000, 1.000000, -1.000000, 0, 0),
+					addVertex(-1.000000, -1.000000, -1.000000, 0, 0),
+					addVertex(-1.000000, 1.000000, -1.000000, 0, 0),
+				]),new FillMaterial(0xcccccc));
+
+			calculateFacesNormals();
+			calculateVerticesNormals();
+			calculateBounds();
+		}
+	}
+}
+```
+
 ### Version 5.6.0
 
 ```actionscript
@@ -170,11 +270,11 @@ package {
 	import flash.geom.Point;
 	import flash.display.Bitmap;
 
-	public class mycube extends Mesh {
+	public class Cube extends Mesh {
 
 		private var CubeMaterial:FillMaterial = new FillMaterial(0xcc00b9);
 
-		public function mycube() {
+		public function Cube() {
 
 			createVertex(1, 1, -1, 0);
 			createVertex(1, -1, -1, 1);
