@@ -39,8 +39,10 @@ Installation Notes
 6. Tick the checkbox next to the addon to enable it
 7. Click save as default button if you want this addon and any other changes you have made to be enabled by default when you start up blender
 
-Example Code
+Example Output Code
 ----------
+
+### Version 8.27.0
 
 ```actionscript
 //Alternativa3D Class Export For Blender 2.57 and above
@@ -57,13 +59,13 @@ package {
 	import __AS3__.vec.Vector;
 	import flash.display.Bitmap;
 
-	public class Cube.001 extends Mesh {
+	public class Cube extends Mesh {
 
 		private var Material:FillMaterial = new FillMaterial(0xcccccc);
 
 		private var attributes:Array;
 
-		public function Cube.001() {
+		public function Cube() {
 
 			attributes = new Array();
 			attributes[0] = VertexAttributes.POSITION;
@@ -141,10 +143,14 @@ Changelog
 ---------
 
 ### 1.1.3
-1. Fixed error when exporting in version 7.51
-2. Rebuilt version 5.6.0 as it wasn't exporting anything useful
-3. added check to see if importing a3d version 1 or 2
-
+Fixed error when exporting in version 7.51
+Rebuilt version 5.6.0 as it wasn't exporting anything useful
+added check to see if importing a3d version 1 or 2
 
 ### 1.1.2
 Added support for bytearray class
+
+### 1.1.1
+Updated version 8 class export with textures. 
+Changed export to use material name instead of material0 material1 etc. 
+Works with multiple surface materials 
