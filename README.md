@@ -48,11 +48,11 @@ Coming soon...
 Changelog
 ---------
 
-##1.1.3
+### 1.1.3
 1. Fixed error when exporting in version 7.51
 2. Rebuilt version 5.6.0 as it wasn't exporting anything useful
 3. added check to see if importing a3d version 1 or 2
 
 
-##1.1.2
+### 1.1.2
 Added support for bytearray class
