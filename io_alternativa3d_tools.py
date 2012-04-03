@@ -1,7 +1,7 @@
 bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
-	'version': (1, 1, 2),
+	'version': (1, 1, 3),
 	'blender': (2, 5, 7),
 	'location': 'File > Import/Export;',
 	'description': 'Importer and exporter for Alternativa3D engine. Supports A3D and Actionscript"',
@@ -287,7 +287,7 @@ def WritePackageHeader(file,Config):
 		# version 5.6.0
 		file.write("\timport alternativa.engine3d.core.Mesh;\n")
 		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
-		file.write("\timport alternativa.engine3d.materials.Texture;\n")
+		file.write("\timport alternativa.engine3d.materials.TextureMaterial;\n")
 		file.write("\timport alternativa.types.Texture;\n")
 		file.write("\timport flash.display.BlendMode;\n")
 		file.write("\timport flash.geom.Point;\n")
@@ -370,11 +370,13 @@ def WriteMaterial(file,id,Config,Material=None):
 				#if flex
 				if Config.CompilerOption == 1:
 					file.write('\t\t[Embed(source="'+str(Texture)+'")] private static const bmp'+str(nme)+':Class;\n')
-					file.write('\t\tprivate static const '+str(id)+':Texture = new Texture(new bmp'+str(nme)+'().bitmapData, "'+str(Material.name)+'");\n\n')
+					#file.write('\t\tprivate static const '+str(id)+':Texture = new Texture(new bmp'+str(nme)+'().bitmapData, "'+str(nme)+'");\n\n')
+					file.write('\t\tprivate static const '+str(id)+':TextureMaterial = new TextureMaterial(new Texture(new bmp'+str(nme)+'().bitmapData, "'+str(nme)+'"));\n\n')
 				else:
 					file.write("\t\t//"+str(Texture)+"\n")
-					file.write("\t\tprivate var bmp"+str(Material.name)+":Bitmap = new Bitmap(new bd"+str(nme)+"(0,0));\n")
-					file.write('\t\tprivate var '+str(id)+':Texture = new Texture(bmp'+str(nme)+'.bitmapData, "'+str(nme)+'");\n\n')
+					file.write("\t\tprivate var bmp"+str(nme)+":Bitmap = new Bitmap(new bd"+str(nme)+"(0,0));\n")
+					#file.write('\t\tprivate var '+str(id)+':Texture = new Texture(bmp'+str(nme)+'.bitmapData, "'+str(nme)+'");\n\n')
+					file.write('\t\tprivate var '+str(id)+':TextureMaterial = new TextureMaterial(new Texture(new bmp'+str(nme)+'().bitmapData, "'+str(nme)+'"));\n\n')
 			#if version 7's
 			elif (Config.A3DVersionSystem == 2) or (Config.A3DVersionSystem == 3) or (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5):
 				#if flex
@@ -1213,6 +1215,7 @@ def WriteClass75(file,obj,Config):
 	
 	mesh = obj.data
 	verts = mesh.vertices
+	Materials = mesh.materials
 	
 	#setup materials
 	mati = setupMaterials(file,obj,Config)
@@ -1260,30 +1263,157 @@ def WriteClass5(file,obj,Config):
 		
 	mesh = obj.data;
 	verts = mesh.vertices
+	Materials = mesh.materials
+	hasFaceUV = len(mesh.uv_textures) > 0
+	vs = []
+	uvt = []
+	ins = []
+	nr = []
 	
 	#setup materials
 	mati = setupMaterials(file,obj,Config)
 	
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 	
-	count=0
-	for vert in mesh.vertices:
-		file.write('\t\t\tcreateVertex(%f, %f, %f, %i);\n' % (vert.co.x, vert.co.y, vert.co.z, count))
-		count += 1
-	file.write('\n')
+	vertices_list = []
+	vertices_co_list = []
+	vertices_index_list = []
+	normals_list = []
+	uv_coord_list = []
+	new_index = 0
+	uvtex = mesh.uv_textures.active
+	if hasFaceUV:
+		for uv_index, uv_itself in enumerate(uvtex.data):
+			uvs = uv_itself.uv1, uv_itself.uv2, uv_itself.uv3, uv_itself.uv4
+			for vertex_index, vertex_itself in enumerate(mesh.faces[uv_index].vertices):
+				vertex = mesh.vertices[vertex_itself]
+				vertices_list.append(vertex_itself)
+				vertices_co_list.append(vertex.co.xyz)
+				normals_list.append(vertex.normal.xyz)
+				vertices_index_list.append(new_index)
+				new_index += 1
+				uv_coord_list.append(uvs[vertex_index])
+				vs.append([vertices_co_list[-1][0],vertices_co_list[-1][1],vertices_co_list[-1][2]])
+				nr.append([normals_list[-1][0],normals_list[-1][1],normals_list[-1][2]])
+				ins.append(vertices_index_list[-1])
+				uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
+				uvt.append(uv)
+	else:
+		# if there are no image textures, output the old way
+		for face in mesh.faces:
+			if len(face.vertices) > 0:
+				ins.append(face.vertices[0])
+				ins.append(face.vertices[1])
+				ins.append(face.vertices[2])
+				for i in range(len(face.vertices)):
+					hasFaceUV = len(mesh.uv_textures) > 0
+					if hasFaceUV:
+						uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
+						uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
+						uvt.append(uv)
+		for v in mesh.vertices:
+			vs.append([v.co[0],v.co[1],v.co[2]])
+			nr.append([v.normal[0],v.normal[1],v.normal[2]])
+			
 	
-	x=0
-	for meshface in mesh.faces:
+	#write vertices
+	if len(vs) > 0:
+		count = 0
+		for v in vs:
+			file.write("\t\t\tcreateVertex(%.6g, %.6g, %.6g, %i);\n" % (v[0],v[1],v[2],count))
+			count += 1
+		file.write('\n')
+		
+	#write faces
+	if len(ins) > 0:
+		count = 0
 		file.write('\t\t\tcreateFace([')
-		k=0
-		for vert in meshface.vertices:
-			file.write('%i ' % (vert) )
-			if k != len(meshface.vertices)-1:
+		x=0
+		j=0
+		for t in ins:
+			file.write("%i" % (t))
+			if x==2:
+				x=0
+				file.write('], '+str(j)+');\n')
+				j=j+1
+				if count < len(ins)-1:
+					file.write('\t\t\tcreateFace([')
+			else:
+				file.write(',')
+				x=x+1
+			count += 1
+			
+	facecount = j
+			
+	#write face/uvs
+	if len(uvt) > 0:
+		count = 0
+		file.write('\t\t\tsetUVsToFace(')
+		x=0
+		j=0
+		for u in uvt:
+			#file.write('new Point(%.4g,%.4g), ' % (u[0],u[1]))
+			file.write('new Point(%f,%f), ' % (u[0],u[1]))
+			if x==2:
+				x=0
+				file.write('%i);\n' % j)
+				j=j+1
+				if count < len(uvt)-1:
+					file.write('\t\t\tsetUVsToFace(')
+			else:
+				x=x+1
+			count += 1
+		file.write('\n')
+		
+			
+	#write surfaces
+	x=0
+	lastmat = None
+	items,mts,fcs,temp = [],[],[],[]
+	for face in mesh.faces:
+		if face.material_index <= len(Materials)-1:
+			srcmat = Materials[face.material_index]
+			if srcmat not in items:
+				mts.append(cleanupString(str(srcmat.name)))
+				if x == 0:
+					temp.append(x)
+				else:
+					fcs.append(temp)
+					temp = []
+					temp.append(x)
+			else:
+				if srcmat != lastmat:
+					mts.append(cleanupString(str(srcmat.name)))
+					fcs.append(temp)
+					temp = []
+					temp.append(x)
+				else:
+					temp.append(x)
+		lastmat = srcmat
+		items.append(srcmat)
+		x=x+1
+	fcs.append(temp)	
+	
+	count = 0
+	for x in range(len(mts)):
+		file.write('\t\t\tcreateSurface([')
+		for i in range(len(fcs[x])):
+			file.write("%i" % (count+i))
+			if i != len(fcs[x])-1:
 				file.write(",")
-			k += 1
-		file.write('], '+str(x)+');\n')
-		file.write('\t\t\tsetUVsToFace(new Point(%f,%f), new Point(%f,%f), new Point(%f,%f), %i);\n' % (x,x,x,x,x,x,x))
-		x += 1
+		count = count + len(fcs[x])
+		file.write('], "'+mts[x]+'");\n')
+		file.write('\t\t\tsetMaterialToSurface('+mts[x]+', "'+mts[x]+'");\n')
+		
+		
+	#for x in range(len(mati)):
+	#	file.write('\t\t\tcreateSurface([')
+	#	for i in range(facecount):
+	#		file.write("%i" % i)
+	#		if i != facecount-1:
+	#			file.write(",")
+	#	file.write('], "'+mati[x]+'");\n')
+	#	file.write('\t\t\tsetMaterialToSurface('+mati[x]+', "'+mati[x]+'");\n')
 	
 	file.write("\t\t}\n")
 	file.write("\t}\n")
@@ -1323,7 +1453,7 @@ class A3DExporter(bpy.types.Operator):
 	bl_description = "Export to A3D (Alternativa)"
 	
 	A3DVersions = []
-	A3DVersions.append(("1.0", "2.0", ""))
+	A3DVersions.append(("1", "2.0", ""))
 	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D .A3D to export to", items=A3DVersions, default="1")
 	
 	ExportModes = []
@@ -1398,17 +1528,32 @@ class A3DImporter(bpy.types.Operator):
 	filepath= StringProperty(name="File Path", description="Filepath used for importing the A3D file", maxlen=1024, default="")
 
 	def execute(self, context):
-		loadA3d(self.filepath)
+		# open a3d file
+		file = open(self.filepath,'rb')
+		file.seek(0)
+		version = ord(file.read(1))
+		if version == 0:
+			print("1st version of format\n")
+			loadA3d1(file)
+		else:
+			print("2nd version of format\n")
+			loadA3d2(file)
+		file.close()
 		return {'FINISHED'}
 	def invoke (self, context, event):
 		wm = context.window_manager
 		wm.fileselect_add(self)
 		return {'RUNNING_MODAL'}	
 
-def loadA3d(filename):	
-	# open a3d file
-	file = open(filename,'rb')
-			
+def loadA3d1(file):
+	print("coming soon...")
+	file.close()	
+	return {'FINISHED'}
+
+def loadA3d2(file):	
+	#rewind
+	file.seek(0)
+	
 	# read package length
 	a3dpackage = A3DPackage(file)
 	
