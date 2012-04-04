@@ -1,0 +1,1 @@
+@ECHO OFF & (IF EXIST "%~dp0main.swf" (DEL "%~dp0main.swf")) & "C:\flex_new\bin\mxmlc.exe" -benchmark=true -creator="David E Jones" -include-libraries="Alternativa3D.swc" -static-link-runtime-shared-libraries=true -swf-version=13 -file-specs "%~dp0main.as" & (IF EXIST "%~dp0main.swf" (CALL "%~dp0main.swf") ELSE (PAUSE)) 

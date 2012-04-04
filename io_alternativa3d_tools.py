@@ -1,7 +1,7 @@
 bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
-	'version': (1, 1, 3),
+	'version': (1, 1, 4),
 	'blender': (2, 5, 7),
 	'location': 'File > Import/Export;',
 	'description': 'Importer and exporter for Alternativa3D engine. Supports A3D and Actionscript"',
@@ -158,16 +158,17 @@ class ASExporter(bpy.types.Operator):
 	#alternativa3d versions
 	A3DVersions = []
 	A3DVersions.append(("1", "5.6.0", ""))
-	A3DVersions.append(("2", "7.5.1", ""))
-	A3DVersions.append(("3", "7.6.0", ""))
-	A3DVersions.append(("4", "7.7.0", ""))
-	A3DVersions.append(("5", "7.8.0", ""))
-	A3DVersions.append(("6", "8.5.0", ""))
-	A3DVersions.append(("7", "8.8.0", ""))
-	A3DVersions.append(("8", "8.12.0", ""))
-	A3DVersions.append(("9", "8.17.0", ""))
-	A3DVersions.append(("10", "8.27.0", ""))
-	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D to export to", items=A3DVersions, default="10")
+	A3DVersions.append(("2", "7.5.0", ""))
+	A3DVersions.append(("3", "7.5.1", ""))
+	A3DVersions.append(("4", "7.6.0", ""))
+	A3DVersions.append(("5", "7.7.0", ""))
+	A3DVersions.append(("6", "7.8.0", ""))
+	A3DVersions.append(("7", "8.5.0", ""))
+	A3DVersions.append(("8", "8.8.0", ""))
+	A3DVersions.append(("9", "8.12.0", ""))
+	A3DVersions.append(("10", "8.17.0", ""))
+	A3DVersions.append(("11", "8.27.0", ""))
+	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D to export to", items=A3DVersions, default="11")
 	#flash or flex?
 	Compilers = []
 	Compilers.append(("1", "Flex", ""))
@@ -241,19 +242,17 @@ def asexport(file,Config,fp):
 		if "a3dtype" in obj:
 			aobjs.append(obj)
 		else:
-			if Config.A3DVersionSystem == 10:
+			if (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10) or (Config.A3DVersionSystem == 11):
+				# version 8.5.0, 8.8.0, 8.12.0, 8.17.0, 8.27.0
 				WriteClass8270(file,obj,Config)
-			elif (Config.A3DVersionSystem == 6) or (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 8):
-				WriteClass85(file,obj,Config)
-			elif Config.A3DVersionSystem == 5:
-				WriteClass77(file,obj,Config)
-			elif Config.A3DVersionSystem == 4:
-				WriteClass77(file,obj,Config)
-			elif Config.A3DVersionSystem == 3:
-				WriteClass76(file,obj,Config)
-			elif Config.A3DVersionSystem == 2:
+			elif (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5) or (Config.A3DVersionSystem == 6):
+				# version 7.6.0, 7.7.0, 7.8.0
+				WriteClass78(file,obj,Config)
+			elif (Config.A3DVersionSystem == 2) or (Config.A3DVersionSystem == 3):
+				# version 7.5.0, 7.5.1
 				WriteClass75(file,obj,Config)
 			elif Config.A3DVersionSystem == 1:
+				# version 5.6.0
 				WriteClass5(file,obj,Config)
 			else:
 				print("No Alternativa Version\n")
@@ -292,8 +291,8 @@ def WritePackageHeader(file,Config):
 		file.write("\timport flash.display.BlendMode;\n")
 		file.write("\timport flash.geom.Point;\n")
 		file.write("\timport flash.display.Bitmap;\n\n")
-	elif Config.A3DVersionSystem == 2:
-		# version 7.5.1
+	elif (Config.A3DVersionSystem == 2) or (Config.A3DVersionSystem == 3):
+		# version 7.5.0, 7.5.1
 		file.write("\timport alternativa.engine3d.objects.Mesh;\n")
 		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
 		file.write("\timport alternativa.engine3d.materials.TextureMaterial;\n")
@@ -301,7 +300,7 @@ def WritePackageHeader(file,Config):
 		file.write("\timport alternativa.engine3d.core.Geometry;\n")
 		file.write("\timport __AS3__.vec.Vector;\n")
 		file.write("\timport flash.display.Bitmap;\n\n")
-	elif (Config.A3DVersionSystem == 3) or (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5):
+	elif (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5) or (Config.A3DVersionSystem == 6):
 		# version 7.6.0, 7.7.0, 7.8.0
 		file.write("\timport alternativa.engine3d.objects.Mesh;\n")
 		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
@@ -309,7 +308,7 @@ def WritePackageHeader(file,Config):
 		file.write("\timport alternativa.engine3d.core.Vertex;\n")
 		file.write("\timport __AS3__.vec.Vector;\n")
 		file.write("\timport flash.display.Bitmap;\n\n")
-	elif (Config.A3DVersionSystem == 6) or (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
+	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10) or (Config.A3DVersionSystem == 11):
 		# version 8.5.0, 8.8.0, 8.12.0, 8.17.0, 8.27.0
 		file.write("\timport alternativa.engine3d.core.VertexAttributes;\n")
 		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
@@ -365,7 +364,7 @@ def WriteMaterial(file,id,Config,Material=None):
 		Texture = GetMaterialTexture(Material)
 		if Texture:
 			#print(Texture)
-			# if version 5
+			# if version 5.6.0
 			if Config.A3DVersionSystem == 1:
 				#if flex
 				if Config.CompilerOption == 1:
@@ -377,8 +376,8 @@ def WriteMaterial(file,id,Config,Material=None):
 					file.write("\t\tprivate var bmp"+str(nme)+":Bitmap = new Bitmap(new bd"+str(nme)+"(0,0));\n")
 					#file.write('\t\tprivate var '+str(id)+':Texture = new Texture(bmp'+str(nme)+'.bitmapData, "'+str(nme)+'");\n\n')
 					file.write('\t\tprivate var '+str(id)+':TextureMaterial = new TextureMaterial(new Texture(new bmp'+str(nme)+'().bitmapData, "'+str(nme)+'"));\n\n')
-			#if version 7's
-			elif (Config.A3DVersionSystem == 2) or (Config.A3DVersionSystem == 3) or (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5):
+			#if version 7.5.0, 7.5.1, 7.6.0, 7.7.0, 7.8.0
+			elif (Config.A3DVersionSystem == 2) or (Config.A3DVersionSystem == 3) or (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5) or (Config.A3DVersionSystem == 6):
 				#if flex
 				if Config.CompilerOption == 1:
 					file.write('\t\t[Embed(source="'+str(Texture)+'")] private static const bmp'+str(nme)+':Class;\n')
@@ -388,7 +387,7 @@ def WriteMaterial(file,id,Config,Material=None):
 					file.write("\t\tprivate var bmp"+str(nme)+":Bitmap = new Bitmap(new bd"+str(nme)+"(0,0));\n")
 					file.write("\t\tprivate var "+str(id)+":TextureMaterial = new TextureMaterial(bmp"+str(nme)+".bitmapData, true, true);\n\n")
 			#if version 8.5.0, 8.8.0, 8.12.0, 8.17.0, 8.27.0
-			elif (Config.A3DVersionSystem == 6) or (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
+			elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10) or (Config.A3DVersionSystem == 11):
 				#if flex
 				if Config.CompilerOption == 1:
 					file.write('\t\t[Embed(source="'+str(Texture)+'")] private static const bmp'+str(nme)+':Class;\n')
@@ -435,52 +434,6 @@ def copyImages(obj,filepath):
 				img = tex.image
 				rel = bpy_extras.io_utils.path_reference(img.filepath, source_dir, dest_dir, 'COPY', "", copy_set)
 	bpy_extras.io_utils.path_reference_copy(copy_set)
-
-def exportDataFile(verts,uvt,indices):
-	print("writing file")
-	realfile = open("C:/Users/David/Desktop/New folder (4)/test.bin","wb")
-	file = tempfile.TemporaryFile(mode ='w+b')
-	
-	#version file
-	#compression on/off
-	
-	#length of verts -short
-	print("verts="+str(len(verts)*3))
-	file.write(struct.pack("<H", len(verts)*3))
-	for v in verts:
-		file.write(struct.pack("<f", v[0]))
-		file.write(struct.pack("<f", v[1]))
-		file.write(struct.pack("<f", v[2]))
-	
-	#length of uvts -short
-	print("uvt="+str(len(uvt)*2))
-	file.write(struct.pack("<H", len(uvt)*2))
-	for uv in uvt:
-		file.write(struct.pack("<f", uv[0]))
-		file.write(struct.pack("<f", uv[1]))
-	
-	#length of indices -short
-	print("indices="+str(len(indices)))
-	file.write(struct.pack("<H", len(indices)))
-	for i in indices:
-		file.write(struct.pack("<I", i))
-		
-	#materials
-	# -name
-	# -
-		
-	
-	#rewind
-	file.seek(0)
-	
-	#write compressed version
-	realfile.write(zlib.compress(file.read()))
-	
-	#write regular version
-	#realfile.write(file.read())
-	
-	file.close()
-	realfile.close()
 
 def writeByteArrayValues(file,verts,uvt,indices):
 	file.write("\t\t\tvalues= new <uint>[")
@@ -540,46 +493,12 @@ def WriteObjPosRot(file,obj):
 	file.write("\t\t\tthis.scaleY = %.6f;\n" % obj.scale[1])
 	file.write("\t\t\tthis.scaleZ = %.6f;\n" % obj.scale[2])
 
-def WriteClass8270(file,obj,Config):
+def getCommonData(obj):
 	mesh = obj.data
 	verts = mesh.vertices
 	Materials = mesh.materials
 	hasFaceUV = len(mesh.uv_textures) > 0
-	vs = []
-	uvt = []
-	ins = []
-	nr = []
-	
-	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
-	
-	#setup materials
-	mati = setupMaterials(file,obj,Config)
-	
-	#if bytearray
-	if Config.ByClass == 1:
-		file.write("\t\tprivate var values:Vector.<uint>;\n")
-		file.write("\t\tprivate var bytedata:ByteArray = new ByteArray();\n")
-	
-	#write attributes/geom
-	file.write("\t\tprivate var attributes:Array;\n\n")
-	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
-	file.write("\t\t\tattributes = new Array();\n")
-	file.write("\t\t\tattributes[0] = VertexAttributes.POSITION;\n")
-	file.write("\t\t\tattributes[1] = VertexAttributes.POSITION;\n")
-	file.write("\t\t\tattributes[2] = VertexAttributes.POSITION;\n")
-	file.write("\t\t\tattributes[3] = VertexAttributes.TEXCOORDS[0];\n")
-	file.write("\t\t\tattributes[4] = VertexAttributes.TEXCOORDS[0];\n")
-	if Config.ByClass == 0:
-		file.write("\t\t\tattributes[5] = VertexAttributes.NORMAL;\n")
-		file.write("\t\t\tattributes[6] = VertexAttributes.NORMAL;\n")
-		file.write("\t\t\tattributes[7] = VertexAttributes.NORMAL;\n")
-		file.write("\t\t\tattributes[8] = VertexAttributes.TANGENT4;\n")
-		file.write("\t\t\tattributes[9] = VertexAttributes.TANGENT4;\n")
-		file.write("\t\t\tattributes[10] = VertexAttributes.TANGENT4;\n")
-		file.write("\t\t\tattributes[11] = VertexAttributes.TANGENT4;\n\n")
-	file.write("\t\t\tvar g:Geometry = new Geometry();\n")
-	file.write("\t\t\tg.addVertexStream(attributes);\n")
-	
+	vs,uvt,ins,nr,tan = [],[],[],[],[]
 	vertices_list = []
 	vertices_co_list = []
 	vertices_index_list = []
@@ -619,9 +538,48 @@ def WriteClass8270(file,obj,Config):
 		for v in mesh.vertices:
 			vs.append([v.co[0],v.co[1],v.co[2]])
 			nr.append([v.normal[0],v.normal[1],v.normal[2]])
+	return vs,uvt,ins,nr,tan
+	
+def WriteClass8270(file,obj,Config):
+	mesh = obj.data
+	verts = mesh.vertices
+	Materials = mesh.materials
+	hasFaceUV = len(mesh.uv_textures) > 0
+	
+	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
+	
+	#setup materials
+	mati = setupMaterials(file,obj,Config)
+	
+	#if bytearray
+	if Config.ByClass == 1:
+		file.write("\t\tprivate var values:Vector.<uint>;\n")
+		file.write("\t\tprivate var bytedata:ByteArray = new ByteArray();\n")
+	
+	#write attributes/geom
+	file.write("\t\tprivate var attributes:Array;\n\n")
+	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
+	file.write("\t\t\tattributes = new Array();\n")
+	file.write("\t\t\tattributes[0] = VertexAttributes.POSITION;\n")
+	file.write("\t\t\tattributes[1] = VertexAttributes.POSITION;\n")
+	file.write("\t\t\tattributes[2] = VertexAttributes.POSITION;\n")
+	file.write("\t\t\tattributes[3] = VertexAttributes.TEXCOORDS[0];\n")
+	file.write("\t\t\tattributes[4] = VertexAttributes.TEXCOORDS[0];\n")
+	if Config.ByClass == 0:
+		file.write("\t\t\tattributes[5] = VertexAttributes.NORMAL;\n")
+		file.write("\t\t\tattributes[6] = VertexAttributes.NORMAL;\n")
+		file.write("\t\t\tattributes[7] = VertexAttributes.NORMAL;\n")
+		file.write("\t\t\tattributes[8] = VertexAttributes.TANGENT4;\n")
+		file.write("\t\t\tattributes[9] = VertexAttributes.TANGENT4;\n")
+		file.write("\t\t\tattributes[10] = VertexAttributes.TANGENT4;\n")
+		file.write("\t\t\tattributes[11] = VertexAttributes.TANGENT4;\n\n")
+	file.write("\t\t\tvar g:Geometry = new Geometry();\n")
+	file.write("\t\t\tg.addVertexStream(attributes);\n")
+	
+	#get data
+	vs,uvt,ins,nr,tan = getCommonData(obj)
 			
 	file.write("\t\t\tg.numVertices = "+str(len(vs))+";\n\n")
-	
 	
 	if Config.ByClass == 0:
 		#write vertices
@@ -688,8 +646,9 @@ def WriteClass8270(file,obj,Config):
 		
 		#set geometry
 		file.write("\t\t\tg.indices =  Vector.<uint>(ind);\n\n")
-		file.write("\t\t\t//g.calculateNormals();\n")
-		file.write("\t\t\t//g.calculateTangents(0);\n")
+		if Config.A3DVersionSystem == 11:
+			file.write("\t\t\t//g.calculateNormals();\n")
+			file.write("\t\t\t//g.calculateTangents(0);\n")
 		file.write("\t\t\tthis.geometry = g;\n")
 	else:
 		writeByteArrayValues(file,vs,uvt,ins)
@@ -756,355 +715,11 @@ def WriteClass8270(file,obj,Config):
 	file.write("\t\t\tthis.calculateBoundBox();\n")
 	file.write("\t\t}\n")
 	file.write("\t}\n")
-	
-def WriteClass85(file,obj,Config):
-	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
-	
-	# check if we have an a3dtype
-	# obj.has_key("a3dtype")
-	if "a3dtype" in obj:
-		print(obj["a3dtype"])
-	else:
-		print("nope")
-	
-	
-	mesh = obj.data
-	verts = mesh.vertices
-	faces = []
-	uvt = []
-	ind = []
-	normals = []
-	surfaces = []
-	hasFaceUV = len(mesh.uv_textures) > 0
-	numVertices = len(mesh.vertices)
-	Materials = mesh.materials
-	
-	#setup materials
-	mati = setupMaterials(file,obj,Config)
-		
-	file.write("\t\tprivate var attributes:Array;\n\n")
-	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
-	file.write("\t\t\tattributes = new Array();\n")
-	file.write("\t\t\tattributes[0] = VertexAttributes.POSITION;\n")
-	file.write("\t\t\tattributes[1] = VertexAttributes.POSITION;\n")
-	file.write("\t\t\tattributes[2] = VertexAttributes.POSITION;\n")
-	file.write("\t\t\tattributes[3] = VertexAttributes.TEXCOORDS[0];\n")
-	file.write("\t\t\tattributes[4] = VertexAttributes.TEXCOORDS[0];\n")
-	file.write("\t\t\tattributes[5] = VertexAttributes.NORMAL;\n")
-	file.write("\t\t\tattributes[6] = VertexAttributes.NORMAL;\n")
-	file.write("\t\t\tattributes[7] = VertexAttributes.NORMAL;\n")
-	file.write("\t\t\tattributes[8] = VertexAttributes.TANGENT4;\n")
-	file.write("\t\t\tattributes[9] = VertexAttributes.TANGENT4;\n")
-	file.write("\t\t\tattributes[10] = VertexAttributes.TANGENT4;\n")
-	file.write("\t\t\tattributes[11] = VertexAttributes.TANGENT4;\n\n")
-	
-	file.write("\t\t\tvar g:Geometry = new Geometry();\n")
-	file.write("\t\t\tg.addVertexStream(attributes);\n")
-	#file.write("\t\t\tg.numVertices = "+str(numVertices)+";\n\n")
-	
-	vs = []
-	ins = []
-	nr = []
-	
-	#test
-	vertices_list = []
-	vertices_co_list = []
-	vertices_index_list = []
-	normals_list = []
-	uv_coord_list = []
-	new_index = 0
-	uvtex = mesh.uv_textures.active
-	hasFaceUV = len(mesh.uv_textures) > 0
-	if hasFaceUV:
-		for uv_index, uv_itself in enumerate(uvtex.data):
-			uvs = uv_itself.uv1, uv_itself.uv2, uv_itself.uv3, uv_itself.uv4
-			for vertex_index, vertex_itself in enumerate(mesh.faces[uv_index].vertices):
-				vertex = mesh.vertices[vertex_itself]
-				vertices_list.append(vertex_itself)
-				vertices_co_list.append(vertex.co.xyz)
-				normals_list.append(vertex.normal.xyz)
-				vertices_index_list.append(new_index)
-				new_index += 1
-				# ^ We use our own indexing instead of Blender because
-				# Warcraft needs UV per vertex, Blender gives per face
-				# ^ For tris index is from 0 to 2, for quads 0 to 3
-				# (4 vertices make a quad)
-				uv_coord_list.append(uvs[vertex_index])
-				# uvs is a float array
-				# Lets see what we have stored:
-				#print("index " + str(vertices_list[-1]))
-				# ^ vertices_list
-				#print("v " + str(vertices_co_list[-1][0]) + " " + str(vertices_co_list[-1][1]) + " " +  str(vertices_co_list[-1][2]))
-				vs.append([vertices_co_list[-1][0],vertices_co_list[-1][1],vertices_co_list[-1][2]])
-				# ^ vertices_co_list
-				#print("n " + str(normals_list[-1][0]) + " " + str(normals_list[-1][1]) + " " +  str(normals_list[-1][2]))
-				nr.append([normals_list[-1][0],normals_list[-1][1],normals_list[-1][2]])
-				# ^ normals_list
-				#print("f " + str(vertices_index_list[-1]))
-				ins.append(vertices_index_list[-1])
-				# ^ vertices_index_list
-				#print("uv " + str(uv_coord_list[-1][0]) + " " + str(uv_coord_list[-1][1]) + "\n")
-				uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
-				uvt.append(uv)
-				# ^ uv_coord_list
-	else:
-		#no textures
-		for face in mesh.faces:
-			if len(face.vertices) > 0:
-				ins.append(face.vertices[0])
-				ins.append(face.vertices[1])
-				ins.append(face.vertices[2])
-				for i in range(len(face.vertices)):
-					hasFaceUV = len(mesh.uv_textures) > 0
-					if hasFaceUV:
-						uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
-						uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
-						uvt.append(uv)
-		for v in mesh.vertices:
-			vs.append([v.co[0],v.co[1],v.co[2]])
-			nr.append([v.normal[0],v.normal[1],v.normal[2]])
-	#test
-	
-	if Config.ByClass == 1:
-		exportDataFile(vs,uvt,ins)
 
-	file.write("\t\t\tg.numVertices = "+str(len(vs))+";\n\n")
-	
-	file.write("\t\t\tvar vertices:Array = [\n")
-	for v in vs:
-		file.write("\t\t\t\t%.6f, %.6f, %.6f,\n" % (v[0],v[1],v[2]))
-	file.write("\t\t\t];\n")
-	
-	# verts
-	#file.write("\t\t\tvar vertices:Array = [\n")
-	#vl =0
-	#for face in mesh.faces:
-	#	if len(face.vertices) > 0:
-	#		v = mesh.vertices[face.index]
-	#		normals.append(v.normal)
-	#		if vl != len(mesh.vertices)-1:
-	#			file.write("\t\t\t\t%.6f, %.6f, %.6f,\n" % v.co[:])
-	#		else:
-	#			file.write("\t\t\t\t%.6f, %.6f, %.6f\n" % v.co[:])
-	#		vl += 1
-	#file.write("\t\t\t];\n")
-	
-	#file.write("\t\t\tvar vertices:Array = [\n")
-	#vl =0
-	#for v in mesh.vertices:
-	#	normals.append(v.normal)
-	#	if vl != len(mesh.vertices)-1:
-	#		file.write("\t\t\t\t%.6f, %.6f, %.6f,\n" % v.co[:])
-	#	else:
-	#		file.write("\t\t\t\t%.6f, %.6f, %.6f\n" % v.co[:])
-	#	vl += 1
-	#file.write("\t\t\t];\n")
-	
-	#file.write("\t\t\tvar vertices:Array = [\n")
-	#for face in mesh.faces:
-	#	if len(face.vertices) > 0:
-	#		#v = mesh.vertices[face.index]
-	#		#vertex indecies
-	#		#print(face.vertices[:])
-	#		for vi in face.vertices:
-	#			v = mesh.vertices[vi]
-	#			normals.append(v.normal)
-	#			file.write("\t\t\t\t%.6f, %.6f, %.6f,\n" % v.co[:])
-	#file.write("\t\t\t];\n")
-	
-	
-	triangles = -1
-	start = []
-	end = []
-	items = []
-	c=0
-	endcount=-1
-	laststart=0
-	lastmat = None
-	mts = []
-	for face in mesh.faces:
-		triangles = triangles + 1
-		#print(Materials[face.material_index].name+"\n")
-		if face.material_index <= len(Materials)-1:
-			srcmat = Materials[face.material_index]
-			if srcmat not in items:
-				#print(srcmat.name+"\n")
-				#if c == 0:
-				#	start.append(c)
-				#	laststart = 0
-				#else:
-				#temp = (end[endcount] * 3) + laststart
-				start.append(face.index * 3)
-				#laststart = temp
-				if c != 0:
-					end.append(triangles)
-					#endcount = endcount+1
-					triangles = 0
-				mts.append(cleanupString(str(srcmat.name)))
-			else:
-				if srcmat != lastmat:
-					#print("last material doesn't match this one.."+lastmat.name+"-"+srcmat.name)
-					start.append(face.index * 3)
-					if c != 0:
-						end.append(triangles)
-						triangles = 0
-					mts.append(cleanupString(str(srcmat.name)))
-			lastmat = srcmat
-			items.append(srcmat)
-			c = c+1
-	end.append(triangles+1)
-	
-	
-	i = len(face.vertices)
-	
-	#for face in mesh.faces:
-	#	if len(face.vertices) > 0:
-	#		for i in range(len(face.vertices)):
-	#			hasFaceUV = len(mesh.uv_textures) > 0
-	#			if hasFaceUV:
-	#				uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
-	#				uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
-					#uv_layer = mesh.uv_textures.active.data 
-					#u1 = uv_layer[face.index].uv1[0]
-					#v1 = 1.0 - uv_layer[face.index].uv1[1]
-					#u2 = uv_layer[face.index].uv2[0] 
-					#v2 = 1.0 - uv_layer[face.index].uv2[1] 
-					#u3 = uv_layer[face.index].uv3[0] 
-					#v3 = 1.0 - uv_layer[face.index].uv3[1] 
-					#uv = [u1,v1,u2,v2,u3,v3]
-	#				uvt.append(uv)
-					
-	if len(uvt) > 0:
-		x=1
-		file.write("\t\t\tvar uvt:Array = [\n")
-		for u in uvt:
-			#if x <= numVertices:
-			file.write("\t\t\t\t"+str(u[0])+","+str(u[1]))
-			if i != len(uvt)-1:
-				file.write(",\n")
-			else:
-				file.write("\n")
-			x = x+1
-		file.write("\t\t\t];\n")
-	else:
-		file.write("\t\t\tvar uvt:Array = new Array();\n")
-	
-	#write out indices
-	#mesh_faces = mesh.faces[:]
-	#ind = 0
-	#if len(mesh_faces) > 0:
-	#	file.write("\t\t\tvar ind:Array = [\n")
-	#	for i in range(len(mesh_faces)):
-	#		fv = mesh_faces[i].vertices[:]
-	#		if len(fv) == 3:
-	#			file.write("\t\t\t\t%i, %i, %i" % fv)
-	#			print("%i %i %i -1, " % fv)
-	#			if i != len(mesh_faces)-1:
-	#				file.write(",\n")
-	#			else:
-	#				file.write("\n")
-	#			ind += 1
-	#		else:
-	#			file.write("\t\t\t\t%i, %i, %i,\n" % (fv[0], fv[1], fv[2]))
-	#			file.write("\t\t\t\t%i, %i, %i" % (fv[0], fv[2], fv[3]))
-	#			#print("%i %i %i -1, " % (fv[0], fv[1], fv[2]))
-	#			#print("%i %i %i -1, " % (fv[0], fv[2], fv[3]))
-	#			if i != len(mesh_faces)-1:
-	#				file.write(",\n")
-	#			else:
-	#				file.write("\n")
-	#			ind += 2
-	#	file.write("\t\t\t];\n")
-	#else:
-	#	file.write("\t\t\tvar ind:Array = new Array();\n")
-	
-	#file.write("\t\t\tvar ind:Array = [\n")
-	#for face in mesh.faces:
-	#	if len(face.vertices) > 0:
-	#		file.write("\t\t\t\t%i, %i, %i,\n" % (face.vertices[:]))
-	#file.write("\t\t\t];\n")
-	
-	file.write("\t\t\tvar ind:Array = [\n")
-	x=0
-	for t in ins:
-		if x == 0:
-			file.write("\t\t\t\t")
-		file.write("%i," % (t))
-		if x >= 2:
-			file.write("\n")
-			x=-1
-		x = x+1
-	file.write("\t\t\t];\n")
-	
-	#write normals
-	#if len(normals) > 0:
-	#	file.write("\t\t\tvar normals:Array = [\n")
-	#	for i in range(len(normals)):
-	#		#file.write("\t\t\t\t%i, %i, %i" % (normals[i][0],normals[i][1],normals[i][2]))
-	#		file.write("\t\t\t\t%.6f, %.6f, %.6f" % normals[i][:])
-	#		if i != len(normals)-1:
-	#			file.write(",\n")
-	#		else:
-	#			file.write("\n")
-	#	file.write("\t\t\t];\n")
-	#else:
-	#	file.write("\t\t\tvar normals:Array = new Array();\n")
-	
-	
-	file.write("\t\t\tvar normals:Array = [\n")
-	for n in nr:
-		file.write("\t\t\t\t%.6f, %.6f, %.6f,\n" % (n[0],n[1],n[2]))
-	file.write("\t\t\t];\n")
-	normals = nr
-	
-	#write tangents
-	file.write("\t\t\tvar tangent:Array = new Array();\n\n")	
-	
-	file.write("\t\t\tg.setAttributeValues(VertexAttributes.POSITION, Vector.<Number>(vertices));\n")
-	
-	if len(uvt) > 0:
-		file.write("\t\t\tg.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")
-	else:
-		file.write("\t\t\t//g.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")	
-		
-	if len(normals) > 0:
-		file.write("\t\t\tg.setAttributeValues(VertexAttributes.NORMAL, Vector.<Number>(normals));\n")
-	else:
-		file.write("\t\t\t//g.setAttributeValues(VertexAttributes.NORMAL, Vector.<Number>(normals));\n")
-	
-	file.write("\t\t\t//g.setAttributeValues(VertexAttributes.TANGENT4, Vector.<Number>(tangent));\n")
-	file.write("\t\t\tg.indices =  Vector.<uint>(ind);\n\n")
-	
-	# if version 8.27.0
-	if Config.A3DVersionSystem == 10:
-		file.write("\t\t\t//g.calculateNormals();\n")
-		file.write("\t\t\t//g.calculateTangents(0);\n")
-		
-	file.write("\t\t\tthis.geometry = g;\n")
-	
-	#file.write("\t\t\t//this.addSurface(new FillMaterial(0xFF0000), 0, "+str(ind)+");\n")
-	
-	for x in range(len(mts)):
-		#material:Material, indexBegin:uint, numTriangles:uint
-		#file.write("\t\t\tthis.addSurface("+mati[x]+", 0, "+str(ind)+");\n")
-		file.write("\t\t\tthis.addSurface("+mts[x]+", "+str(start[x])+", "+str(end[x])+");\n")
-	
-	file.write("\t\t\tthis.calculateBoundBox();\n")
-	
-	# write mesh rotation, location and scale
-	#WriteObjPosRot(file,obj)
-	
-	file.write("\t\t}\n")
-	file.write("\t}\n")
-	
-def WriteClass77(file,obj,Config):
-	#base=os.path.basename(file.name)
-	#basename, extension = os.path.splitext(base)
+def WriteClass78(file,obj,Config):
 	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
 		
 	mesh = obj.data
-	#mesh = Mesh(obj.name)
-	#mesh = bpy.data.meshes[obj.name]
 	verts = mesh.vertices
 	Materials = mesh.materials
 	
@@ -1144,69 +759,17 @@ def WriteClass77(file,obj,Config):
 				file.write('\t\t\t\t]),new FillMaterial('+rgb2hex((Diffuse[0], Diffuse[1], Diffuse[2]))+'));\n\n')
 			else:
 				file.write('\t\t\t\t]),new FillMaterial(0xFF0000));\n\n')
-	
-	
-	#calculations
-	file.write("\t\t\tcalculateFacesNormals();\n")
-	file.write("\t\t\tcalculateVerticesNormals();\n")
-	file.write("\t\t\tcalculateBounds();\n")
-	
-	file.write("\t\t}\n")
-	file.write("\t}\n")
 
-def WriteClass76(file,obj,Config):
-	#base=os.path.basename(file.name)
-	#basename, extension = os.path.splitext(base)
-	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
-		
-	mesh = obj.data
-	#mesh = Mesh(obj.name)
-	#mesh = bpy.data.meshes[obj.name]
-	verts = mesh.vertices
-	Materials = mesh.materials
-	
-	#setup materials
-	mati = setupMaterials(file,obj,Config)
-	
-	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
-	
-	cn=-1
-	for face in mesh.faces:
-		cn +=1
-		file.write('\t\t\t\taddFace(Vector.<Vertex>([\n')
-		if len(face.vertices) > 0:
-			for i in range(len(face.vertices)):
-				hasFaceUV = len(mesh.uv_textures) > 0
-				if hasFaceUV:
-					uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
-					uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
-					file.write('\t\t\t\t\taddVertex(%f, %f, %f, %f, %f),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z, uv[0], uv[1]) )
-				else:
-					file.write('\t\t\t\t\taddVertex(%f, %f, %f, 0, 0),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z) )
-		if hasFaceUV:
-			#file.write('\t\t\t\t]),'+uvimagevarrefs[face.index]+');\n\n')
-			if mati[face.material_index]:
-				file.write('\t\t\t\t]),'+mati[face.material_index]+');\n\n')
-			else:
-				if len(Materials) > 0:
-					Diffuse = list(Materials[face.material_index].diffuse_color)
-					Diffuse.append(Materials[face.material_index].alpha)
-					file.write('\t\t\t\t]),new FillMaterial('+rgb2hex((Diffuse[0], Diffuse[1], Diffuse[2]))+'));\n\n')
-				else:
-					file.write('\t\t\t\t]),new FillMaterial(0xFF0000));\n\n')
-		else:
-			if len(Materials) > 0:
-				Diffuse = list(Materials[face.material_index].diffuse_color)
-				Diffuse.append(Materials[face.material_index].alpha)
-				file.write('\t\t\t\t]),new FillMaterial('+rgb2hex((Diffuse[0], Diffuse[1], Diffuse[2]))+'));\n\n')
-			else:
-				file.write('\t\t\t\t]),new FillMaterial(0xFF0000));\n\n')
-	
-	
 	#calculations
-	file.write("\t\tcalculateNormals();\n")
-	file.write("\t\tcalculateBounds();\n")
-	
+	if Config.A3DVersionSystem == 4:
+		#7.6.0
+		file.write("\t\tcalculateNormals();\n")
+		file.write("\t\tcalculateBounds();\n")
+	else:
+		#7.7.0 - 7.8.0
+		file.write("\t\t\tcalculateFacesNormals();\n")
+		file.write("\t\t\tcalculateVerticesNormals();\n")
+		file.write("\t\t\tcalculateBounds();\n")
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 	
@@ -1265,57 +828,15 @@ def WriteClass5(file,obj,Config):
 	verts = mesh.vertices
 	Materials = mesh.materials
 	hasFaceUV = len(mesh.uv_textures) > 0
-	vs = []
-	uvt = []
-	ins = []
-	nr = []
 	
 	#setup materials
 	mati = setupMaterials(file,obj,Config)
 	
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 	
-	vertices_list = []
-	vertices_co_list = []
-	vertices_index_list = []
-	normals_list = []
-	uv_coord_list = []
-	new_index = 0
-	uvtex = mesh.uv_textures.active
-	if hasFaceUV:
-		for uv_index, uv_itself in enumerate(uvtex.data):
-			uvs = uv_itself.uv1, uv_itself.uv2, uv_itself.uv3, uv_itself.uv4
-			for vertex_index, vertex_itself in enumerate(mesh.faces[uv_index].vertices):
-				vertex = mesh.vertices[vertex_itself]
-				vertices_list.append(vertex_itself)
-				vertices_co_list.append(vertex.co.xyz)
-				normals_list.append(vertex.normal.xyz)
-				vertices_index_list.append(new_index)
-				new_index += 1
-				uv_coord_list.append(uvs[vertex_index])
-				vs.append([vertices_co_list[-1][0],vertices_co_list[-1][1],vertices_co_list[-1][2]])
-				nr.append([normals_list[-1][0],normals_list[-1][1],normals_list[-1][2]])
-				ins.append(vertices_index_list[-1])
-				uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
-				uvt.append(uv)
-	else:
-		# if there are no image textures, output the old way
-		for face in mesh.faces:
-			if len(face.vertices) > 0:
-				ins.append(face.vertices[0])
-				ins.append(face.vertices[1])
-				ins.append(face.vertices[2])
-				for i in range(len(face.vertices)):
-					hasFaceUV = len(mesh.uv_textures) > 0
-					if hasFaceUV:
-						uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
-						uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
-						uvt.append(uv)
-		for v in mesh.vertices:
-			vs.append([v.co[0],v.co[1],v.co[2]])
-			nr.append([v.normal[0],v.normal[1],v.normal[2]])
-			
-	
+	#get data
+	vs,uvt,ins,nr,tan = getCommonData(obj)
+
 	#write vertices
 	if len(vs) > 0:
 		count = 0
@@ -1435,7 +956,6 @@ def WriteDocuClass(file,aobjs,Config):
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 	WritePackageEnd(file)
-
 
 #==================================
 # A3D EXPORTER
