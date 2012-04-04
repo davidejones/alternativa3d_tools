@@ -42,6 +42,12 @@ Installation Notes
 Changelog
 ---------
 
+### 1.1.4
+- Added example exports for each version with built swf
+- Added in options for 7.5.0
+- Condensed version 8 coding
+- Condensed version 7 coding
+
 ### 1.1.3
 - Fixed error when exporting in version 7.51
 - Rebuilt version 5.6.0 as it wasn't exporting anything useful
