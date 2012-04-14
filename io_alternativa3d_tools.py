@@ -691,7 +691,23 @@ def WriteClass8270(file,obj,Config):
 		file.write("\t\t\tthis.geometry = g;\n")
 
 	
+	start,end,mts = collectSurfaces(mesh)
+	
+	#set surfaces
+	if len(mts) > 0:
+		for x in range(len(mts)):
+			file.write("\t\t\tthis.addSurface("+mts[x]+", "+str(start[x])+", "+str(end[x])+");\n")
+	else:
+		file.write("\t\t\t//this.addSurface(new FillMaterial(0xFF0000), 0, "+str(len(ins))+");\n")
+	
+	#finishup
+	file.write("\t\t\tthis.calculateBoundBox();\n")
+	file.write("\t\t}\n")
+	file.write("\t}\n")
+
+def collectSurfaces(mesh):
 	#collect surface data, indexbegin/numtriangles etc
+	Materials = mesh.materials
 	c=0
 	triangles = -1
 	lastmat = None
@@ -717,19 +733,8 @@ def WriteClass8270(file,obj,Config):
 			items.append(srcmat)
 			c = c+1
 	end.append(triangles+1)
+	return start,end,mts
 	
-	#set surfaces
-	if len(mts) > 0:
-		for x in range(len(mts)):
-			file.write("\t\t\tthis.addSurface("+mts[x]+", "+str(start[x])+", "+str(end[x])+");\n")
-	else:
-		file.write("\t\t\t//this.addSurface(new FillMaterial(0xFF0000), 0, "+str(len(ins))+");\n")
-	
-	#finishup
-	file.write("\t\t\tthis.calculateBoundBox();\n")
-	file.write("\t\t}\n")
-	file.write("\t}\n")
-
 def WriteClass78(file,obj,Config):
 	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
 		
@@ -1062,6 +1067,7 @@ def a3dexport(file,Config):
 	maps = []
 	materials = []
 	meshes = []
+	surfaces = []
 	objects = []
 	omniLights = []
 	spotLights = []
@@ -1077,10 +1083,11 @@ def a3dexport(file,Config):
 		#data
 		mesh = obj.data
 		
-		#get raw data
+		#get raw geometry data
 		vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+		#get surface data
+		start,end,mts = collectSurfaces(mesh)
 		
-		#populate class data
 		#create mesh boundbox
 		a3dbox = A3D2Box()
 		a3dbox._box = [-1.0000003576278687,-1.0000005960464478,-1,1.0000004768371582,1.0000003576278687,1]
@@ -1107,12 +1114,38 @@ def a3dexport(file,Config):
 		a3dmat._specularMapId = int("ffffffff",16)
 		#materials.append(a3dmat)
 		
-		#create surface
-		a3dsurf = A3D2Surface()
-		a3dsurf._indexBegin = 0
-		#a3dsurf._materialId = int("ffffffff",16)
-		#a3dsurf._materialId = 0
-		a3dsurf._numTriangles = int(len(ins)/3)
+		#set surfaces
+		if len(mts) > 0:
+			for x in range(len(mts)):
+				#print(mts[x])
+				
+				#create material
+				a3dmat = A3D2Material()
+				a3dmat._diffuseMapId = int("ffffffff",16)
+				a3dmat._glossinessMapId = int("ffffffff",16)
+				a3dmat._id = len(materials)
+				a3dmat._lightMapId = int("ffffffff",16)
+				a3dmat._normalMapId = int("ffffffff",16)
+				a3dmat._opacityMapId = int("ffffffff",16)
+				a3dmat._reflectionCubeMapId = int("ffffffff",16)
+				a3dmat._specularMapId = int("ffffffff",16)
+				materials.append(a3dmat)
+				
+				#create surface
+				a3dsurf = A3D2Surface()
+				a3dsurf._indexBegin = int(start[x])
+				#a3dsurf._materialId = int("ffffffff",16)
+				a3dsurf._materialId = a3dmat._id
+				a3dsurf._numTriangles = int(end[x])
+				surfaces.append(a3dsurf)
+		else:
+			#surface for all faces
+			a3dsurf = A3D2Surface()
+			a3dsurf._indexBegin = 0
+			#a3dsurf._materialId = int("ffffffff",16)
+			#a3dsurf._materialId = 0
+			a3dsurf._numTriangles = int(len(ins)/3)
+			surfaces.append(a3dsurf)
 		
 		#create transform/matrix
 		a3dtrans = A3D2Transform()
@@ -1138,11 +1171,11 @@ def a3dexport(file,Config):
 		#a3dmesh._boundBoxId = 0
 		a3dmesh._id = 0
 		a3dmesh._indexBufferId = 0
-		#a3dmesh._name = a3dstr
+		a3dmesh._name = a3dstr
 		#a3dmesh._parentId = 0
-		a3dmesh._surfaces = [a3dsurf]
+		a3dmesh._surfaces = surfaces
 		a3dmesh._transform = a3dtrans
-		a3dmesh._vertexBuffers = [0]
+		a3dmesh._vertexBuffers = [0] #number of buffers
 		a3dmesh._visible = 1
 		meshes.append(a3dmesh)
 		
@@ -1161,11 +1194,33 @@ def a3dexport(file,Config):
 		#create vertexbuffer
 		a3dvbuf = A3D2VertexBuffer()
 		#POSITION = 0, NORMAL = 1, TANGENT4 = 2, JOINT = 3,TEXCOORD = 4
-		a3dvbuf._attributes = [0]
+		attar = []
+		if len(vs) > 0:
+			attar.append(0)
+		if len(uvt) > 0:
+			attar.append(4)
+		if len(nr) > 0:
+			attar.append(1)
+		if len(tan) > 0:
+			attar.append(2)
+		#if len(jnt) > 0:
+		#	attar.append(3)
+			
+		a3dvbuf._attributes = attar
+		j=0
 		for v in vs:
-			a3dvbuf._byteBuffer.append(v[0])
-			a3dvbuf._byteBuffer.append(v[1])
-			a3dvbuf._byteBuffer.append(v[2])
+			if 0 in attar:
+				a3dvbuf._byteBuffer.append(v[0])
+				a3dvbuf._byteBuffer.append(v[1])
+				a3dvbuf._byteBuffer.append(v[2])
+			if 4 in attar:
+				a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
+				a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
+			if 1 in attar:
+				a3dvbuf._byteBuffer.append(nr[j][0])
+				a3dvbuf._byteBuffer.append(nr[j][1])
+				a3dvbuf._byteBuffer.append(nr[j][2])
+			j = j +1
 		a3dvbuf._id = 0
 		#a3dvbuf._vertexCount = int(len(ins))
 		#a3dvbuf._vertexCount = int(len(vs) * 3) 
@@ -1181,37 +1236,6 @@ def a3dexport(file,Config):
 	
 	# save to file
 	a3d2.write(file)
-	
-	#write message data
-	#write bound box
-	#arr = A3D2Array()
-	#a3dbox = A3D2Box()
-	#a3dbox.write(file)
-	#arr.write(file,len(a3dbox._box) * 4)
-	
-	#indexbuf
-	#a3dibuf = A3D2IndexBuffer()
-	#a3dibuf.write(file)
-	
-	#mesh
-	#a3dmesh = A3D2Mesh()
-	#a3dmesh.write(file)
-	
-	#surface
-	#a3dsurf = A3D2Surface()
-	#a3dsurf.write(file)
-	
-	#vertbuff
-	#a3dvbuf = A3D2VertexBuffer()
-	#a3dvbuf.write(file)
-	
-	#numelements in msg data
-		
-	#write version
-	
-	#write null mask
-	
-	#writepackage
 	
 	print('Export Completed...\n')
 
@@ -1555,11 +1579,11 @@ class A3DNull:
 						byte = int( (x << rbits) & 255 )
 					else:
 						byte = int( (x >> bitstoshift) & (255) )
-					#print(byte)
+					print(byte)
 					file.write(struct.pack("B",byte))	
 				
 			else:
-				print("")
+				print("coming soon")
 			
 class A3D2:
 	def __init__(self,ambientLights=[],animationClips=[],animationTracks=[],boxes=[],cubeMaps=[],decals=[],directionalLights=[],images=[],indexBuffers=[],joints=[],maps=[],materials=[],meshes=[],objects=[],omniLights=[],spotLights=[],sprites=[],skins=[],vertexBuffers=[],Config=None):
@@ -1887,24 +1911,47 @@ class A3D2Array:
 		#bitnum = NumberOfSetBits(bylen)
 		bitnum = bylen.bit_length()
 		if bitnum <= 7:
-			#print("1 byte required\n")
+			print("1 byte required\n")
 			file.write(struct.pack("B", bylen))
 		elif bitnum > 7 and bitnum <= 14:
-			#print("2 byte required\n")
-			#byte1 = int((bylen >> (bitnum - 6)) & 255)
-			#byte1 = byte1 + 128 #add 10000000 bits
-			#byte2 = int(bylen << (8 - (bitnum - 6)) & 255)
+			print("2 byte required\n")
+			print(bitnum) #8
+			print(bylen) #192
+			#if is 8 bits (fits exacty into 1 byte)
+			#if bitnum == 8:
+			#	#placed right to left
+			#	byte1 = int((bylen >> 8) & 255)
+			#	byte1 = byte1 + 128 #add 10000000 bits
+			#	byte2 = int(bylen & 255)
+			#else:
+			#	byte1 = int((bylen >> (bitnum - 6)) & 255)
+			#	byte1 = byte1 + 128 #add 10000000 bits
+			#	byte2 = int(bylen << (8 - (bitnum - 6)) & 255)
+			
 			byte1 = int((bylen >> 8) & 255)
 			byte1 = byte1 + 128 #add 10000000 bits
 			byte2 = int(bylen & 255)
 			print(byte1)
 			print(byte2)
-			#byte1 = 129
-			#byte2 = 152
 			file.write(struct.pack("B", byte1))
 			file.write(struct.pack("B", byte2))
 		elif bitnum > 14 and bitnum <= 22:
 			print("3 byte required\n")
+			if bitnum == 16:
+				#left to right
+				print("coming soon..")
+			else:
+				#right to left
+				byte1 = int( (bylen >> 16) & 255 )
+				byte1 = byte1 + 192 #add 11000000 bits
+				byte2 = int( (bylen >> 8) & 255 )
+				byte3 = int(bylen & 255)
+			print(byte1)
+			print(byte2)
+			print(byte3)
+			file.write(struct.pack("B", byte1))
+			file.write(struct.pack("B", byte2))
+			file.write(struct.pack("B", byte3))
 		else:
 			print("Array bytes too long!\n")
 
@@ -2677,7 +2724,7 @@ class A3D2VertexBuffer:
 		#bytebuffer -little endian float
 		arr = A3D2Array()
 		#bybufsize = int(len(self._byteBuffer))
-		bybufsize = int(len(self._byteBuffer)*4)
+		bybufsize = int(len(self._byteBuffer)*4) #this worked for cube
 		#bybufsize = int(len(self._byteBuffer)*3)
 		#bybufsize = int( (self._vertexCount*3)*4 )
 		arr.write(file,bybufsize) # times 4 because bytebuffer is length of bytes
@@ -2690,6 +2737,24 @@ class A3D2VertexBuffer:
 		print("vbuf_vertexCount="+str(self._vertexCount))
 		print("vbuf_byteBufferlength="+str(bybufsize))
 		print("vbuf_attributes="+str(self._attributes))
+	
+	def packVertexBuffer(self,file):
+		print("unpackVertexBuffer")
+		#versionMinor >= 6 then compressed
+		
+		#data = read readUnsignedShort
+		#vi &= 0x7FFF;
+		#vi ^= (vi + 0x1c000) ^ vi;
+		#vi = vi << 13;
+		#tempBuffer.writeUnsignedInt(data > 0x8000 ? vi | 0x80000000 : vi);
+		
+	def unpackVertexBuffer(self,file):
+		print("unpackVertexBuffer")
+		#data = read readUnsignedShort
+		#vi &= 0x7FFF;
+		#vi ^= (vi + 0x1c000) ^ vi;
+		#vi = vi << 13;
+		#tempBuffer.writeUnsignedInt(data > 0x8000 ? vi | 0x80000000 : vi);
 
 class A3D2Surface:
 	def __init__(self):
