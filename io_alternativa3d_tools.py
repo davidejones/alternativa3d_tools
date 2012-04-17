@@ -10,7 +10,7 @@ bl_info = {
 	'tracker_url': 'http://davidejones.com',
 	'category': 'Import-Export'}
 
-import math, os, time, bpy, random, mathutils, re, ctypes, struct, binascii, zlib, tempfile, re
+import math, os, time, bpy, random, mathutils, re, ctypes, struct, binascii, zlib, tempfile, re, operator
 import bpy_extras.io_utils
 from bpy import ops
 from bpy.props import *
@@ -49,6 +49,35 @@ def NumberOfSetBits(i):
 	i = i - ((i >> 1) & 0x55555555)
 	i = (i & 0x33333333) + ((i >> 2) & 0x33333333)
 	return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24
+	
+def invertNormals(lst):
+	newlst = []
+	for x in range(len(lst)):
+		tmp = []
+		for y in range(len(lst[x])):
+			if lst[x][y] < 0:
+				invertValue(lst[x][y])
+			else:
+				invertValue(lst[x][y])
+			newlst.append(tmp)
+	return newlst
+
+def invertValue(val):
+	if val < 0:
+		return abs(val)
+	else:
+		return -abs(val)
+
+def checkForOrco(obj):
+	has_orco = False
+	for mat_slot in [m for m in obj.material_slots if m.material is not None]:
+		for tex in [t for t in mat_slot.material.texture_slots if (t and t.texture and t.use)]:
+			if tex.texture_coords == 'ORCO':
+				has_orco = True
+				break  # break tex loop
+		if has_orco:
+			break  # break mat_slot loop
+	return has_orco
 #==================================
 # Incomplete Functions - custom obj shit i made
 #==================================
@@ -512,6 +541,11 @@ def getCommonData(obj):
 	uv_coord_list = []
 	new_index = 0
 	uvtex = mesh.uv_textures.active
+	has_orco = checkForOrco(obj)
+	
+	if has_orco:
+		print("HAS ORCO")
+	
 	if hasFaceUV:
 		for uv_index, uv_itself in enumerate(uvtex.data):
 			uvs = uv_itself.uv1, uv_itself.uv2, uv_itself.uv3, uv_itself.uv4
@@ -535,6 +569,7 @@ def getCommonData(obj):
 				ins.append(face.vertices[0])
 				ins.append(face.vertices[1])
 				ins.append(face.vertices[2])
+				#nr.append([[face.normal[0],face.normal[1],face.normal[2]]])
 				for i in range(len(face.vertices)):
 					hasFaceUV = len(mesh.uv_textures) > 0
 					if hasFaceUV:
@@ -546,13 +581,282 @@ def getCommonData(obj):
 			nr.append([v.normal[0],v.normal[1],v.normal[2]])
 
 	#get bound box
-	for v in obj.bound_box.data.data.vertices:
-		bb.append([v.co[0],v.co[1],v.co[2]])
+	#for v in obj.bound_box.data.data.vertices:
+	#	bb.append([v.co[0],v.co[1],v.co[2]])
+		
+	bb = getBoundBox(obj)
 	
-	#get transform
-	trns=[obj.location[0],obj.rotation_euler[0],obj.scale[0],obj.location[1],obj.rotation_euler[1],obj.scale[1],obj.location[2],obj.rotation_euler[2],obj.scale[2],obj.dimensions[0],obj.dimensions[1],obj.dimensions[2]]
+	#mesh.calc_normals()
+	#norms = calculateNormals(ins,vs)
+	
+	if len(uvt) > 0:
+		nr = []
+		for f in mesh.faces:
+			if f.use_smooth:
+				for vi in f.vertices:
+					v = mesh.vertices[vi]
+					nr.append([v.normal[0],v.normal[1],v.normal[2]])
+			else:
+				#hard normal
+				#nr.append([f.normal[0],f.normal[1],f.normal[2]])
+				nr = calculateNormals(ins,vs)
+				#nr.append([f.normal[0],f.normal[1],f.normal[2]])
+				#if ( len( f.normal ) > 0 ):
+				#	nr.append([f.normal[0],f.normal[1],f.normal[2]])
+				#else:
+				#	nr.append( [ 0.0, 0.0, 0.0 ] )
+	
+	#if we have uv's and normals then calculate tangents
+	if (len(uvt) > 0) and (len(nr) > 0):
+		tan = calculateTangents(ins,vs,uv_coord_list,nr)
+	
+	#get transform	#trns=[obj.location[0],obj.rotation_euler[0],obj.scale[0],obj.location[1],obj.rotation_euler[1],obj.scale[1],obj.location[2],obj.rotation_euler[2],obj.scale[2],obj.dimensions[0],obj.dimensions[1],obj.dimensions[2]]
+	trns=[obj.location[0],obj.rotation_euler[0],obj.scale[0],obj.location[1],obj.rotation_euler[1],obj.scale[1],obj.location[2],obj.rotation_euler[2],obj.scale[2],0,0,0]
 	
 	return vs,uvt,ins,nr,tan,bb,trns
+
+def calculateNormals(ins,verts):
+	# based on alternativas code here
+	# https://github.com/AlternativaPlatform/Alternativa3D/blob/master/src/alternativa/engine3d/resources/Geometry.as
+	normals = []
+	x=0
+	numIndices = len(ins)
+	
+	#print("numIndices="+str(numIndices))
+	#print("verts="+str(len(verts)))
+	
+	for i in range(numIndices):
+	
+		if i >= numIndices/3:
+			break
+			
+		vertIndexA = ins[x]
+		vertIndexB = ins[x + 1]
+		vertIndexC = ins[x + 2]
+		
+		#vertex1
+		ax = verts[x][0]
+		ay = verts[x][1]
+		az = verts[x][2]
+
+		#vertex2
+		bx = verts[x + 1][0]
+		by = verts[x + 1][1]
+		bz = verts[x + 1][2]
+
+		#vertex3
+		cx = verts[x + 2][0]
+		cy = verts[x + 2][1]
+		cz = verts[x + 2][2]
+
+		#v2-v1
+		abx = bx - ax
+		aby = by - ay
+		abz = bz - az
+
+		#v3-v1
+		acx = cx - ax
+		acy = cy - ay
+		acz = cz - az
+		
+		normalX = acz*aby - acy*abz
+		normalY = acx*abz - acz*abx
+		normalZ = acy*abx - acx*aby
+		
+		normalLen = math.sqrt(normalX*normalX + normalY*normalY + normalZ*normalZ)
+		
+		if (normalLen > 0):
+			normalX /= normalLen
+			normalY /= normalLen
+			normalZ /= normalLen
+		else:
+			print("degenerated triangle")
+			print(i/3)
+		
+		# v1 normal
+		if vertIndexA in normals:
+			normal = normals[vertIndexA]
+			normal.x += normalX
+			normal.y += normalY
+			normal.z += normalZ
+		else:
+			normals.append(mathutils.Vector((normalX, normalY, normalZ)))
+
+		# v2 normal
+		if vertIndexB in normals:
+			normal = normals[vertIndexB]
+			normal.x += normalX
+			normal.y += normalY
+			normal.z += normalZ
+		else:
+			normals.append(mathutils.Vector((normalX, normalY, normalZ)))
+
+		# v3 normal
+		if vertIndexC in normals:
+			normal = normals[vertIndexC]
+			normal.x += normalX
+			normal.y += normalY
+			normal.z += normalZ
+		else:
+			normals.append(mathutils.Vector((normalX, normalY, normalZ)))
+		
+		x = x + 3
+		
+	#normalize
+	for nor in normals:
+		nor.normalize()
+		
+	return normals
+	
+def calculateTangents(ins,verts,uvs,nrms):
+	# based on alternativas code here
+	# https://github.com/AlternativaPlatform/Alternativa3D/blob/master/src/alternativa/engine3d/resources/Geometry.as
+	tangents = []
+	x=0
+	numIndices = len(ins)
+	
+	#print("numIndices="+str(numIndices))
+	#print("verts="+str(len(verts)))
+	#print("uvs="+str(len(uvs)))
+	#print("normals="+str(len(nrms)))
+	
+	for i in range(numIndices):
+		
+		if i >= numIndices/3:
+			break
+	
+		vertIndexA = ins[x]
+		vertIndexB = ins[x + 1]
+		vertIndexC = ins[x + 2]
+			
+		#vertex1
+		ax = verts[x][0]
+		ay = verts[x][1]
+		az = verts[x][2]
+		#vertex2
+		bx = verts[x + 1][0]
+		by = verts[x + 1][1]
+		bz = verts[x + 1][2]
+		#vertex3
+		cx = verts[x + 2][0]
+		cy = verts[x + 2][1]
+		cz = verts[x + 2][2]
+		#uv
+		au = uvs[x][0]
+		av = uvs[x][1]
+		#uv
+		bu = uvs[x + 1][0]
+		bv = uvs[x + 1][1]
+		#uv
+		cu = uvs[x + 2][0]
+		cv = uvs[x + 2][1]
+		#nrm
+		anx = nrms[x][0]
+		any = nrms[x][1]
+		anz = nrms[x][2]
+		#nrm
+		bnx = nrms[x + 1][0]
+		bny = nrms[x + 1][1]
+		bnz = nrms[x + 1][2]
+		#nrm
+		cnx = nrms[x + 2][0]
+		cny = nrms[x + 2][1]
+		cnz = nrms[x + 2][2]
+		
+		# v2-v1
+		abx = bx - ax
+		aby = by - ay
+		abz = bz - az
+
+		# v3-v1
+		acx = cx - ax
+		acy = cy - ay
+		acz = cz - az
+
+		abu = bu - au
+		abv = bv - av
+
+		acu = cu - au
+		acv = cv - av
+
+		divisor = (abu*acv - acu*abv)
+		if divisor == 0: divisor = 0.01 #prevent 0 div. error
+		r = 1.0/divisor
+
+		tangentX = r*(acv*abx - acx*abv)
+		tangentY = r*(acv*aby - abv*acy)
+		tangentZ = r*(acv*abz - abv*acz)
+		
+		if vertIndexA in tangents:
+			#exists
+			#print("va exists")
+			tangent = tangents[vertIndexA]
+			tangent.x += tangentX - anx*(anx*tangentX + any*tangentY + anz*tangentZ)
+			tangent.y += tangentY - any*(anx*tangentX + any*tangentY + anz*tangentZ)
+			tangent.z += tangentZ - anz*(anx*tangentX + any*tangentY + anz*tangentZ)
+		else:
+			#doesn't exist
+			#print("va doesn't exist")
+			#tangents[vertIndexA] 
+			tangents.append(mathutils.Vector((tangentX - anx*(anx*tangentX + any*tangentY + anz*tangentZ),tangentY - any*(anx*tangentX + any*tangentY + anz*tangentZ),tangentZ - anz*(anx*tangentX + any*tangentY + anz*tangentZ))))
+			
+		if vertIndexB in tangents:
+			#exists
+			#print("vb exists")
+			tangent = tangents[vertIndexB]
+			tangent.x += tangentX - bnx*(bnx*tangentX + bny*tangentY + bnz*tangentZ)
+			tangent.y += tangentY - bny*(bnx*tangentX + bny*tangentY + bnz*tangentZ)
+			tangent.z += tangentZ - bnz*(bnx*tangentX + bny*tangentY + bnz*tangentZ)
+		else:
+			#doesn't exist
+			#print("vb doesn't exist")
+			#tangents[vertIndexB] 
+			tangents.append(mathutils.Vector((tangentX - bnx*(bnx*tangentX + bny*tangentY + bnz*tangentZ),tangentY - bny*(bnx*tangentX + bny*tangentY + bnz*tangentZ),tangentZ - bnz*(bnx*tangentX + bny*tangentY + bnz*tangentZ))))
+			
+		if vertIndexC in tangents:
+			#exists
+			#print("vc exists")
+			tangent = tangents[vertIndexC]
+			tangent.x += tangentX - cnx*(cnx*tangentX + cny*tangentY + cnz*tangentZ)
+			tangent.y += tangentY - cny*(cnx*tangentX + cny*tangentY + cnz*tangentZ)
+			tangent.z += tangentZ - cnz*(cnx*tangentX + cny*tangentY + cnz*tangentZ)
+		else:
+			#doesn't exist
+			#print("vc doesn't exist")
+			#tangents[vertIndexC] 
+			tangents.append(mathutils.Vector((tangentX - cnx*(cnx*tangentX + cny*tangentY + cnz*tangentZ),tangentY - cny*(cnx*tangentX + cny*tangentY + cnz*tangentZ),tangentZ - cnz*(cnx*tangentX + cny*tangentY + cnz*tangentZ))))
+		
+		
+		#Calculate handedness
+		
+		x = x + 3
+	
+	#normalize
+	for tan in tangents:
+		tan.normalize()
+	
+	return tangents
+		
+def getBoundBox(obj):
+	#https://github.com/subcomandante/Blender-2.5-Exporter/commit/12e463d2e9f95001cc0e9c39524ffdad686b23c5
+	#http://projects.blender.org/tracker/?func=detail&atid=498&aid=30864&group_id=9
+	v = [list(bb) for bb in obj.bound_box]
+	bmin = min(v)
+	bmax = max(v)
+	minx = max(bmin[0] * obj.scale.x, -1e10)
+	miny = max(bmin[1] * obj.scale.y, -1e10)
+	minz = max(bmin[2] * obj.scale.z, -1e10)
+	maxx = min(bmax[0] * obj.scale.x, 1e10)
+	maxy = min(bmax[1] * obj.scale.y, 1e10)
+	maxz = min(bmax[2] * obj.scale.z, 1e10)
+	#vec = [j for v in mesh.vertices for j in v.co]
+	#paramsSetFloat("minX", max(min(vec[0::3]), -1e10))
+	#paramsSetFloat("minY", max(min(vec[1::3]), -1e10))
+	#paramsSetFloat("minZ", max(min(vec[2::3]), -1e10))
+	#paramsSetFloat("maxX", min(max(vec[0::3]), 1e10))
+	#paramsSetFloat("maxY", min(max(vec[1::3]), 1e10))
+	#paramsSetFloat("maxZ", min(max(vec[2::3]), 1e10))
+	return [minx,miny,minz,maxx,maxy,maxz]
 	
 def WriteClass8270(file,obj,Config):
 	mesh = obj.data
@@ -691,7 +995,7 @@ def WriteClass8270(file,obj,Config):
 		file.write("\t\t\tthis.geometry = g;\n")
 
 	
-	start,end,mts = collectSurfaces(mesh)
+	start,end,mts,mats = collectSurfaces(mesh)
 	
 	#set surfaces
 	if len(mts) > 0:
@@ -711,7 +1015,7 @@ def collectSurfaces(mesh):
 	c=0
 	triangles = -1
 	lastmat = None
-	start,end,items,mts = [],[],[],[]
+	start,end,items,mts,mats = [],[],[],[],[]
 	for face in mesh.faces:
 		triangles = triangles + 1
 		if face.material_index <= len(Materials)-1:
@@ -722,6 +1026,7 @@ def collectSurfaces(mesh):
 					end.append(triangles)
 					triangles = 0
 				mts.append(cleanupString(str(srcmat.name)))
+				mats.append(srcmat)
 			else:
 				if srcmat != lastmat:
 					start.append(face.index * 3)
@@ -729,11 +1034,12 @@ def collectSurfaces(mesh):
 						end.append(triangles)
 						triangles = 0
 					mts.append(cleanupString(str(srcmat.name)))
+					mats.append(srcmat)
 			lastmat = srcmat
 			items.append(srcmat)
 			c = c+1
 	end.append(triangles+1)
-	return start,end,mts
+	return start,end,mts,mats
 	
 def WriteClass78(file,obj,Config):
 	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
@@ -982,10 +1288,14 @@ def WriteDocuClass(file,aobjs,Config):
 
 #Container for the exporter settings
 class A3DExporterSettings:
-	def __init__(self,A3DVersionSystem=1,ExportMode=1,CompressData=1):
+	def __init__(self,A3DVersionSystem=1,ExportMode=1,CompressData=1,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1):
 		self.A3DVersionSystem = int(A3DVersionSystem)
 		self.ExportMode = int(ExportMode)
 		self.CompressData = int(CompressData)
+		self.ExportAnim = int(ExportAnim)
+		self.ExportUV = int(ExportUV)
+		self.ExportNormals = int(ExportNormals)
+		self.ExportTangents = int(ExportTangents)
 		
 class A3DExporter(bpy.types.Operator):
 	bl_idname = "ops.a3dexporter"
@@ -1003,6 +1313,11 @@ class A3DExporter(bpy.types.Operator):
 	
 	CompressData = BoolProperty(name="Compress Data", description="Zlib Compress data as per .a3d spec", default=True)
 	
+	ExportAnim = BoolProperty(name="Animation", description="Animation", default=False)
+	ExportUV = BoolProperty(name="Include UVs", description="Normals", default=True)
+	ExportNormals = BoolProperty(name="Include Normals", description="Normals", default=True)
+	ExportTangents = BoolProperty(name="Include Tangents", description="Tangents", default=True)
+	
 	filepath = bpy.props.StringProperty()
 
 	def execute(self, context):
@@ -1014,7 +1329,7 @@ class A3DExporter(bpy.types.Operator):
 			file = open(filePath, 'wb')
 			file.close()
 			file = open(filePath, 'ab')
-			Config = A3DExporterSettings(A3DVersionSystem=self.A3DVersionSystem,ExportMode=self.ExportMode,CompressData=self.CompressData)
+			Config = A3DExporterSettings(A3DVersionSystem=self.A3DVersionSystem,ExportMode=self.ExportMode,CompressData=self.CompressData,ExportAnim=self.ExportAnim,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents)
 			a3dexport(file,Config)
 			
 			file.close()
@@ -1086,13 +1401,13 @@ def a3dexport(file,Config):
 		#get raw geometry data
 		vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
 		#get surface data
-		start,end,mts = collectSurfaces(mesh)
-		
+		start,end,mts,mats = collectSurfaces(mesh)
+				
 		#create mesh boundbox
 		a3dbox = A3D2Box()
-		a3dbox._box = [-1.0000003576278687,-1.0000005960464478,-1,1.0000004768371582,1.0000003576278687,1]
+		a3dbox._box = bb
 		a3dbox._id = 0
-		#boxes.append(a3dbox)
+		boxes.append(a3dbox)
 		
 		#create indexbuffer
 		a3dibuf = A3D2IndexBuffer()
@@ -1114,14 +1429,55 @@ def a3dexport(file,Config):
 		a3dmat._specularMapId = int("ffffffff",16)
 		#materials.append(a3dmat)
 		
+		#notes to self -taken from obj exporter
+		#for mtex in reversed(mat.texture_slots):
+        #        if mtex and mtex.texture.type == 'IMAGE':
+        #            image = mtex.texture.image
+        #            if image:
+		# texface overrides others
+		#if mtex.use_map_color_diffuse and face_img is None:
+		#	image_map["map_Kd"] = image
+		#if mtex.use_map_ambient:
+		#	image_map["map_Ka"] = image
+		#if mtex.use_map_specular:
+		#	image_map["map_Ks"] = image
+		#if mtex.use_map_alpha:
+		#	image_map["map_d"] = image
+		#if mtex.use_map_translucency:
+		#	image_map["map_Tr"] = image
+		#if mtex.use_map_normal:
+		#	image_map["map_Bump"] = image
+		#if mtex.use_map_hardness:
+		#	image_map["map_Ns"] = image
+		
 		#set surfaces
 		if len(mts) > 0:
 			for x in range(len(mts)):
-				#print(mts[x])
+				print("mts[x]="+str(mts[x]))
+				print("mat="+str(GetMaterialTexture(mats[x])))
+				
+				matname = GetMaterialTexture(mats[x])
+				if matname is not None:
+					#create images
+					a3dstr = A3D2String()
+					a3dstr.name = matname
+					a3dimg = A3D2Image()
+					a3dimg._id = x
+					a3dimg._url = a3dstr
+					images.append(a3dimg)
+					#create maps
+					a3dmap = A3D2Map()
+					a3dmap._channel = 0
+					a3dmap._id = x
+					a3dmap._imageId = a3dimg._id
+					maps.append(a3dmap)
 				
 				#create material
 				a3dmat = A3D2Material()
-				a3dmat._diffuseMapId = int("ffffffff",16)
+				if matname is not None:
+					a3dmat._diffuseMapId = x
+				else:
+					a3dmat._diffuseMapId = int("ffffffff",16)
 				a3dmat._glossinessMapId = int("ffffffff",16)
 				a3dmat._id = len(materials)
 				a3dmat._lightMapId = int("ffffffff",16)
@@ -1174,7 +1530,7 @@ def a3dexport(file,Config):
 		a3dmesh._name = a3dstr
 		#a3dmesh._parentId = 0
 		a3dmesh._surfaces = surfaces
-		a3dmesh._transform = a3dtrans
+		#a3dmesh._transform = a3dtrans
 		a3dmesh._vertexBuffers = [0] #number of buffers
 		a3dmesh._visible = 1
 		meshes.append(a3dmesh)
@@ -1197,11 +1553,11 @@ def a3dexport(file,Config):
 		attar = []
 		if len(vs) > 0:
 			attar.append(0)
-		if len(uvt) > 0:
+		if (len(uvt) > 0) and (Config.ExportUV == 1):
 			attar.append(4)
-		if len(nr) > 0:
+		if (len(nr) > 0) and (Config.ExportNormals == 1):
 			attar.append(1)
-		if len(tan) > 0:
+		if (len(tan) > 0) and (Config.ExportTangents == 1):
 			attar.append(2)
 		#if len(jnt) > 0:
 		#	attar.append(3)
@@ -1210,16 +1566,21 @@ def a3dexport(file,Config):
 		j=0
 		for v in vs:
 			if 0 in attar:
-				a3dvbuf._byteBuffer.append(v[0])
-				a3dvbuf._byteBuffer.append(v[1])
-				a3dvbuf._byteBuffer.append(v[2])
-			if 4 in attar:
+				a3dvbuf._byteBuffer.append(v[0]) #vert1
+				a3dvbuf._byteBuffer.append(v[1]) #vert2
+				a3dvbuf._byteBuffer.append(v[2]) #vert3
+			if 4 in attar and (Config.ExportUV == 1):
 				a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
 				a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
-			if 1 in attar:
-				a3dvbuf._byteBuffer.append(nr[j][0])
-				a3dvbuf._byteBuffer.append(nr[j][1])
-				a3dvbuf._byteBuffer.append(nr[j][2])
+			if 1 in attar and (Config.ExportNormals == 1):
+				a3dvbuf._byteBuffer.append(nr[j][0]) #normal1
+				a3dvbuf._byteBuffer.append(nr[j][1]) #normal2
+				a3dvbuf._byteBuffer.append(nr[j][2]) #normal3
+			if 2 in attar and (Config.ExportTangents == 1):
+				a3dvbuf._byteBuffer.append(tan[j][0]) #tan1
+				a3dvbuf._byteBuffer.append(tan[j][1]) #tan2
+				a3dvbuf._byteBuffer.append(tan[j][2]) #tan3
+				a3dvbuf._byteBuffer.append(-1) #tan4 - static input handedness
 			j = j +1
 		a3dvbuf._id = 0
 		#a3dvbuf._vertexCount = int(len(ins))
@@ -1381,9 +1742,10 @@ class A3DPackage:
 	
 	def write(self,file):
 		print(self._length)
+		bitnum = self._length.bit_length()
 		if self._length <= 16383:
 			#6bits + next 1 byte (14bits)
-			print("1 byte required\n")
+			print("Package 1 byte required\n")
 			if self._packed == 1:
 				data = 16384 + self._length
 			else:
@@ -1391,8 +1753,18 @@ class A3DPackage:
 			file.write(struct.pack(">H", data))
 		elif bitnum > 6 and bitnum <= 31:
 			#7bits + next 3 bytes (31bits)
-			print("3 byte required\n")
-			mask = 0x01000000000000000000000000000000
+			print("Package 3 byte required\n")
+			print("length="+str(self._length))
+			
+			byte1 = int((self._length >> 24) & 255)
+			byte1 = byte1 + 128
+			byte2 = int((self._length >> 16) & 255)
+			byte3 = int((self._length >> 8) & 255)
+			byte4 = int(self._length & 255)
+			file.write(struct.pack("B",byte1))
+			file.write(struct.pack("B",byte2))
+			file.write(struct.pack("B",byte3))
+			file.write(struct.pack("B",byte4))
 		else:
 			print("package bytes too long!\n")
 
@@ -1937,15 +2309,14 @@ class A3D2Array:
 			file.write(struct.pack("B", byte2))
 		elif bitnum > 14 and bitnum <= 22:
 			print("3 byte required\n")
-			if bitnum == 16:
+			#if bitnum == 16:
 				#left to right
-				print("coming soon..")
-			else:
-				#right to left
-				byte1 = int( (bylen >> 16) & 255 )
-				byte1 = byte1 + 192 #add 11000000 bits
-				byte2 = int( (bylen >> 8) & 255 )
-				byte3 = int(bylen & 255)
+			#	print("coming soon..")
+			#right to left
+			byte1 = int( (bylen >> 16) & 255 )
+			byte1 = byte1 + 192 #add 11000000 bits
+			byte2 = int( (bylen >> 8) & 255 )
+			byte3 = int(bylen & 255)
 			print(byte1)
 			print(byte2)
 			print(byte3)
@@ -2244,7 +2615,8 @@ class A3D2Image:
 		print("read")
 		
 	def write(self,file):
-		print("write")
+		file.write(struct.pack(">L",self._id))
+		self._url.write(file)
 
 class A3D2IndexBuffer:
 	def __init__(self):
@@ -2334,7 +2706,9 @@ class A3D2Map:
 		print("read")
 		
 	def write(self,file):
-		print("write")
+		file.write(struct.pack(">H",self._channel))
+		file.write(struct.pack(">L",self._id))
+		file.write(struct.pack(">L",self._imageId))
 
 class A3D2Material:
 	def __init__(self):
