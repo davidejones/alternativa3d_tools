@@ -37,6 +37,8 @@ def cleanupString(input):
 def ConvertQuadsToTris(obj):
 	bpy.ops.object.mode_set(mode="OBJECT", toggle = False)
 	bpy.ops.object.mode_set(mode="EDIT", toggle = True)
+	bpy.ops.mesh.select_all(action='DESELECT')
+	bpy.ops.mesh.select_all(action='SELECT')
 	mesh = obj.data
 	for f in mesh.faces:
 		f.select = True	
@@ -78,6 +80,7 @@ def checkForOrco(obj):
 		if has_orco:
 			break  # break mat_slot loop
 	return has_orco
+	
 #==================================
 # Incomplete Functions - custom obj shit i made
 #==================================
@@ -185,13 +188,17 @@ def WriteSprite3d(file,obj,Config):
 
 # Exporter (.as) settings container
 class ASExporterSettings:
-	def __init__(self,A3DVersionSystem=1,CompilerOption=1,ExportMode=1,DocClass=False,CopyImgs=True,ByClass=False):
+	def __init__(self,A3DVersionSystem=1,CompilerOption=1,ExportMode=1,DocClass=False,CopyImgs=True,ByClass=False,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1):
 		self.A3DVersionSystem = int(A3DVersionSystem)
 		self.CompilerOption = int(CompilerOption)
 		self.ExportMode = int(ExportMode)
 		self.DocClass = bool(DocClass)
 		self.CopyImgs = bool(CopyImgs)
 		self.ByClass = bool(ByClass)
+		self.ExportAnim = int(ExportAnim)
+		self.ExportUV = int(ExportUV)
+		self.ExportNormals = int(ExportNormals)
+		self.ExportTangents = int(ExportTangents)
 
 # Exporter (.as) class thats called from menu
 class ASExporter(bpy.types.Operator):
@@ -229,6 +236,12 @@ class ASExporter(bpy.types.Operator):
 	CopyImgs = BoolProperty(name="Copy Images", description="Copy images to destination folder of export", default=True)
 	ByClass = BoolProperty(name="Use ByteArray Data (v8.27+)", description="Exports mesh data to compressed bytearray in as3", default=False)
 	
+	ExportAnim = BoolProperty(name="Animation", description="Animation", default=False)
+	ExportUV = BoolProperty(name="Include UVs", description="Normals", default=True)
+	ExportNormals = BoolProperty(name="Include Normals", description="Normals", default=True)
+	ExportTangents = BoolProperty(name="Include Tangents", description="Tangents", default=True)
+	
+	
 	filepath = bpy.props.StringProperty()
 
 	def execute(self, context):
@@ -240,7 +253,7 @@ class ASExporter(bpy.types.Operator):
 			print('Output file : %s' %filePath)
 			#file = open(filePath, 'wb')
 			file = open(filePath, 'w')
-			Config = ASExporterSettings(A3DVersionSystem=self.A3DVersionSystem,CompilerOption=self.CompilerOption,ExportMode=self.ExportMode, DocClass=self.DocClass,CopyImgs=self.CopyImgs,ByClass=self.ByClass)
+			Config = ASExporterSettings(A3DVersionSystem=self.A3DVersionSystem,CompilerOption=self.CompilerOption,ExportMode=self.ExportMode, DocClass=self.DocClass,CopyImgs=self.CopyImgs,ByClass=self.ByClass,ExportAnim=self.ExportAnim,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents)
 			asexport(file,Config,fp)
 			
 			file.close()
@@ -528,7 +541,7 @@ def WriteObjPosRot(file,obj):
 	file.write("\t\t\tthis.scaleY = %.6f;\n" % obj.scale[1])
 	file.write("\t\t\tthis.scaleZ = %.6f;\n" % obj.scale[2])
 
-def getCommonData(obj):
+def getCommonData(obj,flipUV=1):
 	mesh = obj.data
 	verts = mesh.vertices
 	Materials = mesh.materials
@@ -558,9 +571,15 @@ def getCommonData(obj):
 				new_index += 1
 				uv_coord_list.append(uvs[vertex_index])
 				vs.append([vertices_co_list[-1][0],vertices_co_list[-1][1],vertices_co_list[-1][2]])
-				nr.append([normals_list[-1][0],normals_list[-1][1],normals_list[-1][2]])
+				if mesh.faces[uv_index].use_smooth:
+					nr.append([normals_list[-1][0],normals_list[-1][1],normals_list[-1][2]])
+				else:
+					nr.append(mesh.faces[uv_index].normal)
 				ins.append(vertices_index_list[-1])
-				uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
+				if flipUV == 1:
+					uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
+				else:
+					uv = [uv_coord_list[-1][0], uv_coord_list[-1][1]]
 				uvt.append(uv)
 	else:
 		# if there are no image textures, output the old way
@@ -571,6 +590,11 @@ def getCommonData(obj):
 				ins.append(face.vertices[2])
 				#nr.append([[face.normal[0],face.normal[1],face.normal[2]]])
 				for i in range(len(face.vertices)):
+					if face.use_smooth:
+						v = mesh.vertices[face.vertices[i]]
+						nr.append([v.normal[0],v.normal[1],v.normal[2]])
+					else:
+						nr.append(face.normal)
 					hasFaceUV = len(mesh.uv_textures) > 0
 					if hasFaceUV:
 						uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
@@ -580,41 +604,36 @@ def getCommonData(obj):
 			vs.append([v.co[0],v.co[1],v.co[2]])
 			nr.append([v.normal[0],v.normal[1],v.normal[2]])
 
-	#get bound box
-	#for v in obj.bound_box.data.data.vertices:
-	#	bb.append([v.co[0],v.co[1],v.co[2]])
-		
-	bb = getBoundBox(obj)
-	
-	#mesh.calc_normals()
-	#norms = calculateNormals(ins,vs)
-	
-	if len(uvt) > 0:
-		nr = []
-		for f in mesh.faces:
-			if f.use_smooth:
-				for vi in f.vertices:
-					v = mesh.vertices[vi]
-					nr.append([v.normal[0],v.normal[1],v.normal[2]])
-			else:
-				#hard normal
-				#nr.append([f.normal[0],f.normal[1],f.normal[2]])
-				nr = calculateNormals(ins,vs)
-				#nr.append([f.normal[0],f.normal[1],f.normal[2]])
-				#if ( len( f.normal ) > 0 ):
-				#	nr.append([f.normal[0],f.normal[1],f.normal[2]])
-				#else:
-				#	nr.append( [ 0.0, 0.0, 0.0 ] )
-	
 	#if we have uv's and normals then calculate tangents
 	if (len(uvt) > 0) and (len(nr) > 0):
-		tan = calculateTangents(ins,vs,uv_coord_list,nr)
+		tan = calculateTangents(ins,vs,uv_coord_list,nr)		
 	
-	#get transform	#trns=[obj.location[0],obj.rotation_euler[0],obj.scale[0],obj.location[1],obj.rotation_euler[1],obj.scale[1],obj.location[2],obj.rotation_euler[2],obj.scale[2],obj.dimensions[0],obj.dimensions[1],obj.dimensions[2]]
-	trns=[obj.location[0],obj.rotation_euler[0],obj.scale[0],obj.location[1],obj.rotation_euler[1],obj.scale[1],obj.location[2],obj.rotation_euler[2],obj.scale[2],0,0,0]
-	
+	#get bound box
+	bb = getBoundBox(obj)
+			
+	#get transform	
+	#trns=[obj.location[0],obj.rotation_euler[0],obj.scale[0],obj.location[1],obj.rotation_euler[1],obj.scale[1],obj.location[2],obj.rotation_euler[2],obj.scale[2],obj.dimensions[0],obj.dimensions[1],obj.dimensions[2]]
+		
+	trns = getObjTransform(obj)
+		
 	return vs,uvt,ins,nr,tan,bb,trns
 
+def getObjTransform(obj):
+	trns = []
+	c=0
+	j=0
+	for x in obj.matrix_local:
+		j=0
+		for y in x:
+			if j == 3 and c != 3:
+				trns.append(obj.location[c])
+			else:
+				trns.append(y)
+			j=j+1
+		c=c+1
+	print("transform="+str(trns))
+	return trns
+	
 def calculateNormals(ins,verts):
 	# based on alternativas code here
 	# https://github.com/AlternativaPlatform/Alternativa3D/blob/master/src/alternativa/engine3d/resources/Geometry.as
@@ -911,7 +930,7 @@ def WriteClass8270(file,obj,Config):
 			file.write("\t\t\tvar vertices:Array = new Array();\n")
 		
 		#write uv coords
-		if len(uvt) > 0:
+		if (len(uvt) > 0) and (Config.ExportUV == 1):
 			file.write("\t\t\tvar uvt:Array = [\n")
 			for u in uvt:
 				#file.write("\t\t\t\t"+str(u[0])+","+str(u[1]+","))
@@ -937,7 +956,7 @@ def WriteClass8270(file,obj,Config):
 			file.write("\t\t\tvar ind:Array = new Array();\n")
 		
 		#write normals
-		if len(nr) > 0:
+		if (len(nr) > 0) and (Config.ExportNormals == 1):
 			file.write("\t\t\tvar normals:Array = [\n")
 			for n in nr:
 				#file.write("\t\t\t\t%.6f, %.6f, %.6f,\n" % (n[0],n[1],n[2]))
@@ -947,20 +966,30 @@ def WriteClass8270(file,obj,Config):
 			file.write("\t\t\tvar normals:Array = new Array();\n")
 			
 		#write tangents
-		file.write("\t\t\tvar tangent:Array = new Array();\n\n")
+		if (len(tan) > 0) and (Config.ExportTangents == 1):
+			file.write("\t\t\tvar tangent:Array = [\n")
+			for t in tan:
+				file.write("\t\t\t\t%.6g, %.6g, %.6g, %.6g,\n" % (t[0],t[1],t[2],-1))
+			file.write("\t\t\t];\n")
+		else:
+			file.write("\t\t\tvar tangent:Array = new Array();\n\n")
 		
 		#set attributes
 		file.write("\t\t\tg.setAttributeValues(VertexAttributes.POSITION, Vector.<Number>(vertices));\n")
-		if len(uvt) > 0:
+		if (len(uvt) > 0) and (Config.ExportUV == 1):
 			file.write("\t\t\tg.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")
 		else:
 			file.write("\t\t\t//g.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")	
 			
-		if len(nr) > 0:
+		if (len(nr) > 0) and (Config.ExportNormals == 1):
 			file.write("\t\t\tg.setAttributeValues(VertexAttributes.NORMAL, Vector.<Number>(normals));\n")
 		else:
 			file.write("\t\t\t//g.setAttributeValues(VertexAttributes.NORMAL, Vector.<Number>(normals));\n")
-		file.write("\t\t\t//g.setAttributeValues(VertexAttributes.TANGENT4, Vector.<Number>(tangent));\n")
+			
+		if (len(tan) > 0) and (Config.ExportTangents == 1):
+			file.write("\t\t\tg.setAttributeValues(VertexAttributes.TANGENT4, Vector.<Number>(tangent));\n")
+		else:
+			file.write("\t\t\t//g.setAttributeValues(VertexAttributes.TANGENT4, Vector.<Number>(tangent));\n")
 		
 		#set geometry
 		file.write("\t\t\tg.indices =  Vector.<uint>(ind);\n\n")
@@ -1060,7 +1089,7 @@ def WriteClass78(file,obj,Config):
 		if len(face.vertices) > 0:
 			for i in range(len(face.vertices)):
 				hasFaceUV = len(mesh.uv_textures) > 0
-				if hasFaceUV:
+				if (hasFaceUV) and (Config.ExportUV == 1):
 					uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
 					uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
 					file.write('\t\t\t\t\taddVertex(%f, %f, %f, %f, %f),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z, uv[0], uv[1]) )
@@ -1115,7 +1144,7 @@ def WriteClass75(file,obj,Config):
 		file.write('\t\t\t\tg.addFace(Vector.<Vertex>([\n')
 		for i in range(len(face.vertices)):
 			hasFaceUV = len(mesh.uv_textures) > 0
-			if hasFaceUV:
+			if (hasFaceUV) and (Config.ExportUV == 1):
 				uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
 				uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
 				file.write('\t\t\t\t\tg.addVertex(%f, %f, %f, %f, %f),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z, uv[0], uv[1]) )
@@ -1160,7 +1189,7 @@ def WriteClass5(file,obj,Config):
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 	
 	#get data
-	vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+	vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj,False)
 
 	#write vertices
 	if len(vs) > 0:
@@ -1190,9 +1219,9 @@ def WriteClass5(file,obj,Config):
 			count += 1
 			
 	facecount = j
-			
+	
 	#write face/uvs
-	if len(uvt) > 0:
+	if (len(uvt) > 0) and (Config.ExportUV == 1):
 		count = 0
 		file.write('\t\t\tsetUVsToFace(')
 		x=0
@@ -1351,7 +1380,7 @@ def a3dexport(file,Config):
 	else:
 		#export whole scene
 		objs = [obj for obj in bpy.data.objects]		
-		print('Export all meshes...\n')
+		print('Export scene...\n')
 	
 	objs_mesh = []
 	objs_arm = []
@@ -1390,6 +1419,54 @@ def a3dexport(file,Config):
 	skins = []
 	vertexBuffers = []
 	
+	print("exporting lights...\n")
+	#loop over every light
+	for obj in objs_lights:
+		light = obj.data
+		if light.type == 'POINT':
+			#omniLights/ambientlight
+			#name
+			a3dstr = A3D2String()
+			a3dstr.name = cleanupString(light.name)
+			
+			#create transform/matrix
+			a3dtrans = A3D2Transform()
+			trns = getObjTransform(obj)
+			a3dtrans._matrix.a = trns[0]
+			a3dtrans._matrix.b = trns[1]
+			a3dtrans._matrix.c = trns[2]
+			a3dtrans._matrix.d = trns[3]
+			a3dtrans._matrix.e = trns[4]
+			a3dtrans._matrix.f = trns[5]
+			a3dtrans._matrix.g = trns[6]
+			a3dtrans._matrix.h = trns[7]
+			a3dtrans._matrix.i = trns[8]
+			a3dtrans._matrix.j = trns[9]
+			a3dtrans._matrix.k = trns[10]
+			a3dtrans._matrix.l = trns[11]
+			
+			a3damb = A3D2AmbientLight()
+			#a3damb._boundBoxId = None
+			a3damb._color = int(rgb2hex(light.color), 0)
+			a3damb._id = len(ambientLights)
+			a3damb._intensity = int(light.energy)
+			a3damb._name = a3dstr
+			#a3damb._parentId = None
+			a3damb._transform = a3dtrans
+			a3damb._visible = 1
+			ambientLights.append(a3damb)
+		elif light.type == 'SPOT':
+			print("spotlight")
+			#spotLights
+			#spotLights.append()
+		elif light.type == 'AREA':
+			print("arealight")
+			#directionalLights
+			#directionalLights.append()
+		else:
+			print("light type not supported")
+	
+	print("exporting meshes...\n")
 	#loop over every mesh and populate data
 	for obj in objs_mesh:
 		#convert to triangles
@@ -1406,14 +1483,14 @@ def a3dexport(file,Config):
 		#create mesh boundbox
 		a3dbox = A3D2Box()
 		a3dbox._box = bb
-		a3dbox._id = 0
+		a3dbox._id = len(boxes)
 		boxes.append(a3dbox)
 		
 		#create indexbuffer
 		a3dibuf = A3D2IndexBuffer()
 		for x in range(len(ins)):
 			a3dibuf._byteBuffer.append(ins[x])
-		a3dibuf._id = 0
+		a3dibuf._id = len(indexBuffers)
 		a3dibuf._indexCount = len(a3dibuf._byteBuffer)
 		indexBuffers.append(a3dibuf)
 		
@@ -1450,6 +1527,8 @@ def a3dexport(file,Config):
 		#if mtex.use_map_hardness:
 		#	image_map["map_Ns"] = image
 		
+		mesh_surfaces = []
+		
 		#set surfaces
 		if len(mts) > 0:
 			for x in range(len(mts)):
@@ -1462,20 +1541,20 @@ def a3dexport(file,Config):
 					a3dstr = A3D2String()
 					a3dstr.name = matname
 					a3dimg = A3D2Image()
-					a3dimg._id = x
+					a3dimg._id = len(images)
 					a3dimg._url = a3dstr
 					images.append(a3dimg)
 					#create maps
 					a3dmap = A3D2Map()
 					a3dmap._channel = 0
-					a3dmap._id = x
+					a3dmap._id = len(maps)
 					a3dmap._imageId = a3dimg._id
 					maps.append(a3dmap)
 				
 				#create material
 				a3dmat = A3D2Material()
 				if matname is not None:
-					a3dmat._diffuseMapId = x
+					a3dmat._diffuseMapId = a3dmap._id
 				else:
 					a3dmat._diffuseMapId = int("ffffffff",16)
 				a3dmat._glossinessMapId = int("ffffffff",16)
@@ -1493,7 +1572,7 @@ def a3dexport(file,Config):
 				#a3dsurf._materialId = int("ffffffff",16)
 				a3dsurf._materialId = a3dmat._id
 				a3dsurf._numTriangles = int(end[x])
-				surfaces.append(a3dsurf)
+				mesh_surfaces.append(a3dsurf)
 		else:
 			#surface for all faces
 			a3dsurf = A3D2Surface()
@@ -1501,7 +1580,7 @@ def a3dexport(file,Config):
 			#a3dsurf._materialId = int("ffffffff",16)
 			#a3dsurf._materialId = 0
 			a3dsurf._numTriangles = int(len(ins)/3)
-			surfaces.append(a3dsurf)
+			mesh_surfaces.append(a3dsurf)
 		
 		#create transform/matrix
 		a3dtrans = A3D2Transform()
@@ -1525,13 +1604,13 @@ def a3dexport(file,Config):
 		#create mesh
 		a3dmesh = A3D2Mesh()
 		#a3dmesh._boundBoxId = 0
-		a3dmesh._id = 0
-		a3dmesh._indexBufferId = 0
+		a3dmesh._id = len(meshes)
+		a3dmesh._indexBufferId = a3dibuf._id
 		a3dmesh._name = a3dstr
 		#a3dmesh._parentId = 0
-		a3dmesh._surfaces = surfaces
-		#a3dmesh._transform = a3dtrans
-		a3dmesh._vertexBuffers = [0] #number of buffers
+		a3dmesh._surfaces = mesh_surfaces
+		a3dmesh._transform = a3dtrans
+		a3dmesh._vertexBuffers = [len(vertexBuffers)] #vertex buffer ids
 		a3dmesh._visible = 1
 		meshes.append(a3dmesh)
 		
@@ -1540,7 +1619,7 @@ def a3dexport(file,Config):
 		
 		a3dobj = A3D2Object()
 		a3dobj._boundBoxId = 0
-		a3dobj._id = 0
+		a3dobj._id = len(objects)
 		a3dobj._name = a3dstr2
 		a3dobj._parentId = 0
 		a3dobj._transform = a3dtrans
@@ -1582,7 +1661,7 @@ def a3dexport(file,Config):
 				a3dvbuf._byteBuffer.append(tan[j][2]) #tan3
 				a3dvbuf._byteBuffer.append(-1) #tan4 - static input handedness
 			j = j +1
-		a3dvbuf._id = 0
+		a3dvbuf._id = len(vertexBuffers)
 		#a3dvbuf._vertexCount = int(len(ins))
 		#a3dvbuf._vertexCount = int(len(vs) * 3) 
 		a3dvbuf._vertexCount = int(len(vs)) #this works for cube
@@ -1617,10 +1696,8 @@ class A3DImporter(bpy.types.Operator):
 		file.seek(0)
 		version = ord(file.read(1))
 		if version == 0:
-			print("1st version of format\n")
 			loadA3d1(file)
 		else:
-			print("2nd version of format\n")
 			loadA3d2(file)
 		file.close()
 		return {'FINISHED'}
@@ -1921,8 +1998,8 @@ class A3DNull:
 			print(struct.pack("B",byte4))
 			print(bin(byte1), bin(byte2), bin(byte3), bin(byte4))
 		else:
-			print("long")
 			if bits <= 504:
+				print("long")
 				
 				rem = bits % 8
 				if rem == 0:
@@ -1944,18 +2021,87 @@ class A3DNull:
 				
 				lenbyte = int(bytenum + 128)
 				file.write(struct.pack("B",lenbyte))
-				for j in range(bytenum):
-					bitstoshift = (8 * (bytenum-(j+1))-rbits)
-					#print(bitstoshift)
-					if j == (bytenum-1):
-						byte = int( (x << rbits) & 255 )
-					else:
-						byte = int( (x >> bitstoshift) & (255) )
-					print(byte)
-					file.write(struct.pack("B",byte))	
 				
+				#if fits exactly
+				if bits == bytenum*8:
+					#left to right
+					for j in range(bytenum):
+						byte = int( ( x >> (tbits - (8 * (j+1))) ) & 255 )
+						file.write(struct.pack("B",byte))
+				else:
+					#right to left
+					for j in range(bytenum):
+						shift = (tbits - (8 * (j+1)))-rbits
+						print("shift:"+str(shift))
+						#if last byte shift by remainder
+						if j == (bytenum-1):
+							byte = int( ( x << rbits ) & 255 )
+						else:
+							byte = int( ( x >> shift ) & 255 )
+						file.write(struct.pack("B",byte))
+						print(byte)
+					#bitstoshift = (8 * (bytenum-(j+1))-rbits)
+					#print(bitstoshift)
+					#if last byte
+					#if j == (bytenum-1):
+					#	byte = int( (x << rbits) & 255 )
+					#else:
+					#	byte = int( (x >> bitstoshift) & (255) )
+					#print(byte)
+					#file.write(struct.pack("B",byte))
 			else:
-				print("coming soon")
+				if bits <= 33554432:
+					print("even longer")
+					#3 bytes space for length + nullmask
+
+					rem = bits % 8
+					if rem == 0:
+						#if fits exactly in bytes
+						bytenum = bits/8
+					else:
+						#if doesn't fit exactly round up
+						bytenum = int((bits+(8-rem))/8)
+						
+					tbits = int(bytenum * 8)
+					rbits = int(tbits - bits)
+					
+					print("bytenum="+str(bytenum))
+					lenbyte = int(bytenum + 12582912) #11000000 00000000 00000000
+					lenbits = lenbyte.bit_length()
+					
+					#place bits right to left
+					byte1 = int( (lenbyte >> 16) & 255 )
+					byte2 = int( (lenbyte >> 8) & 255 )
+					byte3 = int( lenbyte & 255 )
+					
+					print("byte1="+str(byte1))
+					print("byte2="+str(byte2))		
+					print("byte3="+str(byte3))		
+					file.write(struct.pack("B",byte1))
+					file.write(struct.pack("B",byte2))
+					file.write(struct.pack("B",byte3))
+					
+					#nullmask write now
+					
+					#if fits exactly
+					if bits == bytenum*8:
+						#left to right
+						for j in range(bytenum):
+							byte = int( ( x >> (tbits - (8 * (j+1))) ) & 255 )
+							file.write(struct.pack("B",byte))
+					else:
+						#right to left
+						for j in range(bytenum):
+							shift = (tbits - (8 * (j+1)))-rbits
+							#print("shift:"+str(shift))
+							#if last byte shift by remainder
+							if j == (bytenum-1):
+								byte = int( ( x << rbits ) & 255 )
+							else:
+								byte = int( ( x >> shift ) & 255 )
+							file.write(struct.pack("B",byte))
+				else:
+					print("NullMap overflow!")
 			
 class A3D2:
 	def __init__(self,ambientLights=[],animationClips=[],animationTracks=[],boxes=[],cubeMaps=[],decals=[],directionalLights=[],images=[],indexBuffers=[],joints=[],maps=[],materials=[],meshes=[],objects=[],omniLights=[],spotLights=[],sprites=[],skins=[],vertexBuffers=[],Config=None):
@@ -1983,7 +2129,6 @@ class A3D2:
 	
 	def read(self,file,mask):
 		print("reada3d2")
-		#read file based on mask bits
 		
 	def write(self,file):
 		print("write a3d2\n")
@@ -2128,12 +2273,16 @@ class A3D2:
 			
 		if len(self.meshes) > 0:
 			#write
+			temp = ""
 			arr = A3D2Array()
 			arr.write(tfile,len(self.meshes))
 			self.nullmask = self.nullmask + str(0)
+			temp = temp + str(0)
 			for cla in self.meshes:
 				cla.write(tfile)
 				self.nullmask = self.nullmask + cla._optmask
+				temp = temp + cla._optmask
+			print("mesh:"+str(temp))
 		else:
 			self.nullmask = self.nullmask + str(1)
 			
@@ -2205,6 +2354,8 @@ class A3D2:
 		
 		
 		tfile2 = tempfile.TemporaryFile(mode ='w+b')
+		
+		print("nullmask = "+self.nullmask)
 		
 		#nullmask
 		null = A3DNull()
@@ -2371,9 +2522,21 @@ class A3D2String:
 				self.writeName(file)
 			elif bitnum > 7 and bitnum <= 14:
 				print("2 byte required\n")
+				byte1 = int((bylen >> 8) & 255)
+				byte1 = byte1 + 128 #add 10000000 bits
+				byte2 = int(bylen & 255)
+				file.write(struct.pack("B", byte1))
+				file.write(struct.pack("B", byte2))
 				self.writeName(file)
 			elif bitnum > 14 and bitnum <= 22:
 				print("3 byte required\n")
+				byte1 = int( (bylen >> 16) & 255 )
+				byte1 = byte1 + 192 #add 11000000 bits
+				byte2 = int( (bylen >> 8) & 255 )
+				byte3 = int(bylen & 255)
+				file.write(struct.pack("B", byte1))
+				file.write(struct.pack("B", byte2))
+				file.write(struct.pack("B", byte3))
 				self.writeName(file)
 			else:
 				print("String bytes too long!\n")
@@ -2409,16 +2572,28 @@ class A3D2AmbientLight:
 		
 	def write(self,file):
 		if self._boundBoxId is not None:
+			self._optmask = self._optmask + str(0)
 			file.write(struct.pack(">L",self._boundBoxId))
+		else:
+			self._optmask = self._optmask + str(1)
 		file.write(struct.pack(">L",self._color))
 		file.write(struct.pack("Q",self._id))
 		file.write(struct.pack(">L",self._intensity))
 		if self._name is not None:
+			self._optmask = self._optmask + str(0)
 			self._name.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
 		if self._parentId is not None:
+			self._optmask = self._optmask + str(0)
 			file.write(struct.pack("Q",self._parentId))
+		else:
+			self._optmask = self._optmask + str(1)
 		if self._transform is not None:
+			self._optmask = self._optmask + str(0)
 			self._transform.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
 		file.write(struct.pack("B",self._visible))
 
 class A3D2AnimationClip:
