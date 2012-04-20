@@ -42,6 +42,12 @@ Installation Notes
 Changelog
 ---------
 
+### 1.1.5
+- Fixed version 5.6.0 uv mapping
+- Added basic exports to .a3d version 2.0, 2.4, 2.5
+- export tangents for classes and .a3d
+- Flat or Smooth normals work
+
 ### 1.1.4
 - Added example exports for each version with built swf
 - Added in options for 7.5.0
