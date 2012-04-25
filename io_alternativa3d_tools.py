@@ -1338,10 +1338,11 @@ class A3DExporter(bpy.types.Operator):
 	bl_description = "Export to A3D (Alternativa)"
 	
 	A3DVersions = []
-	A3DVersions.append(("1", "2.0", ""))
-	#A3DVersions.append(("2", "2.4", ""))
-	#A3DVersions.append(("3", "2.5", ""))
-	#A3DVersions.append(("4", "2.6", ""))
+	A3DVersions.append(("1", "2.6", ""))
+	A3DVersions.append(("2", "2.5", ""))
+	A3DVersions.append(("3", "2.4", ""))
+	A3DVersions.append(("4", "2.0", ""))
+	A3DVersions.append(("5", "1.0", ""))
 	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D .A3D to export to", items=A3DVersions, default="1")
 	
 	ExportModes = []
@@ -1432,360 +1433,15 @@ def a3dexport(file,Config):
 	lods = []
 	
 	
-	print("Exporting lights...\n")
-	#loop over every light
-	for obj in objs_lights:
-		light = obj.data
-		
-		#name
-		a3dstr = A3D2String()
-		a3dstr.name = cleanupString(light.name)
-		
-		#create transform/matrix
-		a3dtrans = A3D2Transform(Config)
-		trns = getObjTransform(obj)
-		a3dtrans._matrix.a = trns[0]
-		a3dtrans._matrix.b = trns[1]
-		a3dtrans._matrix.c = trns[2]
-		a3dtrans._matrix.d = trns[3]
-		a3dtrans._matrix.e = trns[4]
-		a3dtrans._matrix.f = trns[5]
-		a3dtrans._matrix.g = trns[6]
-		a3dtrans._matrix.h = trns[7]
-		a3dtrans._matrix.i = trns[8]
-		a3dtrans._matrix.j = trns[9]
-		a3dtrans._matrix.k = trns[10]
-		a3dtrans._matrix.l = trns[11]
-		
-		a3dbox = A3D2Box(Config)
-		a3dbox._box = getBoundBox(obj)
-		a3dbox._id = len(boxes)
-		
-			
-		if light.type == 'HEMI':
-			#ambientlight
-			print("ambientlight")
-			
-			boxes.append(a3dbox)
-			
-			a3damb = A3D2AmbientLight(Config)
-			a3damb._boundBoxId = a3dbox._id
-			a3damb._color = int(rgb2hex(light.color), 0)
-			a3damb._id = len(ambientLights)
-			a3damb._intensity = int(light.energy)
-			a3damb._name = a3dstr
-			#a3damb._parentId = None
-			a3damb._transform = a3dtrans
-			a3damb._visible = 1
-			
-			ambientLights.append(a3damb)
-		elif light.type == 'POINT':
-			#omniLights
-			print("omniLight")
-			
-			boxes.append(a3dbox)
-			
-			a3domn = A3D2OmniLight(Config)
-			a3domn._attenuationBegin = 0
-			a3domn._attenuationEnd = 0
-			a3domn._boundBoxId = a3dbox._id
-			a3domn._color = int(rgb2hex(light.color), 0)
-			a3domn._id = len(directionalLights)
-			a3domn._intensity = int(light.energy)
-			a3domn._name = a3dstr
-			#a3domn._parentId = None
-			a3domn._transform = a3dtrans
-			a3domn._visible = 1
-			
-			omniLights.append(a3domn)
-		elif light.type == 'SPOT':
-			print("spotlight")
-			#spotLights
-			
-			boxes.append(a3dbox)
-			
-			a3dspot = A3D2SpotLight(Config)
-			a3dspot._attenuationBegin = 0
-			a3dspot._attenuationEnd = 0
-			a3dspot._boundBoxId = a3dbox._id
-			a3dspot._color = int(rgb2hex(light.color), 0)
-			#a3dspot._falloff = None
-			#a3dspot._hotspot = None
-			a3dspot._id = len(spotLights)
-			a3dspot._intensity = int(light.energy)
-			a3dspot._name = a3dstr
-			#a3dspot._parentId = None
-			a3dspot._transform = a3dtrans
-			a3dspot._visible = 1
-			
-			#skip spotlights for now because seems to cause problem
-			#spotLights.append(a3dspot)
-		elif light.type == 'AREA':
-			#directionalLights
-			print("directional")
-			boxes.append(a3dbox)
-
-			a3ddir = A3D2DirectionalLight(Config)
-			a3ddir._boundBoxId = a3dbox._id
-			a3ddir._color = int(rgb2hex(light.color), 0)
-			a3ddir._id = len(directionalLights)
-			a3ddir._intensity = int(light.energy)
-			a3ddir._name = a3dstr
-			#a3ddir._parentId = None
-			a3ddir._transform = a3dtrans
-			a3ddir._visible = 1
-			
-			directionalLights.append(a3ddir)
-		else:
-			print("light type not supported")
-	
-	
-	print("Exporting rigging/animations...\n")
-	for obj in objs_arm:
-		arm = obj.data
-		bones = arm.bones
-		
-		print(arm.name)
-		for b in bones:
-			
-			a3dstr = A3D2String()
-			a3dstr.name = b.name
-		
-			jnt = A3D2Joint(Config)
-			#jnt._boundBoxId = a3dbox
-			jnt._id = len(joints)
-			jnt._name = a3dstr
-			#jnt._parentId = None
-			#jnt._transform = getObjTransform(b)
-			jnt._visible = 1
-			joints.append(jnt)
-			#print(b.name) #name bone
-			#print(b.head_local) #vector xyz - head_radius
-			#print(b.tail_local) #vector xyz - tail_radius
-			#print(b.matrix_local) #matrix
-
-	print("Exporting meshes...\n")
-	#loop over every mesh and populate data
-	for obj in objs_mesh:
-		#convert to triangles
-		ConvertQuadsToTris(obj)
-	
-		#data
-		mesh = obj.data
-		
-		#get raw geometry data
-		vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
-		#get surface data
-		start,end,mts,mats = collectSurfaces(mesh)
-				
-		#create mesh boundbox
-		a3dbox = A3D2Box(Config)
-		a3dbox._box = bb
-		a3dbox._id = len(boxes)
-		boxes.append(a3dbox)
-		
-		#create indexbuffer
-		a3dibuf = A3D2IndexBuffer(Config)
-		for x in range(len(ins)):
-			a3dibuf._byteBuffer.append(ins[x])
-		a3dibuf._id = len(indexBuffers)
-		a3dibuf._indexCount = len(a3dibuf._byteBuffer)
-		indexBuffers.append(a3dibuf)
-		
-		#create material
-		a3dmat = A3D2Material(Config)
-		a3dmat._diffuseMapId = int("ffffffff",16)
-		a3dmat._glossinessMapId = int("ffffffff",16)
-		a3dmat._id = 0
-		a3dmat._lightMapId = int("ffffffff",16)
-		a3dmat._normalMapId = int("ffffffff",16)
-		a3dmat._opacityMapId = int("ffffffff",16)
-		a3dmat._reflectionCubeMapId = int("ffffffff",16)
-		a3dmat._specularMapId = int("ffffffff",16)
-		#materials.append(a3dmat)
-		
-		#notes to self -taken from obj exporter
-		#for mtex in reversed(mat.texture_slots):
-        #        if mtex and mtex.texture.type == 'IMAGE':
-        #            image = mtex.texture.image
-        #            if image:
-		# texface overrides others
-		#if mtex.use_map_color_diffuse and face_img is None:
-		#	image_map["map_Kd"] = image
-		#if mtex.use_map_ambient:
-		#	image_map["map_Ka"] = image
-		#if mtex.use_map_specular:
-		#	image_map["map_Ks"] = image
-		#if mtex.use_map_alpha:
-		#	image_map["map_d"] = image
-		#if mtex.use_map_translucency:
-		#	image_map["map_Tr"] = image
-		#if mtex.use_map_normal:
-		#	image_map["map_Bump"] = image
-		#if mtex.use_map_hardness:
-		#	image_map["map_Ns"] = image
-		
-		mesh_surfaces = []
-		
-		#set surfaces
-		if len(mts) > 0:
-			for x in range(len(mts)):
-				print("mts[x]="+str(mts[x]))
-				print("mat="+str(GetMaterialTexture(mats[x])))
-				
-				matname = GetMaterialTexture(mats[x])
-				if matname is not None:
-					#create images
-					a3dstr = A3D2String()
-					a3dstr.name = matname
-					a3dimg = A3D2Image(Config)
-					a3dimg._id = len(images)
-					a3dimg._url = a3dstr
-					images.append(a3dimg)
-					#create maps
-					a3dmap = A3D2Map(Config)
-					a3dmap._channel = 0
-					a3dmap._id = len(maps)
-					a3dmap._imageId = a3dimg._id
-					maps.append(a3dmap)
-				
-				#create material
-				a3dmat = A3D2Material(Config)
-				if matname is not None:
-					a3dmat._diffuseMapId = a3dmap._id
-				else:
-					a3dmat._diffuseMapId = int("ffffffff",16)
-				a3dmat._glossinessMapId = int("ffffffff",16)
-				a3dmat._id = len(materials)
-				a3dmat._lightMapId = int("ffffffff",16)
-				a3dmat._normalMapId = int("ffffffff",16)
-				a3dmat._opacityMapId = int("ffffffff",16)
-				a3dmat._reflectionCubeMapId = int("ffffffff",16)
-				a3dmat._specularMapId = int("ffffffff",16)
-				materials.append(a3dmat)
-				
-				#create surface
-				a3dsurf = A3D2Surface(Config)
-				a3dsurf._indexBegin = int(start[x])
-				#a3dsurf._materialId = int("ffffffff",16)
-				a3dsurf._materialId = a3dmat._id
-				a3dsurf._numTriangles = int(end[x])
-				mesh_surfaces.append(a3dsurf)
-		else:
-			#surface for all faces
-			a3dsurf = A3D2Surface(Config)
-			a3dsurf._indexBegin = 0
-			#a3dsurf._materialId = int("ffffffff",16)
-			#a3dsurf._materialId = 0
-			a3dsurf._numTriangles = int(len(ins)/3)
-			mesh_surfaces.append(a3dsurf)
-		
-		#create transform/matrix
-		a3dtrans = A3D2Transform(Config)
-		a3dtrans._matrix.a = trns[0]
-		a3dtrans._matrix.b = trns[1]
-		a3dtrans._matrix.c = trns[2]
-		a3dtrans._matrix.d = trns[3]
-		a3dtrans._matrix.e = trns[4]
-		a3dtrans._matrix.f = trns[5]
-		a3dtrans._matrix.g = trns[6]
-		a3dtrans._matrix.h = trns[7]
-		a3dtrans._matrix.i = trns[8]
-		a3dtrans._matrix.j = trns[9]
-		a3dtrans._matrix.k = trns[10]
-		a3dtrans._matrix.l = trns[11]
-		
-		#name
-		a3dstr = A3D2String()
-		a3dstr.name = cleanupString(obj.data.name)
-		
-		#create mesh
-		a3dmesh = A3D2Mesh(Config)
-		#a3dmesh._boundBoxId = 0
-		a3dmesh._id = len(meshes)
-		a3dmesh._indexBufferId = a3dibuf._id
-		a3dmesh._name = a3dstr
-		#a3dmesh._parentId = 0
-		a3dmesh._surfaces = mesh_surfaces
-		a3dmesh._transform = a3dtrans
-		a3dmesh._vertexBuffers = [len(vertexBuffers)] #vertex buffer ids
-		if obj.hide == True:
-			a3dmesh._visible = 1
-		else:
-			a3dmesh._visible = 0
-		meshes.append(a3dmesh)
-		
-		a3dstr2 = A3D2String()
-		a3dstr2.name = ""
-		
-		a3dobj = A3D2Object(Config)
-		a3dobj._boundBoxId = 0
-		a3dobj._id = len(objects)
-		a3dobj._name = a3dstr2
-		a3dobj._parentId = 0
-		a3dobj._transform = a3dtrans
-		if obj.hide == True:
-			a3dobj._visible = 1
-		else:
-			a3dobj._visible = 0
-		#objects.append(a3dobj)
-		
-		#create vertexbuffer
-		a3dvbuf = A3D2VertexBuffer(Config)
-		#POSITION = 0, NORMAL = 1, TANGENT4 = 2, JOINT = 3,TEXCOORD = 4
-		attar = []
-		if len(vs) > 0:
-			attar.append(0)
-		if (len(uvt) > 0) and (Config.ExportUV == 1):
-			attar.append(4)
-		if (len(nr) > 0) and (Config.ExportNormals == 1):
-			attar.append(1)
-		if (len(tan) > 0) and (Config.ExportTangents == 1):
-			attar.append(2)
-		#if len(jnt) > 0:
-		#	attar.append(3)
-		
-		a3dvbuf._attributes = attar
-		j=0
-		for v in vs:
-			if 0 in attar:
-				a3dvbuf._byteBuffer.append(v[0]) #vert1
-				a3dvbuf._byteBuffer.append(v[1]) #vert2
-				a3dvbuf._byteBuffer.append(v[2]) #vert3
-			if 4 in attar and (Config.ExportUV == 1):
-				a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
-				a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
-			if 1 in attar and (Config.ExportNormals == 1):
-				a3dvbuf._byteBuffer.append(nr[j][0]) #normal1
-				a3dvbuf._byteBuffer.append(nr[j][1]) #normal2
-				a3dvbuf._byteBuffer.append(nr[j][2]) #normal3
-			if 2 in attar and (Config.ExportTangents == 1):
-				a3dvbuf._byteBuffer.append(tan[j][0]) #tan1
-				a3dvbuf._byteBuffer.append(tan[j][1]) #tan2
-				a3dvbuf._byteBuffer.append(tan[j][2]) #tan3
-				a3dvbuf._byteBuffer.append(-1) #tan4 - static input handedness
-			j = j +1
-		a3dvbuf._id = len(vertexBuffers)
-		#a3dvbuf._vertexCount = int(len(ins))
-		#a3dvbuf._vertexCount = int(len(vs) * 3) 
-		a3dvbuf._vertexCount = int(len(vs)) #this works for cube
-		#a3dvbuf._vertexCount = int(len(ins)) 
-		#a3dvbuf._vertexCount = 24
-		vertexBuffers.append(a3dvbuf)
-		print("vs="+str(len(vs)))	
-	
-	if Config.A3DVersionSystem >= 2:
-		print("Exporting layers...\n")
-		
-		
-	if Config.A3DVersionSystem >= 3:
-		print("Exporting cameras...\n")
-		for obj in objs_cameras:
-			camera = obj.data
+	if len(objs_lights) > 0:
+		print("Exporting lights...\n")
+		#loop over every light
+		for obj in objs_lights:
+			light = obj.data
 			
 			#name
 			a3dstr = A3D2String()
-			a3dstr.name = cleanupString(camera.name)
+			a3dstr.name = cleanupString(light.name)
 			
 			#create transform/matrix
 			a3dtrans = A3D2Transform(Config)
@@ -1807,48 +1463,372 @@ def a3dexport(file,Config):
 			a3dbox._box = getBoundBox(obj)
 			a3dbox._id = len(boxes)
 			
-			camtype = False
-			if camera.type == "PERSP":
-				camtype = False
-			else:
-				camtype = True
+				
+			if light.type == 'HEMI':
+				#ambientlight
+				print("ambientlight")
+				
+				boxes.append(a3dbox)
+				
+				a3damb = A3D2AmbientLight(Config)
+				a3damb._boundBoxId = a3dbox._id
+				a3damb._color = int(rgb2hex(light.color), 0)
+				a3damb._id = len(ambientLights)
+				a3damb._intensity = int(light.energy)
+				a3damb._name = a3dstr
+				#a3damb._parentId = None
+				a3damb._transform = a3dtrans
+				a3damb._visible = 1
+				
+				ambientLights.append(a3damb)
+			elif light.type == 'POINT':
+				#omniLights
+				print("omniLight")
+				
+				boxes.append(a3dbox)
+				
+				a3domn = A3D2OmniLight(Config)
+				a3domn._attenuationBegin = 0
+				a3domn._attenuationEnd = 0
+				a3domn._boundBoxId = a3dbox._id
+				a3domn._color = int(rgb2hex(light.color), 0)
+				a3domn._id = len(directionalLights)
+				a3domn._intensity = int(light.energy)
+				a3domn._name = a3dstr
+				#a3domn._parentId = None
+				a3domn._transform = a3dtrans
+				a3domn._visible = 1
+				
+				omniLights.append(a3domn)
+			elif light.type == 'SPOT':
+				print("spotlight")
+				#spotLights
+				
+				boxes.append(a3dbox)
+				
+				a3dspot = A3D2SpotLight(Config)
+				a3dspot._attenuationBegin = 0
+				a3dspot._attenuationEnd = 0
+				a3dspot._boundBoxId = a3dbox._id
+				a3dspot._color = int(rgb2hex(light.color), 0)
+				#a3dspot._falloff = None
+				#a3dspot._hotspot = None
+				a3dspot._id = len(spotLights)
+				a3dspot._intensity = int(light.energy)
+				a3dspot._name = a3dstr
+				#a3dspot._parentId = None
+				a3dspot._transform = a3dtrans
+				a3dspot._visible = 1
+				
+				#skip spotlights for now because seems to cause problem
+				#spotLights.append(a3dspot)
+			elif light.type == 'AREA':
+				#directionalLights
+				print("directional")
+				boxes.append(a3dbox)
 
-			a3dcam = A3D2Camera(Config)
-			a3dcam._boundBoxId = a3dbox._id
-			a3dcam._farClipping = camera.clip_end
-			a3dcam._fov = camera.lens
-			a3dcam._id = len(cameras)
-			a3dcam._name = a3dstr
-			a3dcam._nearClipping = camera.clip_start
-			a3dcam._orthographic = camtype
-			#a3dcam._parentId = None
-			a3dcam._transform = a3dtrans
-			if obj.hide == True:
-				a3dcam._visible = 1
+				a3ddir = A3D2DirectionalLight(Config)
+				a3ddir._boundBoxId = a3dbox._id
+				a3ddir._color = int(rgb2hex(light.color), 0)
+				a3ddir._id = len(directionalLights)
+				a3ddir._intensity = int(light.energy)
+				a3ddir._name = a3dstr
+				#a3ddir._parentId = None
+				a3ddir._transform = a3dtrans
+				a3ddir._visible = 1
+				
+				directionalLights.append(a3ddir)
 			else:
-				a3dcam._visible = 0
-			
-			cameras.append(a3dcam)
-		print("Exporting Lods...\n")
+				print("light type not supported")
 	
+	if len(objs_arm) > 0:
+		print("Exporting rigging/animations...\n")
+		for obj in objs_arm:
+			arm = obj.data
+			bones = arm.bones
+			
+			print(arm.name)
+			for b in bones:
+				
+				a3dstr = A3D2String()
+				a3dstr.name = b.name
+			
+				jnt = A3D2Joint(Config)
+				#jnt._boundBoxId = a3dbox
+				jnt._id = len(joints)
+				jnt._name = a3dstr
+				#jnt._parentId = None
+				#jnt._transform = getObjTransform(b)
+				jnt._visible = 1
+				joints.append(jnt)
+				#print(b.name) #name bone
+				#print(b.head_local) #vector xyz - head_radius
+				#print(b.tail_local) #vector xyz - tail_radius
+				#print(b.matrix_local) #matrix
+
+	if len(objs_mesh) > 0:
+		print("Exporting meshes...\n")
+		#loop over every mesh and populate data
+		for obj in objs_mesh:
+			#convert to triangles
+			ConvertQuadsToTris(obj)
+		
+			#data
+			mesh = obj.data
+			
+			#get raw geometry data
+			vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+			#get surface data
+			start,end,mts,mats = collectSurfaces(mesh)
+					
+			#create mesh boundbox
+			a3dbox = A3D2Box(Config)
+			a3dbox._box = bb
+			a3dbox._id = len(boxes)
+			boxes.append(a3dbox)
+			
+			#create indexbuffer
+			a3dibuf = A3D2IndexBuffer(Config)
+			for x in range(len(ins)):
+				a3dibuf._byteBuffer.append(ins[x])
+			a3dibuf._id = len(indexBuffers)
+			a3dibuf._indexCount = len(a3dibuf._byteBuffer)
+			indexBuffers.append(a3dibuf)
+			
+			#notes to self -taken from obj exporter
+			#for mtex in reversed(mat.texture_slots):
+			#        if mtex and mtex.texture.type == 'IMAGE':
+			#            image = mtex.texture.image
+			#            if image:
+			# texface overrides others
+			#if mtex.use_map_color_diffuse and face_img is None:
+			#	image_map["map_Kd"] = image
+			#if mtex.use_map_ambient:
+			#	image_map["map_Ka"] = image
+			#if mtex.use_map_specular:
+			#	image_map["map_Ks"] = image
+			#if mtex.use_map_alpha:
+			#	image_map["map_d"] = image
+			#if mtex.use_map_translucency:
+			#	image_map["map_Tr"] = image
+			#if mtex.use_map_normal:
+			#	image_map["map_Bump"] = image
+			#if mtex.use_map_hardness:
+			#	image_map["map_Ns"] = image
+			
+			mesh_surfaces = []
+			
+			#set surfaces
+			if len(mts) > 0:
+				for x in range(len(mts)):
+					print("mts[x]="+str(mts[x]))
+					print("mat="+str(GetMaterialTexture(mats[x])))
+					
+					matname = GetMaterialTexture(mats[x])
+					if matname is not None:
+						#create images
+						a3dstr = A3D2String()
+						a3dstr.name = matname
+						a3dimg = A3D2Image(Config)
+						a3dimg._id = len(images)
+						a3dimg._url = a3dstr
+						images.append(a3dimg)
+						#create maps
+						a3dmap = A3D2Map(Config)
+						a3dmap._channel = 0
+						a3dmap._id = len(maps)
+						a3dmap._imageId = a3dimg._id
+						maps.append(a3dmap)
+					
+					#create material
+					a3dmat = A3D2Material(Config)
+					if matname is not None:
+						a3dmat._diffuseMapId = a3dmap._id
+					else:
+						a3dmat._diffuseMapId = int("ffffffff",16)
+					a3dmat._glossinessMapId = int("ffffffff",16)
+					a3dmat._id = len(materials)
+					a3dmat._lightMapId = int("ffffffff",16)
+					a3dmat._normalMapId = int("ffffffff",16)
+					a3dmat._opacityMapId = int("ffffffff",16)
+					a3dmat._reflectionCubeMapId = int("ffffffff",16)
+					a3dmat._specularMapId = int("ffffffff",16)
+					materials.append(a3dmat)
+					
+					#create surface
+					a3dsurf = A3D2Surface(Config)
+					a3dsurf._indexBegin = int(start[x])
+					#a3dsurf._materialId = int("ffffffff",16)
+					a3dsurf._materialId = a3dmat._id
+					a3dsurf._numTriangles = int(end[x])
+					mesh_surfaces.append(a3dsurf)
+			else:
+				#surface for all faces
+				a3dsurf = A3D2Surface(Config)
+				a3dsurf._indexBegin = 0
+				#a3dsurf._materialId = int("ffffffff",16)
+				#a3dsurf._materialId = 0
+				a3dsurf._numTriangles = int(len(ins)/3)
+				mesh_surfaces.append(a3dsurf)
+			
+			#create transform/matrix
+			a3dtrans = A3D2Transform(Config)
+			a3dtrans._matrix.a = trns[0]
+			a3dtrans._matrix.b = trns[1]
+			a3dtrans._matrix.c = trns[2]
+			a3dtrans._matrix.d = trns[3]
+			a3dtrans._matrix.e = trns[4]
+			a3dtrans._matrix.f = trns[5]
+			a3dtrans._matrix.g = trns[6]
+			a3dtrans._matrix.h = trns[7]
+			a3dtrans._matrix.i = trns[8]
+			a3dtrans._matrix.j = trns[9]
+			a3dtrans._matrix.k = trns[10]
+			a3dtrans._matrix.l = trns[11]
+			
+			#name
+			a3dstr = A3D2String()
+			a3dstr.name = cleanupString(obj.data.name)
+			
+			#create mesh
+			a3dmesh = A3D2Mesh(Config)
+			#a3dmesh._boundBoxId = 0
+			a3dmesh._id = len(meshes)
+			a3dmesh._indexBufferId = a3dibuf._id
+			a3dmesh._name = a3dstr
+			#a3dmesh._parentId = 0
+			a3dmesh._surfaces = mesh_surfaces
+			a3dmesh._transform = a3dtrans
+			a3dmesh._vertexBuffers = [len(vertexBuffers)] #vertex buffer ids
+			a3dmesh._visible = 1
+			if obj.hide == True:
+				a3dmesh._visible = 0
+			else:
+				a3dmesh._visible = 1
+			meshes.append(a3dmesh)
+			
+			a3dstr2 = A3D2String()
+			a3dstr2.name = ""
+			
+			a3dobj = A3D2Object(Config)
+			a3dobj._boundBoxId = 0
+			a3dobj._id = len(objects)
+			a3dobj._name = a3dstr2
+			a3dobj._parentId = 0
+			a3dobj._transform = a3dtrans
+			if obj.hide == True:
+				a3dobj._visible = 1
+			else:
+				a3dobj._visible = 0
+			#objects.append(a3dobj)
+			
+			#create vertexbuffer
+			a3dvbuf = A3D2VertexBuffer(Config)
+			#POSITION = 0, NORMAL = 1, TANGENT4 = 2, JOINT = 3,TEXCOORD = 4
+			attar = []
+			if len(vs) > 0:
+				attar.append(0)
+			if (len(uvt) > 0) and (Config.ExportUV == 1):
+				attar.append(4)
+			if (len(nr) > 0) and (Config.ExportNormals == 1):
+				attar.append(1)
+			if (len(tan) > 0) and (Config.ExportTangents == 1):
+				attar.append(2)
+			#if len(jnt) > 0:
+			#	attar.append(3)
+			
+			a3dvbuf._attributes = attar
+			j=0
+			for v in vs:
+				if 0 in attar:
+					a3dvbuf._byteBuffer.append(v[0]) #vert1
+					a3dvbuf._byteBuffer.append(v[1]) #vert2
+					a3dvbuf._byteBuffer.append(v[2]) #vert3
+				if 4 in attar and (Config.ExportUV == 1):
+					a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
+					a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
+				if 1 in attar and (Config.ExportNormals == 1):
+					a3dvbuf._byteBuffer.append(nr[j][0]) #normal1
+					a3dvbuf._byteBuffer.append(nr[j][1]) #normal2
+					a3dvbuf._byteBuffer.append(nr[j][2]) #normal3
+				if 2 in attar and (Config.ExportTangents == 1):
+					a3dvbuf._byteBuffer.append(tan[j][0]) #tan1
+					a3dvbuf._byteBuffer.append(tan[j][1]) #tan2
+					a3dvbuf._byteBuffer.append(tan[j][2]) #tan3
+					a3dvbuf._byteBuffer.append(-1) #tan4 - static input handedness
+				j = j +1
+			a3dvbuf._id = len(vertexBuffers)
+			#a3dvbuf._vertexCount = int(len(ins))
+			#a3dvbuf._vertexCount = int(len(vs) * 3) 
+			a3dvbuf._vertexCount = int(len(vs)) #this works for cube
+			#a3dvbuf._vertexCount = int(len(ins)) 
+			#a3dvbuf._vertexCount = 24
+			vertexBuffers.append(a3dvbuf)
+			print("vs="+str(len(vs)))	
+	
+	if Config.A3DVersionSystem <= 3:
+		print("Exporting layers...\n")
+			
+	if Config.A3DVersionSystem <= 2:
+		if len(objs_cameras) > 0:
+			print("Exporting cameras...\n")
+			for obj in objs_cameras:
+				camera = obj.data
+				
+				#name
+				a3dstr = A3D2String()
+				a3dstr.name = cleanupString(camera.name)
+				
+				#create transform/matrix
+				a3dtrans = A3D2Transform(Config)
+				trns = getObjTransform(obj)
+				a3dtrans._matrix.a = trns[0]
+				a3dtrans._matrix.b = trns[1]
+				a3dtrans._matrix.c = trns[2]
+				a3dtrans._matrix.d = trns[3]
+				a3dtrans._matrix.e = trns[4]
+				a3dtrans._matrix.f = trns[5]
+				a3dtrans._matrix.g = trns[6]
+				a3dtrans._matrix.h = trns[7]
+				a3dtrans._matrix.i = trns[8]
+				a3dtrans._matrix.j = trns[9]
+				a3dtrans._matrix.k = trns[10]
+				a3dtrans._matrix.l = trns[11]
+				
+				a3dbox = A3D2Box(Config)
+				a3dbox._box = getBoundBox(obj)
+				a3dbox._id = len(boxes)
+				
+				camtype = False
+				if camera.type == "PERSP":
+					camtype = False
+				else:
+					camtype = True
+
+				a3dcam = A3D2Camera(Config)
+				a3dcam._boundBoxId = a3dbox._id
+				a3dcam._farClipping = camera.clip_end
+				a3dcam._fov = camera.lens
+				#a3dcam._fov = math.pi/2
+				a3dcam._id = len(cameras)
+				a3dcam._name = a3dstr
+				a3dcam._nearClipping = camera.clip_start
+				a3dcam._orthographic = camtype
+				#a3dcam._parentId = None
+				a3dcam._transform = a3dtrans
+				if obj.hide == True:
+					a3dcam._visible = 1
+				else:
+					a3dcam._visible = 0
+				
+				cameras.append(a3dcam)
+		print("Exporting Lods...\n")
+				
 	# create a3d2 object from data
 	a3d2 = A3D2(ambientLights,animationClips,animationTracks,boxes,cubeMaps,decals,directionalLights,images,indexBuffers,joints,maps,materials,meshes,objects,omniLights,spotLights,sprites,skins,vertexBuffers,layers,cameras,lods,Config)
 	
 	# save to file
 	a3d2.write(file)
-	
-	
-	#if len(objs_cameras) > 0:
-	#	print("Camera Positioning...")
-	#	for obj in objs_cameras:
-	#		camera = obj.data
-	#		print(camera.name)
-	#		print("X:"+str(obj.location[0]))
-	#		print("Y:"+str(obj.location[1]))
-	#		print("Z:"+str(obj.location[2]))
-	#		print("RotationX:"+str(obj.rotation_euler[0]))
-	#		print("RotationY:"+str(obj.rotation_euler[1]))
-	#		print("RotationZ:"+str(obj.rotation_euler[2]))
 	
 	print('Export Completed...\n')
 
@@ -1858,13 +1838,16 @@ def a3dexport(file,Config):
 
 #Container for the importer settings
 class A3DImporterSettings:
-	def __init__(self,FilePath=""):
+	def __init__(self,FilePath="",ApplyTransforms=True):
 		self.FilePath = str(FilePath)
+		self.ApplyTransforms = int(ApplyTransforms)
 		
 class A3DImporter(bpy.types.Operator):
 	bl_idname = "ops.a3dimporter"
 	bl_label = "Import A3D (Alternativa)"
 	bl_description = "Import A3D (Alternativa)"
+	
+	ApplyTransforms = BoolProperty(name="Apply Transforms", description="Apply transforms to objects", default=True)
 	
 	filepath= StringProperty(name="File Path", description="Filepath used for importing the A3D file", maxlen=1024, default="")
 
@@ -1873,7 +1856,7 @@ class A3DImporter(bpy.types.Operator):
 		file = open(self.filepath,'rb')
 		file.seek(0)
 		version = ord(file.read(1))
-		Config = A3DImporterSettings(FilePath=self.filepath)
+		Config = A3DImporterSettings(FilePath=self.filepath,ApplyTransforms=self.ApplyTransforms)
 		if version == 0:
 			loadA3d1(file,Config)
 		else:
@@ -1885,9 +1868,7 @@ class A3DImporter(bpy.types.Operator):
 		wm.fileselect_add(self)
 		return {'RUNNING_MODAL'}	
 	
-def loadA3d1(file,Config):
-	print("coming soon...")
-	
+def loadA3d1(file,Config):	
 	file.seek(4)
 	
 	# read null mask
@@ -1951,6 +1932,26 @@ def loadA3d2(file,Config):
 	ver.read(file)
 	print('A3D Version %i.%i' %(ver.baseversion,ver.pointversion))
 	
+	#setup config version to match export
+	# set default to 2.0
+	Config.A3DVersionSystem = 4
+	if ver.baseversion == 1:
+		#1.0
+		Config.A3DVersionSystem=5
+	elif ver.baseversion == 2:
+		if ver.pointversion == 0:
+			#2.0
+			Config.A3DVersionSystem=4
+		elif ver.pointversion == 4:
+			#2.4
+			Config.A3DVersionSystem=3
+		elif ver.pointversion == 5:
+			#2.5
+			Config.A3DVersionSystem=2
+		elif ver.pointversion == 6:
+			#2.5
+			Config.A3DVersionSystem=1
+	
 	#read data
 	#a3d2 = A3D2([],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],Config)
 	a3d2 = A3D2()
@@ -1996,14 +1997,81 @@ class A3D:
 		self.nullmask = ""
 		self.Config = Config
 	
+	def reset(self):
+		self.boxes = []
+		self.geometries = []
+		self.images = []
+		self.maps = []
+		self.materials = []
+		self.objects = []
+		self.nullmask = ""
+		#self.Config = None
+		
 	def convert1_2(self):
-		print("convert1_2")
+		print("convert1_2")		
+				
+		a3d2boxes = []
+		a3d2images = []
+		a3d2indexBuffers = []
+		a3d2maps = []
+		a3d2materials = []
+		a3d2meshes = []
+		a3d2objects = []
+		a3d2vertexBuffers = []
+
+		if len(self.boxes) > 0:
+			for x in range(len(self.boxes)):
+				a3dbox = A3D2Box(self.Config)
+				a3dbox._box = self.boxes[x]._box
+				a3dbox._id = len(a3d2boxes)
+				a3d2boxes.append(a3dbox)
+				
+		if len(self.geometries) > 0:
+			for x in range(len(self.geometries)):
+				print("")
+				
+		if len(self.images) > 0:
+			for x in range(len(self.images)):
+				a3dimg = A3D2Image(self.Config)
+				a3dimg._id = len(a3d2images)
+				a3dimg._url = self.images[x]._url
+				a3d2images.append(a3dimg)
+				
+		if len(self.maps) > 0:
+			for x in range(len(self.maps)):
+				a3dmap = A3D2Map(self.Config)
+				a3dmap._channel = self.map[x]._channel
+				a3dmap._id = len(a3d2maps)
+				a3dmap._imageId = self.map[x]._imageId
+				a3d2maps.append(a3dmap)
+				
+		if len(self.materials) > 0:
+			for x in range(len(self.materials)):
+				a3dmat = A3D2Material(self.Config)
+				a3dmat._diffuseMapId = self.materials[x]._diffuseMapId
+				a3dmat._glossinessMapId = self.materials[x]._glossinessMapId
+				a3dmat._id = len(a3d2materials)
+				a3dmat._lightMapId = self.materials[x]._lightMapId
+				a3dmat._normalMapId = self.materials[x]._normalMapId
+				a3dmat._opacityMapId = self.materials[x]._opacityMapId
+				a3dmat._specularMapId = self.materials[x]._specularMapId
+				a3d2materials.append(a3dmat)
+				
+		if len(self.objects) > 0:
+			for x in range(len(self.objects)):
+				print("")
+				
+		a3d2 = A3D2([],[],[],a3d2boxes,[],[],[],a3d2images,a3d2indexBuffers,[],a3d2maps,a3d2materials,a3d2meshes,a3d2objects,[],[],[],[],a3d2vertexBuffers,[],[],[],self.Config)
+				
+		return a3d2
 	
 	def render(self):
 		print("render")
 	
 	def read(self,file,mask):
 		print("reada3d")
+		
+		self.reset()
 		
 		# define arrays
 		arrs = {
@@ -2472,7 +2540,7 @@ class A3DNull:
 				rem = bits % 8
 				if rem == 0:
 					#if fits exactly in bytes
-					bytenum = bits/8
+					bytenum = int(bits/8)
 				else:
 					#if doesn't fit exactly round up
 					bytenum = int((bits+(8-rem))/8)
@@ -2482,7 +2550,7 @@ class A3DNull:
 				#print(byte1)
 				#file.write(struct.pack("B",byte1))				
 				#file.write(struct.pack(">L",x))
-				#file.write(struct.pack(">L",int('1110111101100000000001101111110',2)))
+				#file.write(struct.pack(">L",int('1110111101100000000001101111110',2)))				
 
 				tbits = int(bytenum * 8)
 				rbits = int(tbits - bits)
@@ -2661,17 +2729,15 @@ class A3D2:
 			lamp.color = light._color
 			lamp.energy = light._intensity
 
-			if light._transform is not None:
-				#ob.matrix_local = Matrix((mesh._transform._matrix.a,mesh._transform._matrix.b,mesh._transform._matrix.d,mesh._transform._matrix.e,mesh._transform._matrix.f,mesh._transform._matrix.g,mesh._transform._matrix.h,mesh._transform._matrix.i,mesh._transform._matrix.j,mesh._transform._matrix.k,mesh._transform._matrix.l))
-				ob.location = mathutils.Vector( (mesh._transform._matrix.d,mesh._transform._matrix.h,mesh._transform._matrix.l) )
-				ob.rotation_euler = mathutils.Euler((mesh._transform._matrix.e,mesh._transform._matrix.f,mesh._transform._matrix.g), 'XYZ')
+			if (light._transform is not None) and (self.Config.ApplyTransforms == True):
+				ob.matrix_local = light._transform.getMatrix()
 			else:
 				# position object at 3d-cursor
 				ob.location = bpy.context.scene.cursor_location
 			bpy.context.scene.objects.link(ob)
 			
 			if light._visible == False:
-				ob.visible = False
+				ob.hide = False
 				
 		#render directionallights
 		for light in self.directionalLights:
@@ -2687,17 +2753,15 @@ class A3D2:
 			lamp.color = light._color
 			lamp.energy = light._intensity
 
-			if light._transform is not None:
-				#ob.matrix_local = Matrix((mesh._transform._matrix.a,mesh._transform._matrix.b,mesh._transform._matrix.d,mesh._transform._matrix.e,mesh._transform._matrix.f,mesh._transform._matrix.g,mesh._transform._matrix.h,mesh._transform._matrix.i,mesh._transform._matrix.j,mesh._transform._matrix.k,mesh._transform._matrix.l))
-				ob.location = mathutils.Vector( (mesh._transform._matrix.d,mesh._transform._matrix.h,mesh._transform._matrix.l) )
-				ob.rotation_euler = mathutils.Euler((mesh._transform._matrix.e,mesh._transform._matrix.f,mesh._transform._matrix.g), 'XYZ')
+			if (light._transform is not None) and (self.Config.ApplyTransforms == True):
+				ob.matrix_local = light._transform.getMatrix()
 			else:
 				# position object at 3d-cursor
 				ob.location = bpy.context.scene.cursor_location
 			bpy.context.scene.objects.link(ob)
 			
 			if light._visible == False:
-				ob.visible = False
+				ob.hide = False
 		
 		#render meshes
 		for mesh in self.meshes:
@@ -2789,10 +2853,8 @@ class A3D2:
 			# create an object with that mesh
 			ob = bpy.data.objects.new(nme, me)  
 			
-			if mesh._transform is not None:
-				#ob.matrix_local = Matrix((mesh._transform._matrix.a,mesh._transform._matrix.b,mesh._transform._matrix.d,mesh._transform._matrix.e,mesh._transform._matrix.f,mesh._transform._matrix.g,mesh._transform._matrix.h,mesh._transform._matrix.i,mesh._transform._matrix.j,mesh._transform._matrix.k,mesh._transform._matrix.l))
-				ob.location = mathutils.Vector( (mesh._transform._matrix.d,mesh._transform._matrix.h,mesh._transform._matrix.l) )
-				ob.rotation_euler = mathutils.Euler((mesh._transform._matrix.e,mesh._transform._matrix.f,mesh._transform._matrix.g), 'XYZ')
+			if (mesh._transform is not None) and (self.Config.ApplyTransforms == True):
+				ob.matrix_local = mesh._transform.getMatrix()
 			else:
 				# position object at 3d-cursor
 				ob.location = bpy.context.scene.cursor_location
@@ -2805,7 +2867,7 @@ class A3D2:
 			me.update(calc_edges=True)    # Update mesh with new data
 			
 			if mesh._visible == False:
-				ob.visible = False
+				ob.hide = True
 			
 			for surf in mesh._surfaces:
 				#surf._indexBegin
@@ -3072,7 +3134,252 @@ class A3D2:
 			#		#me.uv_textures.active.data[face.index].uv[i][1] = uvs[i][1]				
 
 		#render skins
-		#for skin in self.skins:
+		for skin in self.skins:		
+			coords = []
+			faces = []
+			uvs = []
+		
+			#index buff
+			ibuf = ibuffers[skin._indexBufferId]
+			i=0
+			for x in range(int(len(ibuf._byteBuffer)/3)):
+				temp = (ibuf._byteBuffer[i],ibuf._byteBuffer[i+1],ibuf._byteBuffer[i+2])
+				faces.append(temp)
+				i=i+3
+			
+			#vert buff
+			for v in skin._vertexBuffers:
+				vbuf = vbuffers[v]
+				#print(vbuf._byteBuffer)
+				#print(vbuf._id)
+				#print(vbuf._attributes)
+				numflts = 0
+				for att in vbuf._attributes:
+					if att == 0:
+						#position
+						numflts = numflts + 3
+					if att == 1:
+						#normal
+						numflts = numflts + 3
+					if att == 2:
+						#tangent
+						numflts = numflts + 4
+					if att == 3:
+						#joint
+						numflts = numflts + 4
+					if att == 4:
+						#uv
+						numflts = numflts + 2
+				flcount = int(len(vbuf._byteBuffer))
+				points = int(flcount/numflts)
+				i = 0
+				for p in range(points):
+					if 0 in vbuf._attributes:
+						x = vbuf._byteBuffer[i]
+						i = i + 1
+						y = vbuf._byteBuffer[i]
+						i = i + 1
+						z = vbuf._byteBuffer[i]
+						i = i + 1
+						coords.append((x, y, z))
+					if 1 in vbuf._attributes:
+						x = vbuf._byteBuffer[i]
+						i = i + 1
+						y = vbuf._byteBuffer[i]
+						i = i + 1
+						z = vbuf._byteBuffer[i]
+						i = i + 1
+					if 2 in vbuf._attributes:
+						i = i + 1
+						i = i + 1
+						i = i + 1
+						i = i + 1
+					if 3 in vbuf._attributes:
+						i = i + 1
+						i = i + 1
+						i = i + 1
+						i = i + 1
+					if 4 in vbuf._attributes:
+						uv1 = vbuf._byteBuffer[i]
+						i = i + 1
+						uv2 = vbuf._byteBuffer[i]
+						i = i + 1
+						uvs.append([uv1,uv2])
+			
+			#print(coords)
+			#print(faces)
+			#print(uvs)
+			#print(mesh._name)
+			
+			if skin._name is not None:
+				nme = skin._name
+			else:
+				nme = "Skin"
+			
+			# create a new mesh  
+			me = bpy.data.meshes.new(nme) 
+			
+			# create an object with that mesh
+			ob = bpy.data.objects.new(nme, me)  
+			
+			if (skin._transform is not None) and (self.Config.ApplyTransforms == True):
+				ob.matrix_local = skin._transform.getMatrix()
+			else:
+				# position object at 3d-cursor
+				ob.location = bpy.context.scene.cursor_location
+			
+			# Link object to scene
+			bpy.context.scene.objects.link(ob)  
+			
+			# Fill the mesh with verts, edges, faces 
+			me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
+			me.update(calc_edges=True)    # Update mesh with new data
+			
+			if skin._visible == False:
+				ob.hide = True
+			
+			for surf in skin._surfaces:
+				#surf._indexBegin
+				#surf._materialId
+				#surf._numTriangles
+				
+				if surf._materialId is not None:
+					#get material
+					mat = materials[surf._materialId]
+					
+					#new material
+					surf_mat = bpy.data.materials.new("Material")
+					me.materials.append(surf_mat)
+					
+					if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._diffuseMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("diffuse", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
+					
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = True
+						
+					if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._glossinessMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("glossiness", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
+					
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = True
+						
+					if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._lightMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("light", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
+					
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = True
+						
+					if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._normalMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("normal", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
+					
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_normal = True
+						
+					if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._opacityMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("opacity", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
+					
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = True
+						
+					if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._reflectionCubeMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("reflectioncube", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
+					
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = True
+						
+					if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._specularMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("specular", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
+					
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = True
+			
+			#add uv
+			uvlayer = me.uv_textures.new()
 		
 	def read(self,file,mask,ver):
 		print("reada3d2")
@@ -3096,9 +3403,9 @@ class A3D2:
 			12: self.meshes,
 			13: self.objects,
 			14: self.omniLights,
-			15: self.spotLights,
-			16: self.sprites,
-			17: self.skins,
+			15: self.skins,
+			16: self.spotLights,
+			17: self.sprites,
 			18: self.vertexBuffers,
 			19: self.layers,
 			20: self.cameras,
@@ -3122,12 +3429,12 @@ class A3D2:
 			12: A3D2Mesh,
 			13: A3D2Object,
 			14: A3D2OmniLight,
-			15: A3D2SpotLight,
-			16: A3D2Sprite,
-			17: A3D2Skin,
+			15: A3D2Skin,
+			16: A3D2SpotLight,
+			17: A3D2Sprite,
 			18: A3D2VertexBuffer
 		}
-		
+
 		if (ver.baseversion == 2) and (ver.pointversion >= 4):
 			funcs.update({19: A3D2Layer})
 			
@@ -3674,6 +3981,7 @@ class A3D2AmbientLight:
 		if mask[mskindex + self._mskindex] == "0":
 			a3dtran = A3D2Transform(self.Config)
 			a3dtran.read(file)
+			self._transform = a3dtran
 		self._mskindex = self._mskindex + 1
 		
 		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
@@ -4071,6 +4379,7 @@ class A3D2DirectionalLight:
 		if mask[mskindex + self._mskindex] == "0":
 			a3dtran = A3D2Transform(self.Config)
 			a3dtran.read(file)
+			self._transform = a3dtran
 		self._mskindex = self._mskindex + 1
 		
 		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
@@ -4501,6 +4810,7 @@ class A3D2Mesh:
 		if mask[mskindex + self._mskindex] == "0":
 			a3dtran = A3D2Transform(self.Config)
 			a3dtran.read(file)
+			self._transform = a3dtran
 		self._mskindex = self._mskindex + 1
 		
 		#buffer
@@ -4603,6 +4913,8 @@ class A3D2Object:
 			self._name = a3dstr.name
 		self._mskindex = self._mskindex + 1
 		
+		print(self._name)
+		
 		if mask[mskindex + self._mskindex] == "0":
 			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
 		self._mskindex = self._mskindex + 1
@@ -4614,8 +4926,6 @@ class A3D2Object:
 		self._mskindex = self._mskindex + 1
 				
 		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
-		
-		print(self._name)
 		
 	def write(self,file):
 		#bbid, id, indexbufid
@@ -4907,7 +5217,7 @@ class A3D2Skin:
 		self._name = None
 		self._numJoints = []
 		self._parentId = None
-		self._surfaces = 0
+		self._surfaces = []
 		self._transform = None
 		self._vertexBuffers = []
 		self._visible = 1
@@ -4926,7 +5236,7 @@ class A3D2Skin:
 		self._name = None
 		self._numJoints = []
 		self._parentId = None
-		self._surfaces = 0
+		self._surfaces = []
 		self._transform = None
 		self._vertexBuffers = []
 		self._visible = 1
@@ -4972,7 +5282,7 @@ class A3D2Skin:
 		arr = A3D2Array()
 		arr.read(file)
 		for x in range(arr.length):
-			self.numJoints.append(struct.unpack(">H", file.read(struct.calcsize(">H")))[0])
+			self._numJoints.append(struct.unpack(">H", file.read(struct.calcsize(">H")))[0])
 		
 		if mask[mskindex + self._mskindex] == "0":
 			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
@@ -5104,13 +5414,22 @@ class A3D2VertexBuffer:
 		self._attributes = []
 		for a in range(arr.length):
 			self._attributes.append(struct.unpack(">L",file.read(struct.calcsize(">L")))[0])
+		
 		arr = A3D2Array()
 		arr.read(file)
-		for a in range(int(arr.length/4)):
-			self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
+		if self.Config.A3DVersionSystem is not None:
+			if self.Config.A3DVersionSystem == 1:
+				#2.6
+				for a in range(int(arr.length/2)):
+					self._byteBuffer.append(struct.unpack(">H",file.read(struct.calcsize(">H")))[0])
+			else:
+				for a in range(int(arr.length/4)):
+					self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
+		else:
+			for a in range(int(arr.length/4)):
+					self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
 		self._id  = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
 		self._vertexCount  = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
-		self._mskindex = 1
 		
 	def write(self,file):
 		print("write vertexbuffer")
@@ -5127,9 +5446,10 @@ class A3D2VertexBuffer:
 		#bybufsize = int( (self._vertexCount*3)*4 )
 		
 		#if version 2.6 then compressed vertex buffer
-		if self.Config.A3DVersionSystem == 4:
+		if self.Config.A3DVersionSystem == 1:
+			#2.6
 			arr.write(file,int(bybufsize/2)) #half it because we storing shorts now
-			packVertexBuffer(file)
+			self.packVertexBuffer(file)
 		else:
 			arr.write(file,bybufsize) 
 			for byte in self._byteBuffer:
@@ -5141,6 +5461,91 @@ class A3D2VertexBuffer:
 		file.write(struct.pack(">H",self._vertexCount))
 	
 	def packVertexBuffer(self,file):
+		basetable,shifttable = {},{}
+		for byte in self._byteBuffer:
+			f32 = int(byte)
+			#h = ((f32>>16)&0x8000)|((((f32&0x7f800000)-0x38000000)>>13)&0x7c00)|((f32>>13)&0x03ff)
+			basetable, shifttable = self.generatetables()
+			h=basetable[(f32>>23)&0x1ff]+((f32&0x007fffff)>>shifttable[(f32>>23)&0x1ff])
+			print("float %f" % byte)
+			print(h)
+			file.write(struct.pack(">H",h))
+	
+	def packVertexBuffer_OLD2(self,file):
+		#http://gamedev.stackexchange.com/questions/17326/conversion-of-a-number-from-single-precision-floating-point-representation-to-a
+		F16_EXPONENT_BITS = 0x1F
+		F16_EXPONENT_SHIFT = 10
+		F16_EXPONENT_BIAS = 15
+		F16_MANTISSA_BITS = 0x3ff
+		F16_MANTISSA_SHIFT =  (23 - F16_EXPONENT_SHIFT)
+		F16_MAX_EXPONENT =  (F16_EXPONENT_BITS << F16_EXPONENT_SHIFT)
+
+		for byte in self._byteBuffer:
+			f32 = int(byte)
+			f16 = 0
+			sign = (f32 >> 16) & 0x8000
+			exponent = ((f32 >> 23) & 0xff) - 127
+			mantissa = f32 & 0x007fffff
+			
+			if exponent == 128:
+				f16 = sign | F16_MAX_EXPONENT
+				if mantissa:
+					f16 |= (mantissa & F16_MANTISSA_BITS)
+			elif exponent > 15:
+				f16 = sign | F16_MAX_EXPONENT
+			elif exponent > -15:
+				exponent += F16_EXPONENT_BIAS
+				mantissa >>= F16_MANTISSA_SHIFT
+				f16 = sign | exponent << F16_EXPONENT_SHIFT | mantissa
+			else:
+				f16 = sign
+			print("float %f" % byte)
+			print(f16)
+			file.write(struct.pack(">H",f16))
+	
+	def packVertexBuffer_OLD1(self,file):
+		#http://stackoverflow.com/questions/1659440/32-bit-to-16-bit-floating-point-conversion
+		shift = 13
+		shiftSign = 16
+		infN = 0x7F800000
+		maxN = 0x477FE000
+		minN = 0x38800000
+		signN = 0x80000000
+		infC = infN >> shift
+		nanN = (infC + 1) << shift
+		maxC = maxN >> shift
+		minC = minN >> shift
+		signC = signN >> shiftSign
+		mulN = 0x52000000
+		mulC = 0x33800000
+		subC = 0x003FF
+		norC = 0x00400
+		maxD = infC - maxC - 1
+		minD = minC - subC - 1
+		
+		for byte in self._byteBuffer:
+			v = VBits()
+			s = VBits()
+			
+			v.f = byte
+			sign = v.si & signN
+			v.si ^= sign
+			sign >>= shiftSign # logical shift
+			s.si = mulN
+			s.si = s.f * v.f # correct subnormals
+			v.si ^= (int(s.si) ^ v.si) & -(minN > v.si)
+			v.si ^= (infN ^ v.si) & -((infN > v.si) & (v.si > maxN))
+			v.si ^= (nanN ^ v.si) & -((nanN > v.si) & (v.si > infN))
+			v.ui >>= shift # logical shift
+			v.si ^= ((v.si - maxD) ^ v.si) & -(v.si > maxC)
+			v.si ^= ((v.si - minD) ^ v.si) & -(v.si > subC)
+			data = v.ui | sign
+			
+			print("float %f" % byte)
+			print(data)
+			file.write(struct.pack(">H",data))
+		
+	def packVertexBuffer_OLD(self,file):
 		print("packVertexBuffer")
 		
 		#getting matissa and exponent
@@ -5171,16 +5576,6 @@ class A3D2VertexBuffer:
 		mant = n1 & 0x7FFFFF
 
 		file.write(short)
-		
-		#data = 
-		#file.write(struct.pack(">H",data))
-		
-		#data = read readUnsignedShort
-		#vi &= 0x7FFF;
-		#vi ^= (vi + 0x1c000) ^ vi;
-		#vi = vi << 13;
-		#tempBuffer.writeUnsignedInt(data > 0x8000 ? vi | 0x80000000 : vi);
-		#file.write(struct.pack(">H"
 		
 	def unpackVertexBuffer(self,file):
 		print("unpackVertexBuffer")
@@ -5250,6 +5645,50 @@ class A3D2VertexBuffer:
 		f = f << 13
 		return int((s << 31) | (e << 23) | f)
 
+	def generatetables(self):
+		i=0
+		e=0
+		basetable,shifttable = {},{}
+		for i in range(256):
+			e=i-127
+			#Very small numbers map to zero
+			if e<-24:
+			  basetable[i|0x000]=0x0000
+			  basetable[i|0x100]=0x8000
+			  shifttable[i|0x000]=24
+			  shifttable[i|0x100]=24
+			#Small numbers map to denorms
+			elif e<-14:
+			  basetable[i|0x000]=(0x0400>>(-e-14))
+			  basetable[i|0x100]=(0x0400>>(-e-14)) | 0x8000
+			  shifttable[i|0x000]=-e-1
+			  shifttable[i|0x100]=-e-1
+			# Normal numbers just lose precision
+			elif e<=15:
+			  basetable[i|0x000]=((e+15)<<10)
+			  basetable[i|0x100]=((e+15)<<10) | 0x8000
+			  shifttable[i|0x000]=13
+			  shifttable[i|0x100]=13
+			# Large numbers map to Infinity
+			elif e<128:
+			  basetable[i|0x000]=0x7C00
+			  basetable[i|0x100]=0xFC00
+			  shifttable[i|0x000]=24
+			  shifttable[i|0x100]=24
+			# Infinity and NaN's stay Infinity and NaN's
+			else:
+			  basetable[i|0x000]=0x7C00
+			  basetable[i|0x100]=0xFC00
+			  shifttable[i|0x000]=13
+			  shifttable[i|0x100]=13
+		return basetable,shifttable
+	
+class VBits:
+	def __init__(self):
+		self.f = 0
+		self.si = 0x00000000
+		self.ui = 0x00000000
+		
 class A3D2Layer:
 	def __init__(self,Config):
 		self._id = 0
@@ -5452,6 +5891,13 @@ class A3D2Transform:
 		self._mskindex = 0
 		self._matrix.reset()
 		
+	def getMatrix(self):	
+		matrx = mathutils.Matrix()
+		matrx[0][0], matrx[0][1], matrx[0][2], matrx[0][3] = self._matrix.a, self._matrix.b, self._matrix.c, self._matrix.d
+		matrx[1][0], matrx[1][1], matrx[1][2], matrx[1][3] = self._matrix.e, self._matrix.f, self._matrix.g, self._matrix.h
+		matrx[2][0], matrx[2][1], matrx[2][2], matrx[2][3] = self._matrix.i, self._matrix.j, self._matrix.k, self._matrix.l
+		return matrx
+		
 	def read(self,file):
 		self._matrix.read(file)
 		
@@ -5491,29 +5937,29 @@ class A3DMatrix:
 		
 	def read(self,file):
 		temp = file.read(4)
-		self.a = struct.unpack('>f',temp)
+		self.a = struct.unpack('>f',temp)[0]
 		temp = file.read(4)
-		self.b = struct.unpack('>f',temp)
+		self.b = struct.unpack('>f',temp)[0]
 		temp = file.read(4)
-		self.c = struct.unpack('>f',temp)
+		self.c = struct.unpack('>f',temp)[0]
 		temp = file.read(4)
-		self.d = struct.unpack('>f',temp)
+		self.d = struct.unpack('>f',temp)[0]
 		temp = file.read(4)
-		self.e = struct.unpack('>f',temp)
+		self.e = struct.unpack('>f',temp)[0]
 		temp = file.read(4)
-		self.f = struct.unpack('>f',temp)
+		self.f = struct.unpack('>f',temp)[0]
 		temp = file.read(4)
-		self.g = struct.unpack('>f',temp)
+		self.g = struct.unpack('>f',temp)[0]
 		temp = file.read(4)
-		self.h = struct.unpack('>f',temp)
+		self.h = struct.unpack('>f',temp)[0]
 		temp = file.read(4)
-		self.i = struct.unpack('>f',temp)
+		self.i = struct.unpack('>f',temp)[0]
 		temp = file.read(4)
-		self.j = struct.unpack('>f',temp)
+		self.j = struct.unpack('>f',temp)[0]
 		temp = file.read(4)
-		self.k = struct.unpack('>f',temp)
+		self.k = struct.unpack('>f',temp)[0]
 		temp = file.read(4)
-		self.l = struct.unpack('>f',temp)
+		self.l = struct.unpack('>f',temp)[0]
 	
 	def write(self,file):
 		file.write(struct.pack('>f',self.a))
@@ -5533,23 +5979,20 @@ class A3DMatrix:
 # Custom Meshes
 #==================================		
 class AddA3DLogo(bpy.types.Operator):
-	bl_idname = "mesh.a3d_logo"
+	bl_idname = "a3dobj.a3d_logo"
 	bl_label = "Add A3D Logo"
 	bl_options = {'REGISTER', 'UNDO'}
 		
-	def execute(self, context):
-		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
-		#coords=[(0.872773, -0.617606, 0.000000), (1.018175, -1.009088, 0.000000), (-0.163934, -1.463471, 0.000000), (-0.691019, -0.326800, 0.000000), (0.518353, 0.145759, 0.000000), (0.518353, 0.145759, 0.000000), (-1.050736, 0.329527, 0.000000), (0.158636, 0.802085, 0.000000), (-0.477481, 1.692649, 0.000000), (-1.686853, 1.220090, 0.000000), (-0.969712, 2.306044, 0.000000), (-2.194230, 1.788049, 0.000000), (-2.981800, 2.484746, 0.000000), (-1.757283, 3.002741, 0.000000), (-2.204077, 3.335943, 0.000000), (-3.436167, 2.764939, 0.000000), (-3.385423, 4.138652, 0.000000), (-3.945794, 3.838778, 0.000000), (-4.170708, 2.181850, 0.000000), (-4.460729, 3.478323, 0.000000), (-4.837094, 1.462456, 0.000000), (-5.289167, 2.801334, 0.000000), (-6.397775, 1.447379, 0.000000), (-5.954789, -0.200456, 0.000000), (-7.117453, 0.171587, 0.000000), (-6.325532, -1.410823, 0.000000), (-7.531813, -0.864313, 0.000000), (-7.499100, -1.126014, 0.000000), (-7.400962, -1.213248, 0.000000), (-7.128357, -1.322290, 0.000000), (-6.310541, -1.409523, 0.000000), (-4.809847, -1.410823, 0.000000), (-4.809847, -0.135031, 0.000000), (-3.861181, 0.072149, 0.000000), (-3.664905, -1.105505, 0.000000), (-2.596293, -0.669337, 0.000000), (-2.814377, 0.551934, 0.000000), (-1.320501, 0.126670, 0.000000), (-2.072891, 1.053528, 0.000000), (-2.814377, 0.551934, 1.000000), (-2.072891, 1.053528, 1.000000), (-1.320501, 0.126670, 1.000000), (-2.596293, -0.669337, 1.000000), (-3.861181, 0.072149, 1.000000), (-3.664905, -1.105505, 1.000000), (-4.809847, -1.410823, 1.000000), (-4.809847, -0.135031, 1.000000), (-5.954789, -0.200456, 1.000000), (-6.325532, -1.410823, 1.000000), (-6.310541, -1.409523, 1.000000), (-7.128357, -1.322290, 1.000000), (-7.400962, -1.213248, 1.000000), (-7.499100, -1.126014, 1.000000), (-7.531813, -0.864313, 1.000000), (-7.117453, 0.171587, 1.000000), (-6.397775, 1.447379, 1.000000), (-4.837094, 1.462456, 1.000000), (-5.289167, 2.801334, 1.000000), (-4.170708, 2.181850, 1.000000), (-4.460729, 3.478323, 1.000000), (-3.945794, 3.838778, 1.000000), (-3.436167, 2.764939, 1.000000), (-3.385423, 4.138652, 1.000000), (-2.204077, 3.335943, 1.000000), (-2.981800, 2.484746, 1.000000), (-1.757283, 3.002741, 1.000000), (-2.194230, 1.788049, 1.000000), (-0.969712, 2.306044, 1.000000), (-1.686853, 1.220090, 1.000000), (-0.477481, 1.692649, 1.000000), (-1.050736, 0.329527, 1.000000), (0.158636, 0.802085, 1.000000), (-0.691019, -0.326800, 1.000000), (0.518353, 0.145759, 1.000000), (0.872773, -0.617606, 1.000000), (-0.163934, -1.463471, 1.000000), (1.018175, -1.009088, 1.000000)]
-		#faces = [(0, 1, 2), (0, 2, 3), (0, 3, 4), (3, 6, 7), (3, 7, 4), (6, 9, 8), (6, 8, 7), (9, 11, 10), (9, 10, 8), (11, 12, 13), (11, 13, 10), (12, 15, 14), (12, 14, 13), (14, 15, 16), (15, 18, 17), (15, 17, 16), (17, 18, 19), (18, 20, 21), (18, 21, 19), (20, 23, 22), (20, 22, 21), (22, 23, 24), (23, 25, 26), (23, 26, 24), (25, 30, 29), (25, 29, 26), (26, 29, 28), (26, 28, 27), (23, 32, 31), (23, 31, 25), (31, 32, 33), (31, 33, 34), (33, 36, 35), (33, 35, 34), (36, 38, 37), (36, 37, 35), (36, 39, 40), (36, 40, 38), (38, 40, 41), (38, 41, 37), (37, 41, 42), (37, 42, 35), (33, 43, 39), (33, 39, 36), (35, 42, 44), (35, 44, 34), (34, 44, 45), (34, 45, 31), (32, 46, 43), (32, 43, 33), (23, 47, 46), (23, 46, 32), (31, 45, 48), (31, 48, 25), (25, 48, 49), (25, 49, 30), (30, 49, 50), (30, 50, 29), (29, 50, 51), (29, 51, 28), (28, 51, 52), (28, 52, 27), (27, 52, 53), (27, 53, 26), (26, 53, 54), (26, 54, 24), (24, 54, 55), (24, 55, 22), (20, 56, 47), (20, 47, 23), (22, 55, 57), (22, 57, 21), (18, 58, 56), (18, 56, 20), (21, 57, 59), (21, 59, 19), (19, 59, 60), (19, 60, 17), (15, 61, 58), (15, 58, 18), (17, 60, 62), (17, 62, 16), (16, 62, 63), (16, 63, 14), (12, 64, 61), (12, 61, 15), (14, 63, 65), (14, 65, 13), (11, 66, 64), (11, 64, 12), (13, 65, 67), (13, 67, 10), (9, 68, 66), (9, 66, 11), (10, 67, 69), (10, 69, 8), (6, 70, 68), (6, 68, 9), (8, 69, 71), (8, 71, 7), (3, 72, 70), (3, 70, 6), (7, 71, 73), (7, 73, 4), (74, 0, 4), (74, 4, 73), (2, 75, 72), (2, 72, 3), (0, 74, 76), (0, 76, 1), (1, 76, 75), (1, 75, 2), (39, 42, 41), (39, 41, 40), (43, 44, 42), (43, 42, 39), (45, 44, 43), (45, 43, 46), (47, 48, 45), (47, 45, 46), (53, 52, 51), (53, 51, 50), (48, 53, 50), (48, 50, 49), (47, 54, 53), (47, 53, 48), (55, 54, 47), (56, 57, 55), (56, 55, 47), (58, 59, 57), (58, 57, 56), (60, 59, 58), (61, 62, 60), (61, 60, 58), (63, 62, 61), (64, 65, 63), (64, 63, 61), (66, 67, 65), (66, 65, 64), (68, 69, 67), (68, 67, 66), (70, 71, 69), (70, 69, 68), (72, 73, 71), (72, 71, 70), (74, 73, 72), (74, 72, 75), (74, 75, 76) ]
+	def execute(self, context):		
+		coords=[(49.6592, -9.7168, -36.695),(68.0484, -9.7168, -30.768),(65.9799, -9.7168, -23.6486),(-57.6792, 8.46341, -13.1369),(-39.1325, 8.46341, -13.9348),(-38.8807, 8.46341, -16.1225),(-8.20569, 6.46341, 53.3047),(-8.20569, -7.7168, 53.3047),(-1.46778, -7.7168, 57.5386),(-1.46778, -7.7168, 57.5386),(-1.46778, 6.46341, 57.5386),(-8.20569, 6.46341, 53.3047),(-1.46778, 6.46341, 57.5386),(-1.46778, -7.7168, 57.5386),(0.0871229, -7.7168, 57.966),(0.0871229, -7.7168, 57.966),(0.0871229, 6.46341, 57.966),(-1.46778, 6.46341, 57.5386),(0.0871229, 6.46341, 57.966),(0.0871229, -7.7168, 57.966),(1.64202, -7.7168, 57.5364),(1.64202, -7.7168, 57.5364),(1.64202, 6.46341, 57.5364),(0.0871229, 6.46341, 57.966),(1.64202, 6.46341, 57.5364),(1.64202, -7.7168, 57.5364),(9.31166, -7.7168, 53.6338),(9.31166, -7.7168, 53.6338),(9.31166, 6.46341, 53.6338),(1.64202, 6.46341, 57.5364),(9.31166, 6.46341, 53.6338),(9.31166, -7.7168, 53.6338),(14.5647, -7.7168, 50.3964),(14.5647, -7.7168, 50.3964),(14.5647, 6.46341, 50.3964),(9.31166, 6.46341, 53.6338),(14.5647, 6.46341, 50.3964),(14.5647, -7.7168, 50.3964),(19.4513, -7.7168, 46.8536),(19.4513, -7.7168, 46.8536),(19.4513, 6.46341, 46.8536),(14.5647, 6.46341, 50.3964),(19.4513, 6.46341, 46.8536),(19.4513, -7.7168, 46.8536),(25.0709, -7.7168, 42.0892),(25.0709, -7.7168, 42.0892),(25.0709, 6.46341, 42.0892),(19.4513, 6.46341, 46.8536),(25.0709, 6.46341, 42.0892),(25.0709, -7.7168, 42.0892),(31.7899, -7.7168, 35.6756),(31.7899, -7.7168, 35.6756),(31.7899, 6.46341, 35.6756),(25.0709, 6.46341, 42.0892),(31.7899, 6.46341, 35.6756),(31.7899, -7.7168, 35.6756),(37.8371, -7.7168, 29.0176),(37.8371, -7.7168, 29.0176),(37.8371, 6.46341, 29.0176),(31.7899, 6.46341, 35.6756),(37.8371, 6.46341, 29.0176),(37.8371, -7.7168, 29.0176),(42.1739, -7.7168, 23.7645),(42.1739, -7.7168, 23.7645),(42.1739, 6.46341, 23.7645),(37.8371, 6.46341, 29.0176),(42.1739, 6.46341, 23.7645),(42.1739, -7.7168, 23.7645),(47.7324, -7.7168, 16.2514),(47.7324, -7.7168, 16.2514),(47.7324, 6.46341, 16.2514),(42.1739, 6.46341, 23.7645),(47.7324, 6.46341, 16.2514),(47.7324, -7.7168, 16.2514),(52.2525, -7.7168, 9.46394),(52.2525, -7.7168, 9.46394),(52.2525, 6.46341, 9.46394),(47.7324, 6.46341, 16.2514),(52.2525, 6.46341, 9.46394),(52.2525, -7.7168, 9.46394),(55.8513, -7.7168, 3.35219),(55.8513, -7.7168, 3.35219),(55.8513, 6.46341, 3.35219),(52.2525, 6.46341, 9.46394),(55.8513, 6.46341, 3.35219),(55.8513, -7.7168, 3.35219),(59.0276, -7.7168, -2.38955),(59.0276, -7.7168, -2.38955),(59.0276, 6.46341, -2.38955),(55.8513, 6.46341, 3.35219),(59.0276, 6.46341, -2.38955),(59.0276, -7.7168, -2.38955),(61.7152, -7.7168, -7.76479),(61.7152, -7.7168, -7.76479),(61.7152, 6.46341, -7.76479),(59.0276, 6.46341, -2.38955),(61.7152, 6.46341, -7.76479),(61.7152, -7.7168, -7.76479),(65.4412, -7.7168, -16.1331),(65.4412, -7.7168, -16.1331),(65.4412, 6.46341, -16.1331),(61.7152, 6.46341, -7.76479),(65.4412, 6.46341, -16.1331),(65.4412, -7.7168, -16.1331),(67.8845, -7.7168, -23.0354),(67.8845, -7.7168, -23.0354),(67.8845, 6.46341, -23.0354),(65.4412, 6.46341, -16.1331),(67.8845, 6.46341, -23.0354),(67.8845, -7.7168, -23.0354),(70.511, -7.7168, -32.0755),(70.511, -7.7168, -32.0755),(70.511, 6.46341, -32.0755),(67.8845, 6.46341, -23.0354),(70.511, 6.46341, -32.0755),(70.511, -7.7168, -32.0755),(48.3382, -7.7168, -39.2222),(48.3382, -7.7168, -39.2222),(48.3382, 6.46341, -39.2222),(70.511, 6.46341, -32.0755),(-15.8074, 6.46341, 47.4306),(-15.8074, -7.7168, 47.4306),(-8.20569, -7.7168, 53.3047),(-8.20569, -7.7168, 53.3047),(-8.20569, 6.46341, 53.3047),(-15.8074, 6.46341, 47.4306),(-24.1866, 6.46341, 39.9153),(-24.1866, -7.7168, 39.9153),(-15.8074, -7.7168, 47.4306),(-15.8074, -7.7168, 47.4306),(-15.8074, 6.46341, 47.4306),(-24.1866, 6.46341, 39.9153),(-30.7518, 6.46341, 33.091),(-30.7518, -7.7168, 33.091),(-24.1866, -7.7168, 39.9153),(-24.1866, -7.7168, 39.9153),(-24.1866, 6.46341, 39.9153),(-30.7518, 6.46341, 33.091),(-36.9714, 6.46341, 25.7484),(-36.9714, -7.7168, 25.7484),(-30.7518, -7.7168, 33.091),(-30.7518, -7.7168, 33.091),(-30.7518, 6.46341, 33.091),(-36.9714, 6.46341, 25.7484),(-42.6727, 6.46341, 18.233),(-42.6727, -7.7168, 18.233),(-36.9714, -7.7168, 25.7484),(-36.9714, -7.7168, 25.7484),(-36.9714, 6.46341, 25.7484),(-42.6727, 6.46341, 18.233),(-48.201, 6.46341, 9.46394),(-48.201, -7.7168, 9.46394),(-42.6727, -7.7168, 18.233),(-42.6727, -7.7168, 18.233),(-42.6727, 6.46341, 18.233),(-48.201, 6.46341, 9.46394),(-52.4338, 6.46341, 2.42471),(-52.4338, -7.7168, 2.42471),(-48.201, -7.7168, 9.46394),(-48.201, -7.7168, 9.46394),(-48.201, 6.46341, 9.46394),(-52.4338, 6.46341, 2.42471),(-55.7163, 6.46341, -4.05405),(-55.7163, -7.7168, -4.05405),(-52.4338, -7.7168, 2.42471),(-52.4338, -7.7168, 2.42471),(-52.4338, 6.46341, 2.42471),(-55.7163, 6.46341, -4.05405),(-59.5172, 6.46341, -12.3469),(-59.5172, -7.7168, -12.3469),(-55.7163, -7.7168, -4.05405),(-55.7163, -7.7168, -4.05405),(-55.7163, 6.46341, -4.05405),(-59.5172, 6.46341, -12.3469),(-63.0589, 6.46341, -21.158),(-63.0589, -7.7168, -21.158),(-59.5172, -7.7168, -12.3469),(-59.5172, -7.7168, -12.3469),(-59.5172, 6.46341, -12.3469),(-63.0589, 6.46341, -21.158),(-65.3913, 6.46341, -27.8095),(-65.3913, -7.7168, -27.8095),(-63.0589, -7.7168, -21.158),(-63.0589, -7.7168, -21.158),(-63.0589, 6.46341, -21.158),(-65.3913, 6.46341, -27.8095),(-65.8232, 6.46341, -30.8329),(-65.8232, -7.7168, -30.8329),(-65.3913, -7.7168, -27.8095),(-65.3913, -7.7168, -27.8095),(-65.3913, 6.46341, -27.8095),(-65.8232, 6.46341, -30.8329),(-64.7866, 6.46341, -33.338),(-64.7866, -7.7168, -33.338),(-65.8232, -7.7168, -30.8329),(-65.8232, -7.7168, -30.8329),(-65.8232, 6.46341, -30.8329),(-64.7866, 6.46341, -33.338),(-63.0589, 6.46341, -34.6338),(-63.0589, -7.7168, -34.6338),(-64.7866, -7.7168, -33.338),(-64.7866, -7.7168, -33.338),(-64.7866, 6.46341, -33.338),(-63.0589, 6.46341, -34.6338),(-60.2947, 6.46341, -35.4112),(-60.2947, -7.7168, -35.4112),(-63.0589, -7.7168, -34.6338),(-63.0589, -7.7168, -34.6338),(-63.0589, 6.46341, -34.6338),(-60.2947, 6.46341, -35.4112),(-49.0648, 6.46341, -36.3615),(-49.0648, -7.7168, -36.3615),(-60.2947, -7.7168, -35.4112),(-60.2947, -7.7168, -35.4112),(-60.2947, 6.46341, -35.4112),(-49.0648, 6.46341, -36.3615),(-39.3035, 6.46341, -36.7934),(-39.3035, -7.7168, -36.7934),(-49.0648, -7.7168, -36.3615),(-49.0648, -7.7168, -36.3615),(-49.0648, 6.46341, -36.3615),(-39.3035, 6.46341, -36.7934),(-31.9609, 6.46341, -36.7934),(-31.9609, -7.7168, -36.7934),(-39.3035, -7.7168, -36.7934),(-39.3035, -7.7168, -36.7934),(-39.3035, 6.46341, -36.7934),(-31.9609, 6.46341, -36.7934),(-22.0268, 6.46341, -36.0159),(-22.0268, -7.7168, -36.0159),(-31.9609, -7.7168, -36.7934),(-31.9609, -7.7168, -36.7934),(-31.9609, 6.46341, -36.7934),(-22.0268, 6.46341, -36.0159),(-11.4016, 6.46341, -34.2019),(-11.4016, -7.7168, -34.2019),(-22.0268, -7.7168, -36.0159),(-22.0268, -7.7168, -36.0159),(-22.0268, 6.46341, -36.0159),(-11.4016, 6.46341, -34.2019),(-1.81306, 6.46341, -31.8695),(-1.81306, -7.7168, -31.8695),(-11.4016, -7.7168, -34.2019),(-11.4016, -7.7168, -34.2019),(-11.4016, 6.46341, -34.2019),(-1.81306, 6.46341, -31.8695),(6.91933, 6.46341, -29.0107),(6.91933, -7.7168, -29.0107),(-1.81306, -7.7168, -31.8695),(-1.81306, -7.7168, -31.8695),(-1.81306, 6.46341, -31.8695),(6.91933, 6.46341, -29.0107),(15.9595, 6.46341, -24.9792),(15.9595, -7.7168, -24.9792),(6.91933, -7.7168, -29.0107),(6.91933, -7.7168, -29.0107),(6.91933, 6.46341, -29.0107),(15.9595, 6.46341, -24.9792),(25.6105, 6.46341, -19.604),(25.6105, -7.7168, -19.604),(15.9595, -7.7168, -24.9792),(15.9595, -7.7168, -24.9792),(15.9595, 6.46341, -24.9792),(25.6105, 6.46341, -19.604),(33.1847, 6.46341, -14.5952),(33.1847, -7.7168, -14.5952),(25.6105, -7.7168, -19.604),(25.6105, -7.7168, -19.604),(25.6105, 6.46341, -19.604),(33.1847, 6.46341, -14.5952),(30.1306, 6.46341, -7.87619),(30.1306, -7.7168, -7.87619),(33.1847, -7.7168, -14.5952),(33.1847, -7.7168, -14.5952),(33.1847, 6.46341, -14.5952),(30.1306, 6.46341, -7.87619),(27.3208, 6.46341, -2.50095),(27.3208, -7.7168, -2.50095),(30.1306, -7.7168, -7.87619),(30.1306, -7.7168, -7.87619),(30.1306, 6.46341, -7.87619),(27.3208, 6.46341, -2.50095),(23.5337, 6.46341, 2.99647),(23.5337, -7.7168, 2.99647),(27.3208, -7.7168, -2.50095),(27.3208, -7.7168, -2.50095),(27.3208, 6.46341, -2.50095),(23.5337, 6.46341, 2.99647),(17.5527, 6.46341, -0.519135),(17.5527, -7.7168, -0.519135),(23.5337, -7.7168, 2.99647),(23.5337, -7.7168, 2.99647),(23.5337, 6.46341, 2.99647),(17.5527, 6.46341, -0.519135),(11.2612, 6.46341, -3.93974),(11.2612, -7.7168, -3.93974),(17.5527, -7.7168, -0.519135),(17.5527, -7.7168, -0.519135),(17.5527, 6.46341, -0.519135),(11.2612, 6.46341, -3.93974),(4.49783, 6.46341, -6.68845),(4.49783, -7.7168, -6.68845),(11.2612, -7.7168, -3.93974),(11.2612, -7.7168, -3.93974),(11.2612, 6.46341, -3.93974),(4.49783, 6.46341, -6.68845),(-1.01632, 6.46341, -8.76525),(-1.01632, -7.7168, -8.76525),(4.49783, -7.7168, -6.68845),(4.49783, -7.7168, -6.68845),(4.49783, 6.46341, -6.68845),(-1.01632, 6.46341, -8.76525),(-8.22404, 6.46341, -11.2085),(-8.22404, -7.7168, -11.2085),(-1.01632, -7.7168, -8.76525),(-1.01632, -7.7168, -8.76525),(-1.01632, 6.46341, -8.76525),(-8.22404, 6.46341, -11.2085),(-16.5312, 6.46341, -13.2853),(-16.5312, -7.7168, -13.2853),(-8.22404, -7.7168, -11.2085),(-8.22404, -7.7168, -11.2085),(-8.22404, 6.46341, -11.2085),(-16.5312, 6.46341, -13.2853),(-23.9222, 6.46341, -14.6291),(-23.9222, -7.7168, -14.6291),(-16.5312, -7.7168, -13.2853),(-16.5312, -7.7168, -13.2853),(-16.5312, 6.46341, -13.2853),(-23.9222, 6.46341, -14.6291),(-30.2137, 6.46341, -15.1789),(-30.2137, -7.7168, -15.1789),(-23.9222, -7.7168, -14.6291),(-23.9222, -7.7168, -14.6291),(-23.9222, 6.46341, -14.6291),(-30.2137, 6.46341, -15.1789),(-36.5662, 6.46341, -15.1178),(-36.5662, -7.7168, -15.1178),(-30.2137, -7.7168, -15.1789),(-30.2137, -7.7168, -15.1789),(-30.2137, 6.46341, -15.1789),(-36.5662, 6.46341, -15.1178),(-36.9998, 6.46341, -14.7524),(-36.9998, -7.7168, -14.7524),(-36.5662, -7.7168, -15.1178),(-36.5662, -7.7168, -15.1178),(-36.5662, 6.46341, -15.1178),(-36.9998, 6.46341, -14.7524),(-36.8716, 6.46341, -14.1405),(-36.8716, -7.7168, -14.1405),(-36.9998, -7.7168, -14.7524),(-36.9998, -7.7168, -14.7524),(-36.9998, 6.46341, -14.7524),(-36.8716, 6.46341, -14.1405),(-33.8786, 6.46341, -7.84901),(-33.8786, -7.7168, -7.84901),(-36.8716, -7.7168, -14.1405),(-36.8716, -7.7168, -14.1405),(-36.8716, 6.46341, -14.1405),(-33.8786, 6.46341, -7.84901),(-31.0077, 6.46341, -2.59593),(-31.0077, -7.7168, -2.59593),(-33.8786, -7.7168, -7.84901),(-33.8786, -7.7168, -7.84901),(-33.8786, 6.46341, -7.84901),(-31.0077, 6.46341, -2.59593),(-27.465, 6.46341, 3.02364),(-27.465, -7.7168, 3.02364),(-31.0077, -7.7168, -2.59593),(-31.0077, -7.7168, -2.59593),(-31.0077, 6.46341, -2.59593),(-27.465, 6.46341, 3.02364),(-22.8986, 6.46341, 9.46394),(-22.8986, -7.7168, 9.46394),(-27.465, -7.7168, 3.02364),(-27.465, -7.7168, 3.02364),(-27.465, 6.46341, 3.02364),(-22.8986, 6.46341, 9.46394),(-16.0574, 6.46341, 17.8011),(-16.0574, -7.7168, 17.8011),(-22.8986, -7.7168, 9.46394),(-22.8986, -7.7168, 9.46394),(-22.8986, 6.46341, 9.46394),(-16.0574, 6.46341, 17.8011),(-9.76589, 6.46341, 24.4591),(-9.76589, -7.7168, 24.4591),(-16.0574, -7.7168, 17.8011),(-16.0574, -7.7168, 17.8011),(-16.0574, 6.46341, 17.8011),(-9.76589, 6.46341, 24.4591),(-3.53549, 6.46341, 30.0176),(-3.53549, -7.7168, 30.0176),(-9.76589, -7.7168, 24.4591),(-9.76589, -7.7168, 24.4591),(-9.76589, 6.46341, 24.4591),(-3.53549, 6.46341, 30.0176),(1.35109, 6.46341, 33.6825),(1.35109, -7.7168, 33.6825),(-3.53549, -7.7168, 30.0176),(-3.53549, -7.7168, 30.0176),(-3.53549, 6.46341, 30.0176),(1.35109, 6.46341, 33.6825),(5.8101, 6.46341, 30.2619),(5.8101, -7.7168, 30.2619),(1.35109, -7.7168, 33.6825),(1.35109, -7.7168, 33.6825),(1.35109, 6.46341, 33.6825),(5.8101, 6.46341, 30.2619),(10.941, 6.46341, 25.5586),(10.941, -7.7168, 25.5586),(5.8101, -7.7168, 30.2619),(5.8101, -7.7168, 30.2619),(5.8101, 6.46341, 30.2619),(10.941, 6.46341, 25.5586),(15.7054, 6.46341, 20.7331),(15.7054, -7.7168, 20.7331),(10.941, -7.7168, 25.5586),(10.941, -7.7168, 25.5586),(10.941, 6.46341, 25.5586),(15.7054, 6.46341, 20.7331),(20.6531, 6.46341, 14.9303),(20.6531, -7.7168, 14.9303),(15.7054, -7.7168, 20.7331),(15.7054, -7.7168, 20.7331),(15.7054, 6.46341, 20.7331),(20.6531, 6.46341, 14.9303),(27.0608, 6.46341, 6.60854),(27.0608, -7.7168, 6.60854),(20.6531, -7.7168, 14.9303),(20.6531, -7.7168, 14.9303),(20.6531, 6.46341, 14.9303),(27.0608, 6.46341, 6.60854),(30.6025, 6.46341, 1.25276),(30.6025, -7.7168, 1.25276),(27.0608, -7.7168, 6.60854),(27.0608, -7.7168, 6.60854),(27.0608, 6.46341, 6.60854),(30.6025, 6.46341, 1.25276),(34.6625, 6.46341, -5.83068),(34.6625, -7.7168, -5.83068),(30.6025, -7.7168, 1.25276),(30.6025, -7.7168, 1.25276),(30.6025, 6.46341, 1.25276),(34.6625, 6.46341, -5.83068),(38.0315, 6.46341, -12.1367),(38.0315, -7.7168, -12.1367),(34.6625, -7.7168, -5.83068),(34.6625, -7.7168, -5.83068),(34.6625, 6.46341, -5.83068),(38.0315, 6.46341, -12.1367),(40.9685, 6.46341, -18.7018),(40.9685, -7.7168, -18.7018),(38.0315, -7.7168, -12.1367),(38.0315, -7.7168, -12.1367),(38.0315, 6.46341, -12.1367),(40.9685, 6.46341, -18.7018),(43.9056, 6.46341, -25.4397),(43.9056, -7.7168, -25.4397),(40.9685, -7.7168, -18.7018),(40.9685, -7.7168, -18.7018),(40.9685, 6.46341, -18.7018),(43.9056, 6.46341, -25.4397),(46.3243, 6.46341, -32.6095),(46.3243, -7.7168, -32.6095),(43.9056, -7.7168, -25.4397),(43.9056, -7.7168, -25.4397),(43.9056, 6.46341, -25.4397),(46.3243, 6.46341, -32.6095),(48.3382, 6.46341, -39.2222),(48.3382, -7.7168, -39.2222),(46.3243, -7.7168, -32.6095),(46.3243, -7.7168, -32.6095),(46.3243, 6.46341, -32.6095),(48.3382, 6.46341, -39.2222),(-0.342632, -9.7168, -10.6487),(-1.01632, -7.7168, -8.76525),(-8.22404, -7.7168, -11.2085),(-8.22404, -7.7168, -11.2085),(-7.65952, -9.7168, -13.129),(-0.342632, -9.7168, -10.6487),(-7.65952, -9.7168, -13.129),(-8.22404, -7.7168, -11.2085),(-16.5312, -7.7168, -13.2853),(-16.5312, -7.7168, -13.2853),(-16.1094, -9.7168, -15.2414),(-7.65952, -9.7168, -13.129),(-16.1094, -9.7168, -15.2414),(-16.5312, -7.7168, -13.2853),(-23.9222, -7.7168, -14.6291),(-23.9222, -7.7168, -14.6291),(-23.6557, -9.7168, -16.6135),(-16.1094, -9.7168, -15.2414),(-23.6557, -9.7168, -16.6135),(-23.9222, -7.7168, -14.6291),(-30.2137, -7.7168, -15.1789),(-30.2137, -7.7168, -15.1789),(-30.1361, -9.7168, -17.1797),(-23.6557, -9.7168, -16.6135),(-30.1361, -9.7168, -17.1797),(-30.2137, -7.7168, -15.1789),(-36.5662, -7.7168, -15.1178),(-36.5662, -7.7168, -15.1178),(-36.7622, -9.7168, -17.0322),(-30.1361, -9.7168, -17.1797),(-36.7622, -9.7168, -17.0322),(-36.5662, -7.7168, -15.1178),(-36.9998, -7.7168, -14.7524),(-36.9998, -7.7168, -14.7524),(-38.8807, -9.7168, -16.1225),(-36.7622, -9.7168, -17.0322),(-38.8807, -9.7168, -16.1225),(-36.9998, -7.7168, -14.7524),(-36.8716, -7.7168, -14.1405),(-36.8716, -7.7168, -14.1405),(-39.1325, -9.7168, -13.9348),(-38.8807, -9.7168, -16.1225),(-39.1325, -9.7168, -13.9348),(-36.8716, -7.7168, -14.1405),(-33.8786, -7.7168, -7.84901),(-33.8786, -7.7168, -7.84901),(-35.6605, -9.7168, -6.93914),(-39.1325, -9.7168, -13.9348),(-35.6605, -9.7168, -6.93914),(-33.8786, -7.7168, -7.84901),(-31.0077, -7.7168, -2.59593),(-31.0077, -7.7168, -2.59593),(-32.7328, -9.7168, -1.58208),(-35.6605, -9.7168, -6.93914),(-32.7328, -9.7168, -1.58208),(-31.0077, -7.7168, -2.59593),(-27.465, -7.7168, 3.02364),(-27.465, -7.7168, 3.02364),(-29.1279, -9.7168, 4.13616),(-32.7328, -9.7168, -1.58208),(-29.1279, -9.7168, 4.13616),(-27.465, -7.7168, 3.02364),(-22.8986, -7.7168, 9.46394),(-22.8986, -7.7168, 9.46394),(-24.4894, -9.7168, 10.6782),(-29.1279, -9.7168, 4.13616),(-24.4894, -9.7168, 10.6782),(-22.8986, -7.7168, 9.46394),(-16.0574, -7.7168, 17.8011),(-16.0574, -7.7168, 17.8011),(-17.5591, -9.7168, 19.1239),(-24.4894, -9.7168, 10.6782),(-17.5591, -9.7168, 19.1239),(-16.0574, -7.7168, 17.8011),(-9.76589, -7.7168, 24.4591),(-9.76589, -7.7168, 24.4591),(-11.161, -9.7168, 25.8947),(-17.5591, -9.7168, 19.1239),(-11.161, -9.7168, 25.8947),(-9.76589, -7.7168, 24.4591),(-3.53549, -7.7168, 30.0176),(-3.53549, -7.7168, 30.0176),(-4.8035, -9.7168, 31.5666),(-11.161, -9.7168, 25.8947),(-4.8035, -9.7168, 31.5666),(-3.53549, -7.7168, 30.0176),(1.35109, -7.7168, 33.6825),(1.35109, -7.7168, 33.6825),(1.36473, -9.7168, 36.1928),(-4.8035, -9.7168, 31.5666),(1.36473, -9.7168, 36.1928),(1.35109, -7.7168, 33.6825),(5.8101, -7.7168, 30.2619),(5.8101, -7.7168, 30.2619),(7.09695, -9.7168, 31.7955),(1.36473, -9.7168, 36.1928),(7.09695, -9.7168, 31.7955),(5.8101, -7.7168, 30.2619),(10.941, -7.7168, 25.5586),(10.941, -7.7168, 25.5586),(12.3292, -9.7168, 26.9992),(7.09695, -9.7168, 31.7955),(12.3292, -9.7168, 26.9992),(10.941, -7.7168, 25.5586),(15.7054, -7.7168, 20.7331),(15.7054, -7.7168, 20.7331),(17.1799, -9.7168, 22.0863),(12.3292, -9.7168, 26.9992),(17.1799, -9.7168, 22.0863),(15.7054, -7.7168, 20.7331),(20.6531, -7.7168, 14.9303),(20.6531, -7.7168, 14.9303),(22.2073, -9.7168, 16.19),(17.1799, -9.7168, 22.0863),(22.2073, -9.7168, 16.19),(20.6531, -7.7168, 14.9303),(27.0608, -7.7168, 6.60854),(27.0608, -7.7168, 6.60854),(28.6893, -9.7168, 7.77172),(22.2073, -9.7168, 16.19),(28.6893, -9.7168, 7.77172),(27.0608, -7.7168, 6.60854),(30.6025, -7.7168, 1.25276),(30.6025, -7.7168, 1.25276),(32.306, -9.7168, 2.3027),(28.6893, -9.7168, 7.77172),(32.306, -9.7168, 2.3027),(30.6025, -7.7168, 1.25276),(34.6625, -7.7168, -5.83068),(34.6625, -7.7168, -5.83068),(36.4125, -9.7168, -4.86197),(32.306, -9.7168, 2.3027),(36.4125, -9.7168, -4.86197),(34.6625, -7.7168, -5.83068),(38.0315, -7.7168, -12.1367),(38.0315, -7.7168, -12.1367),(39.8285, -9.7168, -11.256),(36.4125, -9.7168, -4.86197),(39.8285, -9.7168, -11.256),(38.0315, -7.7168, -12.1367),(40.9685, -7.7168, -18.7018),(40.9685, -7.7168, -18.7018),(42.7981, -9.7168, -17.8939),(39.8285, -9.7168, -11.256),(42.7981, -9.7168, -17.8939),(40.9685, -7.7168, -18.7018),(43.9056, -7.7168, -25.4397),(43.9056, -7.7168, -25.4397),(45.7732, -9.7168, -24.7192),(42.7981, -9.7168, -17.8939),(45.7732, -9.7168, -24.7192),(43.9056, -7.7168, -25.4397),(46.3243, -7.7168, -32.6095),(46.3243, -7.7168, -32.6095),(48.2289, -9.7168, -31.9984),(45.7732, -9.7168, -24.7192),(48.2289, -9.7168, -31.9984),(46.3243, -7.7168, -32.6095),(48.3382, -7.7168, -39.2222),(48.3382, -7.7168, -39.2222),(49.6592, -9.7168, -36.695),(48.2289, -9.7168, -31.9984),(49.6592, -9.7168, -36.695),(48.3382, -7.7168, -39.2222),(70.511, -7.7168, -32.0755),(70.511, -7.7168, -32.0755),(68.0484, -9.7168, -30.768),(49.6592, -9.7168, -36.695),(68.0484, -9.7168, -30.768),(70.511, -7.7168, -32.0755),(67.8845, -7.7168, -23.0354),(67.8845, -7.7168, -23.0354),(65.9799, -9.7168, -23.6486),(68.0484, -9.7168, -30.768),(65.9799, -9.7168, -23.6486),(67.8845, -7.7168, -23.0354),(65.4412, -7.7168, -16.1331),(65.4412, -7.7168, -16.1331),(63.5821, -9.7168, -16.8747),(65.9799, -9.7168, -23.6486),(63.5821, -9.7168, -16.8747),(65.4412, -7.7168, -16.1331),(61.7152, -7.7168, -7.76479),(61.7152, -7.7168, -7.76479),(59.9063, -9.7168, -8.61919),(63.5821, -9.7168, -16.8747),(59.9063, -9.7168, -8.61919),(61.7152, -7.7168, -7.76479),(59.0276, -7.7168, -2.38955),(59.0276, -7.7168, -2.38955),(57.2573, -9.7168, -3.32123),(59.9063, -9.7168, -8.61919),(57.2573, -9.7168, -3.32123),(59.0276, -7.7168, -2.38955),(55.8513, -7.7168, 3.35219),(55.8513, -7.7168, 3.35219),(54.1142, -9.7168, 2.36055),(57.2573, -9.7168, -3.32123),(54.1142, -9.7168, 2.36055),(55.8513, -7.7168, 3.35219),(52.2525, -7.7168, 9.46394),(52.2525, -7.7168, 9.46394),(50.5572, -9.7168, 8.40144),(54.1142, -9.7168, 2.36055),(50.5572, -9.7168, 8.40144),(52.2525, -7.7168, 9.46394),(47.7324, -7.7168, 16.2514),(47.7324, -7.7168, 16.2514),(46.0952, -9.7168, 15.1017),(50.5572, -9.7168, 8.40144),(46.0952, -9.7168, 15.1017),(47.7324, -7.7168, 16.2514),(42.1739, -7.7168, 23.7645),(42.1739, -7.7168, 23.7645),(40.5978, -9.7168, 22.5323),(46.0952, -9.7168, 15.1017),(40.5978, -9.7168, 22.5323),(42.1739, -7.7168, 23.7645),(37.8371, -7.7168, 29.0176),(37.8371, -7.7168, 29.0176),(36.3249, -9.7168, 27.7079),(40.5978, -9.7168, 22.5323),(36.3249, -9.7168, 27.7079),(37.8371, -7.7168, 29.0176),(31.7899, -7.7168, 35.6756),(31.7899, -7.7168, 35.6756),(30.3574, -9.7168, 34.2781),(36.3249, -9.7168, 27.7079),(30.3574, -9.7168, 34.2781),(31.7899, -7.7168, 35.6756),(25.0709, -7.7168, 42.0892),(25.0709, -7.7168, 42.0892),(23.7326, -9.7168, 40.6018),(30.3574, -9.7168, 34.2781),(23.7326, -9.7168, 40.6018),(25.0709, -7.7168, 42.0892),(19.4513, -7.7168, 46.8536),(19.4513, -7.7168, 46.8536),(18.2159, -9.7168, 45.279),(23.7326, -9.7168, 40.6018),(18.2159, -9.7168, 45.279),(19.4513, -7.7168, 46.8536),(14.5647, -7.7168, 50.3964),(14.5647, -7.7168, 50.3964),(13.4516, -9.7168, 48.7331),(18.2159, -9.7168, 45.279),(13.4516, -9.7168, 48.7331),(14.5647, -7.7168, 50.3964),(9.31166, -7.7168, 53.6338),(9.31166, -7.7168, 53.6338),(8.33187, -9.7168, 51.8883),(13.4516, -9.7168, 48.7331),(8.33187, -9.7168, 51.8883),(9.31166, -7.7168, 53.6338),(1.64202, -7.7168, 57.5364),(1.64202, -7.7168, 57.5364),(1.00884, -9.7168, 56.0242),(8.33187, -9.7168, 51.8883),(1.00884, -9.7168, 56.0242),(1.64202, -7.7168, 57.5364),(0.0871229, -7.7168, 57.966),(0.0871229, -7.7168, 57.966),(0.0860662, -9.7168, 56.2969),(1.00884, -9.7168, 56.0242),(0.0860662, -9.7168, 56.2969),(0.0871229, -7.7168, 57.966),(-1.46778, -7.7168, 57.5386),(-1.46778, -7.7168, 57.5386),(-0.768229, -9.7168, 56.0568),(0.0860662, -9.7168, 56.2969),(-0.768229, -9.7168, 56.0568),(-1.46778, -7.7168, 57.5386),(-8.20569, -7.7168, 53.3047),(-8.20569, -7.7168, 53.3047),(-7.0595, -9.7168, 51.6628),(-0.768229, -9.7168, 56.0568),(-7.0595, -9.7168, 51.6628),(-8.20569, -7.7168, 53.3047),(-15.8074, -7.7168, 47.4306),(-15.8074, -7.7168, 47.4306),(-14.5266, -9.7168, 45.8928),(-7.0595, -9.7168, 51.6628),(-14.5266, -9.7168, 45.8928),(-15.8074, -7.7168, 47.4306),(-24.1866, -7.7168, 39.9153),(-24.1866, -7.7168, 39.9153),(-22.7964, -9.7168, 38.4756),(-14.5266, -9.7168, 45.8928),(-22.7964, -9.7168, 38.4756),(-24.1866, -7.7168, 39.9153),(-30.7518, -7.7168, 33.091),(-30.7518, -7.7168, 33.091),(-29.2666, -9.7168, 31.75),(-22.7964, -9.7168, 38.4756),(-29.2666, -9.7168, 31.75),(-30.7518, -7.7168, 33.091),(-36.9714, -7.7168, 25.7484),(-36.9714, -7.7168, 25.7484),(-35.4105, -9.7168, 24.4967),(-29.2666, -9.7168, 31.75),(-35.4105, -9.7168, 24.4967),(-36.9714, -7.7168, 25.7484),(-42.6727, -7.7168, 18.233),(-42.6727, -7.7168, 18.233),(-41.027, -9.7168, 17.0932),(-35.4105, -9.7168, 24.4967),(-41.027, -9.7168, 17.0932),(-42.6727, -7.7168, 18.233),(-48.201, -7.7168, 9.46394),(-48.201, -7.7168, 9.46394),(-46.4979, -9.7168, 8.4152),(-41.027, -9.7168, 17.0932),(-46.4979, -9.7168, 8.4152),(-48.201, -7.7168, 9.46394),(-52.4338, -7.7168, 2.42471),(-52.4338, -7.7168, 2.42471),(-50.6824, -9.7168, 1.45615),(-46.4979, -9.7168, 8.4152),(-50.6824, -9.7168, 1.45615),(-52.4338, -7.7168, 2.42471),(-55.7163, -7.7168, -4.05405),(-55.7163, -7.7168, -4.05405),(-53.9145, -9.7168, -4.923),(-50.6824, -9.7168, 1.45615),(-53.9145, -9.7168, -4.923),(-55.7163, -7.7168, -4.05405),(-59.5172, -7.7168, -12.3469),(-59.5172, -7.7168, -12.3469),(-57.6792, -9.7168, -13.1369),(-53.9145, -9.7168, -4.923),(-57.6792, -9.7168, -13.1369),(-59.5172, -7.7168, -12.3469),(-63.0589, -7.7168, -21.158),(-63.0589, -7.7168, -21.158),(-61.1865, -9.7168, -21.8622),(-57.6792, -9.7168, -13.1369),(-61.1865, -9.7168, -21.8622),(-63.0589, -7.7168, -21.158),(-65.3913, -7.7168, -27.8095),(-65.3913, -7.7168, -27.8095),(-63.4391, -9.7168, -28.2864),(-61.1865, -9.7168, -21.8622),(-63.4391, -9.7168, -28.2864),(-65.3913, -7.7168, -27.8095),(-65.8232, -7.7168, -30.8329),(-65.8232, -7.7168, -30.8329),(-63.7659, -9.7168, -30.5739),(-63.4391, -9.7168, -28.2864),(-63.7659, -9.7168, -30.5739),(-65.8232, -7.7168, -30.8329),(-64.7866, -7.7168, -33.338),(-64.7866, -7.7168, -33.338),(-63.1481, -9.7168, -32.0669),(-63.7659, -9.7168, -30.5739),(-63.1481, -9.7168, -32.0669),(-64.7866, -7.7168, -33.338),(-63.0589, -7.7168, -34.6338),(-63.0589, -7.7168, -34.6338),(-62.1578, -9.7168, -32.8096),(-63.1481, -9.7168, -32.0669),(-62.1578, -9.7168, -32.8096),(-63.0589, -7.7168, -34.6338),(-60.2947, -7.7168, -35.4112),(-60.2947, -7.7168, -35.4112),(-59.9364, -9.7168, -33.4344),(-62.1578, -9.7168, -32.8096),(-59.9364, -9.7168, -33.4344),(-60.2947, -7.7168, -35.4112),(-49.0648, -7.7168, -36.3615),(-49.0648, -7.7168, -36.3615),(-48.9362, -9.7168, -34.3652),(-59.9364, -9.7168, -33.4344),(-48.9362, -9.7168, -34.3652),(-49.0648, -7.7168, -36.3615),(-39.3035, -7.7168, -36.7934),(-39.3035, -7.7168, -36.7934),(-39.2592, -9.7168, -34.7934),(-48.9362, -9.7168, -34.3652),(-39.2592, -9.7168, -34.7934),(-39.3035, -7.7168, -36.7934),(-31.9609, -7.7168, -36.7934),(-31.9609, -7.7168, -36.7934),(-32.039, -9.7168, -34.7934),(-39.2592, -9.7168, -34.7934),(-32.039, -9.7168, -34.7934),(-31.9609, -7.7168, -36.7934),(-22.0268, -7.7168, -36.0159),(-22.0268, -7.7168, -36.0159),(-22.2736, -9.7168, -34.0291),(-32.039, -9.7168, -34.7934),(-22.2736, -9.7168, -34.0291),(-22.0268, -7.7168, -36.0159),(-11.4016, -7.7168, -34.2019),(-11.4016, -7.7168, -34.2019),(-11.8068, -9.7168, -32.2421),(-22.2736, -9.7168, -34.0291),(-11.8068, -9.7168, -32.2421),(-11.4016, -7.7168, -34.2019),(-1.81306, -7.7168, -31.8695),(-1.81306, -7.7168, -31.8695),(-2.36138, -9.7168, -29.9446),(-11.8068, -9.7168, -32.2421),(-2.36138, -9.7168, -29.9446),(-1.81306, -7.7168, -31.8695),(6.91933, -7.7168, -29.0107),(6.91933, -7.7168, -29.0107),(6.199, -9.7168, -27.142),(-2.36138, -9.7168, -29.9446),(6.199, -9.7168, -27.142),(6.91933, -7.7168, -29.0107),(15.9595, -7.7168, -24.9792),(15.9595, -7.7168, -24.9792),(15.0639, -9.7168, -23.1888),(6.199, -9.7168, -27.142),(15.0639, -9.7168, -23.1888),(15.9595, -7.7168, -24.9792),(25.6105, -7.7168, -19.604),(25.6105, -7.7168, -19.604),(24.5708, -9.7168, -17.8938),(15.0639, -9.7168, -23.1888),(24.5708, -9.7168, -17.8938),(25.6105, -7.7168, -19.604),(33.1847, -7.7168, -14.5952),(33.1847, -7.7168, -14.5952),(30.6576, -9.7168, -13.8687),(24.5708, -9.7168, -17.8938),(30.6576, -9.7168, -13.8687),(33.1847, -7.7168, -14.5952),(30.1306, -7.7168, -7.87619),(30.1306, -7.7168, -7.87619),(28.3327, -9.7168, -8.75391),(30.6576, -9.7168, -13.8687),(28.3327, -9.7168, -8.75391),(30.1306, -7.7168, -7.87619),(27.3208, -7.7168, -2.50095),(27.3208, -7.7168, -2.50095),(25.6048, -9.7168, -3.53532),(28.3327, -9.7168, -8.75391),(25.6048, -9.7168, -3.53532),(27.3208, -7.7168, -2.50095),(23.5337, -7.7168, 2.99647),(23.5337, -7.7168, 2.99647),(22.9426, -9.7168, 0.329102),(25.6048, -9.7168, -3.53532),(22.9426, -9.7168, 0.329102),(23.5337, -7.7168, 2.99647),(17.5527, -7.7168, -0.519135),(17.5527, -7.7168, -0.519135),(18.5374, -9.7168, -2.26027),(22.9426, -9.7168, 0.329102),(18.5374, -9.7168, -2.26027),(17.5527, -7.7168, -0.519135),(11.2612, -7.7168, -3.93974),(11.2612, -7.7168, -3.93974),(12.1181, -9.7168, -5.75037),(18.5374, -9.7168, -2.26027),(12.1181, -9.7168, -5.75037),(11.2612, -7.7168, -3.93974),(4.49783, -7.7168, -6.68845),(4.49783, -7.7168, -6.68845),(5.22691, -9.7168, -8.55099),(12.1181, -9.7168, -5.75037),(5.22691, -9.7168, -8.55099),(4.49783, -7.7168, -6.68845),(-1.01632, -7.7168, -8.76525),(-1.01632, -7.7168, -8.76525),(-0.342632, -9.7168, -10.6487),(5.22691, -9.7168, -8.55099),(0.0860662, -9.7168, 56.2969),(-0.768229, -9.7168, 56.0568),(1.36473, -9.7168, 36.1928),(-0.768229, -9.7168, 56.0568),(-7.0595, -9.7168, 51.6628),(1.36473, -9.7168, 36.1928),(1.00884, -9.7168, 56.0242),(0.0860662, -9.7168, 56.2969),(1.36473, -9.7168, 36.1928),(0.0860662, 8.46341, 56.2968),(1.00884, 8.46341, 56.0242),(1.36473, 8.46341, 36.1928),(1.00884, 8.46341, 56.0242),(8.33187, 8.46341, 51.8883),(1.36473, 8.46341, 36.1928),(-0.768229, 8.46341, 56.0568),(0.0860662, 8.46341, 56.2968),(1.36473, 8.46341, 36.1928),(-36.7622, 8.46341, -17.0322),(-38.8807, 8.46341, -16.1225),(-36.9998, 6.46341, -14.7524),(-36.9998, 6.46341, -14.7524),(-36.5662, 6.46341, -15.1178),(-36.7622, 8.46341, -17.0322),(-38.8807, 8.46341, -16.1225),(-39.1325, 8.46341, -13.9348),(-36.8716, 6.46341, -14.1405),(-36.8716, 6.46341, -14.1405),(-36.9998, 6.46341, -14.7524),(-38.8807, 8.46341, -16.1225),(-0.342632, 8.46341, -10.6487),(-7.65952, 8.46341, -13.129),(-8.22404, 6.46341, -11.2085),(-8.22404, 6.46341, -11.2085),(-1.01632, 6.46341, -8.76525),(-0.342632, 8.46341, -10.6487),(-7.65952, 8.46341, -13.129),(-16.1094, 8.46341, -15.2414),(-16.5312, 6.46341, -13.2853),(-16.5312, 6.46341, -13.2853),(-8.22404, 6.46341, -11.2085),(-7.65952, 8.46341, -13.129),(-16.1094, 8.46341, -15.2414),(-23.6557, 8.46341, -16.6135),(-23.9222, 6.46341, -14.6291),(-23.9222, 6.46341, -14.6291),(-16.5312, 6.46341, -13.2853),(-16.1094, 8.46341, -15.2414),(-23.6557, 8.46341, -16.6135),(-30.1361, 8.46341, -17.1797),(-30.2137, 6.46341, -15.1789),(-30.2137, 6.46341, -15.1789),(-23.9222, 6.46341, -14.6291),(-23.6557, 8.46341, -16.6135),(-30.1361, 8.46341, -17.1797),(-36.7622, 8.46341, -17.0322),(-36.5662, 6.46341, -15.1178),(-36.5662, 6.46341, -15.1178),(-30.2137, 6.46341, -15.1789),(-30.1361, 8.46341, -17.1797),(-39.1325, 8.46341, -13.9348),(-35.6605, 8.46341, -6.93914),(-33.8786, 6.46341, -7.84901),(-33.8786, 6.46341, -7.84901),(-36.8716, 6.46341, -14.1405),(-39.1325, 8.46341, -13.9348),(-35.6605, 8.46341, -6.93914),(-32.7328, 8.46341, -1.58208),(-31.0077, 6.46341, -2.59593),(-31.0077, 6.46341, -2.59593),(-33.8786, 6.46341, -7.84901),(-35.6605, 8.46341, -6.93914),(-32.7328, 8.46341, -1.58208),(-29.1279, 8.46341, 4.13616),(-27.465, 6.46341, 3.02364),(-27.465, 6.46341, 3.02364),(-31.0077, 6.46341, -2.59593),(-32.7328, 8.46341, -1.58208),(-29.1279, 8.46341, 4.13616),(-24.4894, 8.46341, 10.6782),(-22.8986, 6.46341, 9.46394),(-22.8986, 6.46341, 9.46394),(-27.465, 6.46341, 3.02364),(-29.1279, 8.46341, 4.13616),(-24.4894, 8.46341, 10.6782),(-17.5591, 8.46341, 19.1239),(-16.0574, 6.46341, 17.8011),(-16.0574, 6.46341, 17.8011),(-22.8986, 6.46341, 9.46394),(-24.4894, 8.46341, 10.6782),(-17.5591, 8.46341, 19.1239),(-11.161, 8.46341, 25.8947),(-9.76589, 6.46341, 24.4591),(-9.76589, 6.46341, 24.4591),(-16.0574, 6.46341, 17.8011),(-17.5591, 8.46341, 19.1239),(-11.161, 8.46341, 25.8947),(-4.8035, 8.46341, 31.5666),(-3.53549, 6.46341, 30.0176),(-3.53549, 6.46341, 30.0176),(-9.76589, 6.46341, 24.4591),(-11.161, 8.46341, 25.8947),(-4.8035, 8.46341, 31.5666),(1.36473, 8.46341, 36.1928),(1.35109, 6.46341, 33.6825),(1.35109, 6.46341, 33.6825),(-3.53549, 6.46341, 30.0176),(-4.8035, 8.46341, 31.5666),(1.36473, 8.46341, 36.1928),(7.09695, 8.46341, 31.7955),(5.8101, 6.46341, 30.2619),(5.8101, 6.46341, 30.2619),(1.35109, 6.46341, 33.6825),(1.36473, 8.46341, 36.1928),(7.09695, 8.46341, 31.7955),(12.3292, 8.46341, 26.9992),(10.941, 6.46341, 25.5586),(10.941, 6.46341, 25.5586),(5.8101, 6.46341, 30.2619),(7.09695, 8.46341, 31.7955),(12.3292, 8.46341, 26.9992),(17.1799, 8.46341, 22.0863),(15.7054, 6.46341, 20.7331),(15.7054, 6.46341, 20.7331),(10.941, 6.46341, 25.5586),(12.3292, 8.46341, 26.9992),(17.1799, 8.46341, 22.0863),(22.2073, 8.46341, 16.19),(20.6531, 6.46341, 14.9303),(20.6531, 6.46341, 14.9303),(15.7054, 6.46341, 20.7331),(17.1799, 8.46341, 22.0863),(22.2073, 8.46341, 16.19),(28.6893, 8.46341, 7.77172),(27.0608, 6.46341, 6.60854),(27.0608, 6.46341, 6.60854),(20.6531, 6.46341, 14.9303),(22.2073, 8.46341, 16.19),(28.6893, 8.46341, 7.77172),(32.306, 8.46341, 2.3027),(30.6025, 6.46341, 1.25276),(30.6025, 6.46341, 1.25276),(27.0608, 6.46341, 6.60854),(28.6893, 8.46341, 7.77172),(32.306, 8.46341, 2.3027),(36.4125, 8.46341, -4.86197),(34.6625, 6.46341, -5.83068),(34.6625, 6.46341, -5.83068),(30.6025, 6.46341, 1.25276),(32.306, 8.46341, 2.3027),(36.4125, 8.46341, -4.86197),(39.8285, 8.46341, -11.256),(38.0315, 6.46341, -12.1367),(38.0315, 6.46341, -12.1367),(34.6625, 6.46341, -5.83068),(36.4125, 8.46341, -4.86197),(39.8285, 8.46341, -11.256),(42.7981, 8.46341, -17.8939),(40.9685, 6.46341, -18.7018),(40.9685, 6.46341, -18.7018),(38.0315, 6.46341, -12.1367),(39.8285, 8.46341, -11.256),(42.7981, 8.46341, -17.8939),(45.7732, 8.46341, -24.7192),(43.9056, 6.46341, -25.4397),(43.9056, 6.46341, -25.4397),(40.9685, 6.46341, -18.7018),(42.7981, 8.46341, -17.8939),(45.7732, 8.46341, -24.7192),(48.2289, 8.46341, -31.9984),(46.3243, 6.46341, -32.6095),(46.3243, 6.46341, -32.6095),(43.9056, 6.46341, -25.4397),(45.7732, 8.46341, -24.7192),(48.2289, 8.46341, -31.9984),(49.6592, 8.46341, -36.695),(48.3382, 6.46341, -39.2222),(48.3382, 6.46341, -39.2222),(46.3243, 6.46341, -32.6095),(48.2289, 8.46341, -31.9984),(49.6592, 8.46341, -36.695),(68.0484, 8.46341, -30.768),(70.511, 6.46341, -32.0755),(70.511, 6.46341, -32.0755),(48.3382, 6.46341, -39.2222),(49.6592, 8.46341, -36.695),(68.0484, 8.46341, -30.768),(65.9799, 8.46341, -23.6486),(67.8845, 6.46341, -23.0354),(67.8845, 6.46341, -23.0354),(70.511, 6.46341, -32.0755),(68.0484, 8.46341, -30.768),(65.9799, 8.46341, -23.6486),(63.5821, 8.46341, -16.8747),(65.4412, 6.46341, -16.1331),(65.4412, 6.46341, -16.1331),(67.8845, 6.46341, -23.0354),(65.9799, 8.46341, -23.6486),(63.5821, 8.46341, -16.8747),(59.9063, 8.46341, -8.61919),(61.7152, 6.46341, -7.76479),(61.7152, 6.46341, -7.76479),(65.4412, 6.46341, -16.1331),(63.5821, 8.46341, -16.8747),(59.9063, 8.46341, -8.61919),(57.2573, 8.46341, -3.32123),(59.0276, 6.46341, -2.38955),(59.0276, 6.46341, -2.38955),(61.7152, 6.46341, -7.76479),(59.9063, 8.46341, -8.61919),(57.2573, 8.46341, -3.32123),(54.1142, 8.46341, 2.36055),(55.8513, 6.46341, 3.35219),(55.8513, 6.46341, 3.35219),(59.0276, 6.46341, -2.38955),(57.2573, 8.46341, -3.32123),(54.1142, 8.46341, 2.36055),(50.5572, 8.46341, 8.40144),(52.2525, 6.46341, 9.46394),(52.2525, 6.46341, 9.46394),(55.8513, 6.46341, 3.35219),(54.1142, 8.46341, 2.36055),(50.5572, 8.46341, 8.40144),(46.0952, 8.46341, 15.1017),(47.7324, 6.46341, 16.2514),(47.7324, 6.46341, 16.2514),(52.2525, 6.46341, 9.46394),(50.5572, 8.46341, 8.40144),(46.0952, 8.46341, 15.1017),(40.5978, 8.46341, 22.5323),(42.1739, 6.46341, 23.7645),(42.1739, 6.46341, 23.7645),(47.7324, 6.46341, 16.2514),(46.0952, 8.46341, 15.1017),(40.5978, 8.46341, 22.5323),(36.3249, 8.46341, 27.7079),(37.8371, 6.46341, 29.0176),(37.8371, 6.46341, 29.0176),(42.1739, 6.46341, 23.7645),(40.5978, 8.46341, 22.5323),(36.3249, 8.46341, 27.7079),(30.3574, 8.46341, 34.2781),(31.7899, 6.46341, 35.6756),(31.7899, 6.46341, 35.6756),(37.8371, 6.46341, 29.0176),(36.3249, 8.46341, 27.7079),(30.3574, 8.46341, 34.2781),(23.7326, 8.46341, 40.6018),(25.0709, 6.46341, 42.0892),(25.0709, 6.46341, 42.0892),(31.7899, 6.46341, 35.6756),(30.3574, 8.46341, 34.2781),(23.7326, 8.46341, 40.6018),(18.2159, 8.46341, 45.279),(19.4513, 6.46341, 46.8536),(19.4513, 6.46341, 46.8536),(25.0709, 6.46341, 42.0892),(23.7326, 8.46341, 40.6018),(18.2159, 8.46341, 45.279),(13.4516, 8.46341, 48.7331),(14.5647, 6.46341, 50.3964),(14.5647, 6.46341, 50.3964),(19.4513, 6.46341, 46.8536),(18.2159, 8.46341, 45.279),(13.4516, 8.46341, 48.7331),(8.33187, 8.46341, 51.8883),(9.31166, 6.46341, 53.6338),(9.31166, 6.46341, 53.6338),(14.5647, 6.46341, 50.3964),(13.4516, 8.46341, 48.7331),(8.33187, 8.46341, 51.8883),(1.00884, 8.46341, 56.0242),(1.64202, 6.46341, 57.5364),(1.64202, 6.46341, 57.5364),(9.31166, 6.46341, 53.6338),(8.33187, 8.46341, 51.8883),(1.00884, 8.46341, 56.0242),(0.0860662, 8.46341, 56.2968),(0.0871229, 6.46341, 57.966),(0.0871229, 6.46341, 57.966),(1.64202, 6.46341, 57.5364),(1.00884, 8.46341, 56.0242),(0.0860662, 8.46341, 56.2968),(-0.768229, 8.46341, 56.0568),(-1.46778, 6.46341, 57.5386),(-1.46778, 6.46341, 57.5386),(0.0871229, 6.46341, 57.966),(0.0860662, 8.46341, 56.2968),(-0.768229, 8.46341, 56.0568),(-7.0595, 8.46341, 51.6628),(-8.20569, 6.46341, 53.3047),(-8.20569, 6.46341, 53.3047),(-1.46778, 6.46341, 57.5386),(-0.768229, 8.46341, 56.0568),(-7.0595, 8.46341, 51.6628),(-14.5266, 8.46341, 45.8928),(-15.8074, 6.46341, 47.4306),(-15.8074, 6.46341, 47.4306),(-8.20569, 6.46341, 53.3047),(-7.0595, 8.46341, 51.6628),(-14.5266, 8.46341, 45.8928),(-22.7964, 8.46341, 38.4756),(-24.1866, 6.46341, 39.9153),(-24.1866, 6.46341, 39.9153),(-15.8074, 6.46341, 47.4306),(-14.5266, 8.46341, 45.8928),(-22.7964, 8.46341, 38.4756),(-29.2666, 8.46341, 31.75),(-30.7518, 6.46341, 33.091),(-30.7518, 6.46341, 33.091),(-24.1866, 6.46341, 39.9153),(-22.7964, 8.46341, 38.4756),(-29.2666, 8.46341, 31.75),(-35.4105, 8.46341, 24.4967),(-36.9714, 6.46341, 25.7484),(-36.9714, 6.46341, 25.7484),(-30.7518, 6.46341, 33.091),(-29.2666, 8.46341, 31.75),(-35.4105, 8.46341, 24.4967),(-41.027, 8.46341, 17.0932),(-42.6727, 6.46341, 18.233),(-42.6727, 6.46341, 18.233),(-36.9714, 6.46341, 25.7484),(-35.4105, 8.46341, 24.4967),(-41.027, 8.46341, 17.0932),(-46.4979, 8.46341, 8.4152),(-48.201, 6.46341, 9.46394),(-48.201, 6.46341, 9.46394),(-42.6727, 6.46341, 18.233),(-41.027, 8.46341, 17.0932),(-46.4979, 8.46341, 8.4152),(-50.6824, 8.46341, 1.45615),(-52.4338, 6.46341, 2.42471),(-52.4338, 6.46341, 2.42471),(-48.201, 6.46341, 9.46394),(-46.4979, 8.46341, 8.4152),(-50.6824, 8.46341, 1.45615),(-53.9145, 8.46341, -4.92301),(-55.7163, 6.46341, -4.05405),(-55.7163, 6.46341, -4.05405),(-52.4338, 6.46341, 2.42471),(-50.6824, 8.46341, 1.45615),(-53.9145, 8.46341, -4.92301),(-57.6792, 8.46341, -13.1369),(-59.5172, 6.46341, -12.3469),(-59.5172, 6.46341, -12.3469),(-55.7163, 6.46341, -4.05405),(-53.9145, 8.46341, -4.92301),(-57.6792, 8.46341, -13.1369),(-61.1865, 8.46341, -21.8622),(-63.0589, 6.46341, -21.158),(-63.0589, 6.46341, -21.158),(-59.5172, 6.46341, -12.3469),(-57.6792, 8.46341, -13.1369),(-61.1865, 8.46341, -21.8622),(-63.4391, 8.46341, -28.2864),(-65.3913, 6.46341, -27.8095),(-65.3913, 6.46341, -27.8095),(-63.0589, 6.46341, -21.158),(-61.1865, 8.46341, -21.8622),(-63.4391, 8.46341, -28.2864),(-63.7659, 8.46341, -30.5739),(-65.8232, 6.46341, -30.8329),(-65.8232, 6.46341, -30.8329),(-65.3913, 6.46341, -27.8095),(-63.4391, 8.46341, -28.2864),(-63.7659, 8.46341, -30.5739),(-63.1481, 8.46341, -32.0669),(-64.7866, 6.46341, -33.338),(-64.7866, 6.46341, -33.338),(-65.8232, 6.46341, -30.8329),(-63.7659, 8.46341, -30.5739),(-63.1481, 8.46341, -32.0669),(-62.1578, 8.46341, -32.8096),(-63.0589, 6.46341, -34.6338),(-63.0589, 6.46341, -34.6338),(-64.7866, 6.46341, -33.338),(-63.1481, 8.46341, -32.0669),(-62.1578, 8.46341, -32.8096),(-59.9364, 8.46341, -33.4344),(-60.2947, 6.46341, -35.4112),(-60.2947, 6.46341, -35.4112),(-63.0589, 6.46341, -34.6338),(-62.1578, 8.46341, -32.8096),(-59.9364, 8.46341, -33.4344),(-48.9362, 8.46341, -34.3652),(-49.0648, 6.46341, -36.3615),(-49.0648, 6.46341, -36.3615),(-60.2947, 6.46341, -35.4112),(-59.9364, 8.46341, -33.4344),(-48.9362, 8.46341, -34.3652),(-39.2592, 8.46341, -34.7934),(-39.3035, 6.46341, -36.7934),(-39.3035, 6.46341, -36.7934),(-49.0648, 6.46341, -36.3615),(-48.9362, 8.46341, -34.3652),(-39.2592, 8.46341, -34.7934),(-32.039, 8.46341, -34.7934),(-31.9609, 6.46341, -36.7934),(-31.9609, 6.46341, -36.7934),(-39.3035, 6.46341, -36.7934),(-39.2592, 8.46341, -34.7934),(-32.039, 8.46341, -34.7934),(-22.2736, 8.46341, -34.0291),(-22.0268, 6.46341, -36.0159),(-22.0268, 6.46341, -36.0159),(-31.9609, 6.46341, -36.7934),(-32.039, 8.46341, -34.7934),(-22.2736, 8.46341, -34.0291),(-11.8068, 8.46341, -32.2421),(-11.4016, 6.46341, -34.2019),(-11.4016, 6.46341, -34.2019),(-22.0268, 6.46341, -36.0159),(-22.2736, 8.46341, -34.0291),(-11.8068, 8.46341, -32.2421),(-2.36138, 8.46341, -29.9446),(-1.81306, 6.46341, -31.8695),(-1.81306, 6.46341, -31.8695),(-11.4016, 6.46341, -34.2019),(-11.8068, 8.46341, -32.2421),(-2.36138, 8.46341, -29.9446),(6.199, 8.46341, -27.142),(6.91933, 6.46341, -29.0107),(6.91933, 6.46341, -29.0107),(-1.81306, 6.46341, -31.8695),(-2.36138, 8.46341, -29.9446),(6.199, 8.46341, -27.142),(15.0639, 8.46341, -23.1888),(15.9595, 6.46341, -24.9792),(15.9595, 6.46341, -24.9792),(6.91933, 6.46341, -29.0107),(6.199, 8.46341, -27.142),(15.0639, 8.46341, -23.1888),(24.5708, 8.46341, -17.8938),(25.6105, 6.46341, -19.604),(25.6105, 6.46341, -19.604),(15.9595, 6.46341, -24.9792),(15.0639, 8.46341, -23.1888),(24.5708, 8.46341, -17.8938),(30.6576, 8.46341, -13.8687),(33.1847, 6.46341, -14.5952),(33.1847, 6.46341, -14.5952),(25.6105, 6.46341, -19.604),(24.5708, 8.46341, -17.8938),(30.6576, 8.46341, -13.8687),(28.3327, 8.46341, -8.75391),(30.1306, 6.46341, -7.87619),(30.1306, 6.46341, -7.87619),(33.1847, 6.46341, -14.5952),(30.6576, 8.46341, -13.8687),(28.3327, 8.46341, -8.75391),(25.6048, 8.46341, -3.53532),(27.3208, 6.46341, -2.50095),(27.3208, 6.46341, -2.50095),(30.1306, 6.46341, -7.87619),(28.3327, 8.46341, -8.75391),(25.6048, 8.46341, -3.53532),(22.9426, 8.46341, 0.329102),(23.5337, 6.46341, 2.99647),(23.5337, 6.46341, 2.99647),(27.3208, 6.46341, -2.50095),(25.6048, 8.46341, -3.53532),(22.9426, 8.46341, 0.329102),(18.5374, 8.46341, -2.26027),(17.5527, 6.46341, -0.519135),(17.5527, 6.46341, -0.519135),(23.5337, 6.46341, 2.99647),(22.9426, 8.46341, 0.329102),(18.5374, 8.46341, -2.26027),(12.1181, 8.46341, -5.75037),(11.2612, 6.46341, -3.93974),(11.2612, 6.46341, -3.93974),(17.5527, 6.46341, -0.519135),(18.5374, 8.46341, -2.26027),(12.1181, 8.46341, -5.75037),(5.22691, 8.46341, -8.55099),(4.49783, 6.46341, -6.68845),(4.49783, 6.46341, -6.68845),(11.2612, 6.46341, -3.93974),(12.1181, 8.46341, -5.75037),(5.22691, 8.46341, -8.55099),(-0.342632, 8.46341, -10.6487),(-1.01632, 6.46341, -8.76525),(-1.01632, 6.46341, -8.76525),(4.49783, 6.46341, -6.68845),(5.22691, 8.46341, -8.55099),(-14.5266, -9.7168, 45.8928),(-4.8035, -9.7168, 31.5666),(1.36473, -9.7168, 36.1928),(1.36473, -9.7168, 36.1928),(-7.0595, -9.7168, 51.6628),(-14.5266, -9.7168, 45.8928),(-22.7964, -9.7168, 38.4756),(-11.161, -9.7168, 25.8947),(-4.8035, -9.7168, 31.5666),(-4.8035, -9.7168, 31.5666),(-14.5266, -9.7168, 45.8928),(-22.7964, -9.7168, 38.4756),(-29.2666, -9.7168, 31.75),(-17.5591, -9.7168, 19.1239),(-11.161, -9.7168, 25.8947),(-11.161, -9.7168, 25.8947),(-22.7964, -9.7168, 38.4756),(-29.2666, -9.7168, 31.75),(8.33187, -9.7168, 51.8883),(1.00884, -9.7168, 56.0242),(1.36473, -9.7168, 36.1928),(13.4516, -9.7168, 48.7331),(8.33187, -9.7168, 51.8883),(1.36473, -9.7168, 36.1928),(1.36473, -9.7168, 36.1928),(7.09695, -9.7168, 31.7955),(13.4516, -9.7168, 48.7331),(7.09695, -9.7168, 31.7955),(12.3292, -9.7168, 26.9992),(18.2159, -9.7168, 45.279),(18.2159, -9.7168, 45.279),(13.4516, -9.7168, 48.7331),(7.09695, -9.7168, 31.7955),(23.7326, -9.7168, 40.6018),(18.2159, -9.7168, 45.279),(12.3292, -9.7168, 26.9992),(12.3292, -9.7168, 26.9992),(17.1799, -9.7168, 22.0863),(23.7326, -9.7168, 40.6018),(17.1799, -9.7168, 22.0863),(22.2073, -9.7168, 16.19),(30.3574, -9.7168, 34.2781),(30.3574, -9.7168, 34.2781),(23.7326, -9.7168, 40.6018),(17.1799, -9.7168, 22.0863),(36.3249, -9.7168, 27.7079),(30.3574, -9.7168, 34.2781),(22.2073, -9.7168, 16.19),(22.2073, -9.7168, 16.19),(28.6893, -9.7168, 7.77172),(36.3249, -9.7168, 27.7079),(28.6893, -9.7168, 7.77172),(32.306, -9.7168, 2.3027),(40.5978, -9.7168, 22.5323),(40.5978, -9.7168, 22.5323),(36.3249, -9.7168, 27.7079),(28.6893, -9.7168, 7.77172),(46.0952, -9.7168, 15.1017),(40.5978, -9.7168, 22.5323),(32.306, -9.7168, 2.3027),(32.306, -9.7168, 2.3027),(36.4125, -9.7168, -4.86197),(46.0952, -9.7168, 15.1017),(36.4125, -9.7168, -4.86197),(39.8285, -9.7168, -11.256),(50.5572, -9.7168, 8.40144),(50.5572, -9.7168, 8.40144),(46.0952, -9.7168, 15.1017),(36.4125, -9.7168, -4.86197),(54.1142, -9.7168, 2.36055),(50.5572, -9.7168, 8.40144),(39.8285, -9.7168, -11.256),(39.8285, -9.7168, -11.256),(42.7981, -9.7168, -17.8939),(54.1142, -9.7168, 2.36055),(42.7981, -9.7168, -17.8939),(45.7732, -9.7168, -24.7192),(57.2573, -9.7168, -3.32123),(57.2573, -9.7168, -3.32123),(54.1142, -9.7168, 2.36055),(42.7981, -9.7168, -17.8939),(59.9063, -9.7168, -8.61919),(57.2573, -9.7168, -3.32123),(45.7732, -9.7168, -24.7192),(45.7732, -9.7168, -24.7192),(48.2289, -9.7168, -31.9984),(59.9063, -9.7168, -8.61919),(63.5821, -9.7168, -16.8747),(59.9063, -9.7168, -8.61919),(48.2289, -9.7168, -31.9984),(48.2289, -9.7168, -31.9984),(49.6592, -9.7168, -36.695),(63.5821, -9.7168, -16.8747),(65.9799, -9.7168, -23.6486),(63.5821, -9.7168, -16.8747),(49.6592, -9.7168, -36.695),(-35.4105, -9.7168, 24.4967),(-24.4894, -9.7168, 10.6782),(-17.5591, -9.7168, 19.1239),(-17.5591, -9.7168, 19.1239),(-29.2666, -9.7168, 31.75),(-35.4105, -9.7168, 24.4967),(-41.027, -9.7168, 17.0932),(-29.1279, -9.7168, 4.13616),(-24.4894, -9.7168, 10.6782),(-24.4894, -9.7168, 10.6782),(-35.4105, -9.7168, 24.4967),(-41.027, -9.7168, 17.0932),(-46.4979, -9.7168, 8.4152),(-32.7328, -9.7168, -1.58208),(-29.1279, -9.7168, 4.13616),(-29.1279, -9.7168, 4.13616),(-41.027, -9.7168, 17.0932),(-46.4979, -9.7168, 8.4152),(-50.6824, -9.7168, 1.45615),(-35.6605, -9.7168, -6.93914),(-32.7328, -9.7168, -1.58208),(-32.7328, -9.7168, -1.58208),(-46.4979, -9.7168, 8.4152),(-50.6824, -9.7168, 1.45615),(-53.9145, -9.7168, -4.923),(-39.1325, -9.7168, -13.9348),(-35.6605, -9.7168, -6.93914),(-35.6605, -9.7168, -6.93914),(-50.6824, -9.7168, 1.45615),(-53.9145, -9.7168, -4.923),(-53.9145, -9.7168, -4.923),(-57.6792, -9.7168, -13.1369),(-39.1325, -9.7168, -13.9348),(-57.6792, -9.7168, -13.1369),(-38.8807, -9.7168, -16.1225),(-39.1325, -9.7168, -13.9348),(25.6048, -9.7168, -3.53532),(22.9426, -9.7168, 0.329102),(18.5374, -9.7168, -2.26027),(-38.8807, -9.7168, -16.1225),(-57.6792, -9.7168, -13.1369),(-61.1865, -9.7168, -21.8622),(-38.8807, -9.7168, -16.1225),(-61.1865, -9.7168, -21.8622),(-63.4391, -9.7168, -28.2864),(-38.8807, -9.7168, -16.1225),(-63.4391, -9.7168, -28.2864),(-63.7659, -9.7168, -30.5739),(-38.8807, -9.7168, -16.1225),(-63.7659, -9.7168, -30.5739),(-63.1481, -9.7168, -32.0669),(-38.8807, -9.7168, -16.1225),(-63.1481, -9.7168, -32.0669),(-62.1578, -9.7168, -32.8096),(-38.8807, -9.7168, -16.1225),(-62.1578, -9.7168, -32.8096),(-59.9364, -9.7168, -33.4344),(-59.9364, -9.7168, -33.4344),(-36.7622, -9.7168, -17.0322),(-38.8807, -9.7168, -16.1225),(-36.7622, -9.7168, -17.0322),(-59.9364, -9.7168, -33.4344),(-48.9362, -9.7168, -34.3652),(-36.7622, -9.7168, -17.0322),(-48.9362, -9.7168, -34.3652),(-39.2592, -9.7168, -34.7934),(-39.2592, -9.7168, -34.7934),(-30.1361, -9.7168, -17.1797),(-36.7622, -9.7168, -17.0322),(-30.1361, -9.7168, -17.1797),(-39.2592, -9.7168, -34.7934),(-32.039, -9.7168, -34.7934),(-32.039, -9.7168, -34.7934),(-23.6557, -9.7168, -16.6135),(-30.1361, -9.7168, -17.1797),(-23.6557, -9.7168, -16.6135),(-32.039, -9.7168, -34.7934),(-22.2736, -9.7168, -34.0291),(-22.2736, -9.7168, -34.0291),(-16.1094, -9.7168, -15.2414),(-23.6557, -9.7168, -16.6135),(-16.1094, -9.7168, -15.2414),(-22.2736, -9.7168, -34.0291),(-11.8068, -9.7168, -32.2421),(-11.8068, -9.7168, -32.2421),(-7.65952, -9.7168, -13.129),(-16.1094, -9.7168, -15.2414),(-7.65952, -9.7168, -13.129),(-11.8068, -9.7168, -32.2421),(-2.36138, -9.7168, -29.9446),(-2.36138, -9.7168, -29.9446),(-0.342632, -9.7168, -10.6487),(-7.65952, -9.7168, -13.129),(-0.342632, -9.7168, -10.6487),(-2.36138, -9.7168, -29.9446),(6.199, -9.7168, -27.142),(6.199, -9.7168, -27.142),(5.22691, -9.7168, -8.55099),(-0.342632, -9.7168, -10.6487),(5.22691, -9.7168, -8.55099),(6.199, -9.7168, -27.142),(15.0639, -9.7168, -23.1888),(15.0639, -9.7168, -23.1888),(12.1181, -9.7168, -5.75037),(5.22691, -9.7168, -8.55099),(12.1181, -9.7168, -5.75037),(15.0639, -9.7168, -23.1888),(24.5708, -9.7168, -17.8938),(24.5708, -9.7168, -17.8938),(18.5374, -9.7168, -2.26027),(12.1181, -9.7168, -5.75037),(24.5708, -9.7168, -17.8938),(30.6576, -9.7168, -13.8687),(28.3327, -9.7168, -8.75391),(28.3327, -9.7168, -8.75391),(25.6048, -9.7168, -3.53532),(18.5374, -9.7168, -2.26027),(18.5374, -9.7168, -2.26027),(24.5708, -9.7168, -17.8938),(28.3327, -9.7168, -8.75391),(-7.0595, 8.46341, 51.6628),(-0.768229, 8.46341, 56.0568),(1.36473, 8.46341, 36.1928),(-14.5266, 8.46341, 45.8928),(-7.0595, 8.46341, 51.6628),(1.36473, 8.46341, 36.1928),(1.36473, 8.46341, 36.1928),(-4.8035, 8.46341, 31.5666),(-14.5266, 8.46341, 45.8928),(-22.7964, 8.46341, 38.4756),(-14.5266, 8.46341, 45.8928),(-4.8035, 8.46341, 31.5666),(-4.8035, 8.46341, 31.5666),(-11.161, 8.46341, 25.8947),(-22.7964, 8.46341, 38.4756),(-29.2666, 8.46341, 31.75),(-22.7964, 8.46341, 38.4756),(-11.161, 8.46341, 25.8947),(-11.161, 8.46341, 25.8947),(-17.5591, 8.46341, 19.1239),(-29.2666, 8.46341, 31.75),(-35.4105, 8.46341, 24.4967),(-29.2666, 8.46341, 31.75),(-17.5591, 8.46341, 19.1239),(-17.5591, 8.46341, 19.1239),(-24.4894, 8.46341, 10.6782),(-35.4105, 8.46341, 24.4967),(-41.027, 8.46341, 17.0932),(-35.4105, 8.46341, 24.4967),(-24.4894, 8.46341, 10.6782),(-24.4894, 8.46341, 10.6782),(-29.1279, 8.46341, 4.13616),(-41.027, 8.46341, 17.0932),(-46.4979, 8.46341, 8.4152),(-41.027, 8.46341, 17.0932),(-29.1279, 8.46341, 4.13616),(-29.1279, 8.46341, 4.13616),(-32.7328, 8.46341, -1.58208),(-46.4979, 8.46341, 8.4152),(-50.6824, 8.46341, 1.45615),(-46.4979, 8.46341, 8.4152),(-32.7328, 8.46341, -1.58208),(-32.7328, 8.46341, -1.58208),(-35.6605, 8.46341, -6.93914),(-50.6824, 8.46341, 1.45615),(-53.9145, 8.46341, -4.92301),(-50.6824, 8.46341, 1.45615),(-35.6605, 8.46341, -6.93914),(-35.6605, 8.46341, -6.93914),(-39.1325, 8.46341, -13.9348),(-53.9145, 8.46341, -4.92301),(-57.6792, 8.46341, -13.1369),(-53.9145, 8.46341, -4.92301),(-39.1325, 8.46341, -13.9348),(-38.8807, 8.46341, -16.1225),(-61.1865, 8.46341, -21.8622),(-57.6792, 8.46341, -13.1369),(-38.8807, 8.46341, -16.1225),(-63.4391, 8.46341, -28.2864),(-61.1865, 8.46341, -21.8622),(-38.8807, 8.46341, -16.1225),(-63.7659, 8.46341, -30.5739),(-63.4391, 8.46341, -28.2864),(-38.8807, 8.46341, -16.1225),(-36.7622, 8.46341, -17.0322),(-59.9364, 8.46341, -33.4344),(-59.9364, 8.46341, -33.4344),(-62.1578, 8.46341, -32.8096),(-38.8807, 8.46341, -16.1225),(-63.1481, 8.46341, -32.0669),(-63.7659, 8.46341, -30.5739),(-38.8807, 8.46341, -16.1225),(-62.1578, 8.46341, -32.8096),(-63.1481, 8.46341, -32.0669),(-38.8807, 8.46341, -16.1225),(-36.7622, 8.46341, -17.0322),(-48.9362, 8.46341, -34.3652),(-59.9364, 8.46341, -33.4344),(-36.7622, 8.46341, -17.0322),(-30.1361, 8.46341, -17.1797),(-39.2592, 8.46341, -34.7934),(-39.2592, 8.46341, -34.7934),(-48.9362, 8.46341, -34.3652),(-36.7622, 8.46341, -17.0322),(-30.1361, 8.46341, -17.1797),(-23.6557, 8.46341, -16.6135),(-32.039, 8.46341, -34.7934),(-32.039, 8.46341, -34.7934),(-39.2592, 8.46341, -34.7934),(-30.1361, 8.46341, -17.1797),(-23.6557, 8.46341, -16.6135),(-16.1094, 8.46341, -15.2414),(-22.2736, 8.46341, -34.0291),(-22.2736, 8.46341, -34.0291),(-32.039, 8.46341, -34.7934),(-23.6557, 8.46341, -16.6135),(-16.1094, 8.46341, -15.2414),(-7.65952, 8.46341, -13.129),(-11.8068, 8.46341, -32.2421),(-11.8068, 8.46341, -32.2421),(-22.2736, 8.46341, -34.0291),(-16.1094, 8.46341, -15.2414),(-7.65952, 8.46341, -13.129),(-0.342632, 8.46341, -10.6487),(-2.36138, 8.46341, -29.9446),(-2.36138, 8.46341, -29.9446),(-11.8068, 8.46341, -32.2421),(-7.65952, 8.46341, -13.129),(-0.342632, 8.46341, -10.6487),(5.22691, 8.46341, -8.55099),(6.199, 8.46341, -27.142),(6.199, 8.46341, -27.142),(-2.36138, 8.46341, -29.9446),(-0.342632, 8.46341, -10.6487),(5.22691, 8.46341, -8.55099),(12.1181, 8.46341, -5.75037),(15.0639, 8.46341, -23.1888),(15.0639, 8.46341, -23.1888),(6.199, 8.46341, -27.142),(5.22691, 8.46341, -8.55099),(12.1181, 8.46341, -5.75037),(18.5374, 8.46341, -2.26027),(24.5708, 8.46341, -17.8938),(24.5708, 8.46341, -17.8938),(15.0639, 8.46341, -23.1888),(12.1181, 8.46341, -5.75037),(25.6048, 8.46341, -3.53532),(28.3327, 8.46341, -8.75391),(24.5708, 8.46341, -17.8938),(24.5708, 8.46341, -17.8938),(18.5374, 8.46341, -2.26027),(25.6048, 8.46341, -3.53532),(18.5374, 8.46341, -2.26027),(22.9426, 8.46341, 0.329102),(25.6048, 8.46341, -3.53532),(28.3327, 8.46341, -8.75391),(30.6576, 8.46341, -13.8687),(24.5708, 8.46341, -17.8938),(13.4516, 8.46341, 48.7331),(7.09695, 8.46341, 31.7955),(1.36473, 8.46341, 36.1928),(1.36473, 8.46341, 36.1928),(8.33187, 8.46341, 51.8883),(13.4516, 8.46341, 48.7331),(18.2159, 8.46341, 45.279),(12.3292, 8.46341, 26.9992),(7.09695, 8.46341, 31.7955),(7.09695, 8.46341, 31.7955),(13.4516, 8.46341, 48.7331),(18.2159, 8.46341, 45.279),(23.7326, 8.46341, 40.6018),(17.1799, 8.46341, 22.0863),(12.3292, 8.46341, 26.9992),(12.3292, 8.46341, 26.9992),(18.2159, 8.46341, 45.279),(23.7326, 8.46341, 40.6018),(30.3574, 8.46341, 34.2781),(22.2073, 8.46341, 16.19),(17.1799, 8.46341, 22.0863),(17.1799, 8.46341, 22.0863),(23.7326, 8.46341, 40.6018),(30.3574, 8.46341, 34.2781),(36.3249, 8.46341, 27.7079),(28.6893, 8.46341, 7.77172),(22.2073, 8.46341, 16.19),(22.2073, 8.46341, 16.19),(30.3574, 8.46341, 34.2781),(36.3249, 8.46341, 27.7079),(40.5978, 8.46341, 22.5323),(32.306, 8.46341, 2.3027),(28.6893, 8.46341, 7.77172),(28.6893, 8.46341, 7.77172),(36.3249, 8.46341, 27.7079),(40.5978, 8.46341, 22.5323),(46.0952, 8.46341, 15.1017),(36.4125, 8.46341, -4.86197),(32.306, 8.46341, 2.3027),(32.306, 8.46341, 2.3027),(40.5978, 8.46341, 22.5323),(46.0952, 8.46341, 15.1017),(50.5572, 8.46341, 8.40144),(39.8285, 8.46341, -11.256),(36.4125, 8.46341, -4.86197),(36.4125, 8.46341, -4.86197),(46.0952, 8.46341, 15.1017),(50.5572, 8.46341, 8.40144),(54.1142, 8.46341, 2.36055),(42.7981, 8.46341, -17.8939),(39.8285, 8.46341, -11.256),(39.8285, 8.46341, -11.256),(50.5572, 8.46341, 8.40144),(54.1142, 8.46341, 2.36055),(57.2573, 8.46341, -3.32123),(45.7732, 8.46341, -24.7192),(42.7981, 8.46341, -17.8939),(42.7981, 8.46341, -17.8939),(54.1142, 8.46341, 2.36055),(57.2573, 8.46341, -3.32123),(59.9063, 8.46341, -8.61919),(48.2289, 8.46341, -31.9984),(45.7732, 8.46341, -24.7192),(45.7732, 8.46341, -24.7192),(57.2573, 8.46341, -3.32123),(59.9063, 8.46341, -8.61919),(63.5821, 8.46341, -16.8747),(49.6592, 8.46341, -36.695),(48.2289, 8.46341, -31.9984),(48.2289, 8.46341, -31.9984),(59.9063, 8.46341, -8.61919),(63.5821, 8.46341, -16.8747),(63.5821, 8.46341, -16.8747),(65.9799, 8.46341, -23.6486),(49.6592, 8.46341, -36.695),(65.9799, 8.46341, -23.6486),(68.0484, 8.46341, -30.768),(49.6592, 8.46341, -36.695)]
 		
-		coords = [(45.16139221191406, -185.76715087890625, 60.97697067260742),(63.55059051513672, -185.76715087890625, 66.90406036376953),(61.48212432861328, -185.76715087890625, 74.0234375),(-62.17707824707031, -167.58694458007812, 84.53510284423828),(-43.630367279052734, -167.58694458007812, 83.73722839355469),(-43.378509521484375, -167.58694458007812, 81.54956817626953),(-12.703516006469727, -169.58694458007812, 150.97671508789062),(-12.703516006469727, -183.76715087890625, 150.97671508789062),(-5.965607166290283, -183.76715087890625, 155.2106170654297),(-5.965607166290283, -169.58694458007812, 155.2106170654297),(-12.703516006469727, -169.58694458007812, 150.97671508789062),(-5.965607166290283, -183.76715087890625, 155.2106170654297),(-4.410704612731934, -183.76715087890625, 155.6379852294922),(-4.410704612731934, -169.58694458007812, 155.63796997070312),(-4.410704612731934, -169.58694458007812, 155.63796997070312),(-4.410704612731934, -183.76715087890625, 155.6379852294922),(-2.855802536010742, -183.76715087890625, 155.20838928222656),(-2.855802536010742, -169.58694458007812, 155.20838928222656),(-4.410704612731934, -169.58694458007812, 155.63796997070312),(-2.855802536010742, -183.76715087890625, 155.20838928222656),(4.813830375671387, -183.76715087890625, 151.3057861328125),(4.813830375671387, -169.58694458007812, 151.3057861328125),(10.066911697387695, -183.76715087890625, 148.06842041015625),(10.066911697387695, -169.58694458007812, 148.06842041015625),(14.953495979309082, -183.76715087890625, 144.52566528320312),(14.953495025634766, -169.58694458007812, 144.52566528320312),(20.57306671142578, -183.76715087890625, 139.76123046875),(20.57306671142578, -169.58694458007812, 139.76123046875),(27.29212188720703, -183.76715087890625, 133.34759521484375),(27.29212188720703, -169.58694458007812, 133.34759521484375),(33.339271545410156, -183.76715087890625, 126.68962860107422),(33.339271545410156, -169.58694458007812, 126.68962860107422),(37.676116943359375, -183.76715087890625, 121.43655395507812),(37.676116943359375, -169.58694458007812, 121.43655395507812),(43.23460388183594, -183.76715087890625, 113.92342376708984),(43.23460388183594, -169.58694458007812, 113.92342376708984),(47.75469970703125, -183.76715087890625, 107.13595581054688),(47.75469970703125, -169.58694458007812, 107.13595581054688),(51.35344696044922, -183.76715087890625, 101.02420806884766),(51.35344696044922, -169.58694458007812, 101.02420806884766),(54.52972412109375, -183.76715087890625, 95.282470703125),(54.52972412109375, -169.58694458007812, 95.282470703125),(57.21734619140625, -183.76715087890625, 89.9072265625),(57.21734619140625, -169.58694458007812, 89.9072265625),(60.9433708190918, -183.76715087890625, 81.53895568847656),(60.94337463378906, -169.58694458007812, 81.53895568847656),(63.38666915893555, -183.76715087890625, 74.63664245605469),(63.38667297363281, -169.58694458007812, 74.63664245605469),(66.01319885253906, -183.76715087890625, 65.59647369384766),(66.01319885253906, -169.58694458007812, 65.59647369384766),(66.01319885253906, -169.58694458007812, 65.59647369384766),(66.01319885253906, -183.76715087890625, 65.59647369384766),(43.84032440185547, -183.76715087890625, 58.449851989746094),(43.84032440185547, -169.58694458007812, 58.449851989746094),(-20.305259704589844, -169.58694458007812, 145.10263061523438),(-20.305259704589844, -183.76715087890625, 145.10263061523438),(-12.703516006469727, -169.58694458007812, 150.97671508789062),(-28.68445587158203, -169.58694458007812, 137.5872802734375),(-28.68445587158203, -183.76715087890625, 137.5872802734375),(-20.305259704589844, -183.76715087890625, 145.10263061523438),(-35.249595642089844, -169.58694458007812, 130.76300048828125),(-35.249595642089844, -183.76715087890625, 130.76300048828125),(-41.469200134277344, -169.58694458007812, 123.42040252685547),(-41.469200134277344, -183.76715087890625, 123.42040252685547),(-47.170509338378906, -169.58694458007812, 115.90504455566406),(-47.170509338378906, -183.76715087890625, 115.90504455566406),(-41.469200134277344, -183.76715087890625, 123.42040252685547),(-52.698795318603516, -169.58694458007812, 107.13595581054688),(-52.698795318603516, -183.76715087890625, 107.13595581054688),(-56.93158721923828, -169.58694458007812, 100.09672546386719),(-56.93158721923828, -183.76715087890625, 100.09672546386719),(-60.21415710449219, -169.58694458007812, 93.61796569824219),(-60.21415710449219, -183.76715087890625, 93.61796569824219),(-56.93158721923828, -183.76715087890625, 100.09672546386719),(-64.01502990722656, -169.58694458007812, 85.32516479492188),(-64.01502990722656, -183.76715087890625, 85.32516479492188),(-67.55674743652344, -169.58694458007812, 76.51405334472656),(-67.55674743652344, -183.76715087890625, 76.51405334472656),(-69.88910675048828, -169.58694458007812, 69.86251831054688),(-69.88910675048828, -183.76715087890625, 69.86251831054688),(-70.3210220336914, -169.58694458007812, 66.83910369873047),(-70.3210220336914, -183.76715087890625, 66.83910369873047),(-69.28441619873047, -169.58694458007812, 64.33397674560547),(-69.28441619873047, -183.76715087890625, 64.33397674560547),(-67.55674743652344, -169.58694458007812, 63.038230895996094),(-67.55674743652344, -183.76715087890625, 63.038230895996094),(-69.28441619873047, -183.76715087890625, 64.33397674560547),(-69.28441619873047, -169.58694458007812, 64.33397674560547),(-64.79248046875, -169.58694458007812, 62.26079559326172),(-64.79248046875, -183.76715087890625, 62.26079559326172),(-67.55674743652344, -183.76715087890625, 63.038230895996094),(-67.55674743652344, -169.58694458007812, 63.038230895996094),(-53.56262969970703, -169.58694458007812, 61.310569763183594),(-53.56262969970703, -183.76715087890625, 61.310569763183594),(-64.79248046875, -183.76715087890625, 62.26079559326172),(-64.79248046875, -169.58694458007812, 62.26079559326172),(-43.801300048828125, -169.58694458007812, 60.87865447998047),(-43.801300048828125, -183.76715087890625, 60.87865447998047),(-53.56262969970703, -183.76715087890625, 61.310569763183594),(-53.56262969970703, -169.58694458007812, 61.310569763183594),(-36.458709716796875, -169.58694458007812, 60.87865447998047),(-36.458709716796875, -183.76715087890625, 60.87865447998047),(-43.801300048828125, -183.76715087890625, 60.87865447998047),(-43.801300048828125, -169.58694458007812, 60.87865447998047),(-26.524616241455078, -169.58694458007812, 61.656089782714844),(-26.524616241455078, -183.76715087890625, 61.656089782714844),(-36.458709716796875, -183.76715087890625, 60.87865447998047),(-15.899452209472656, -169.58694458007812, 63.47014617919922),(-15.899452209472656, -183.76715087890625, 63.47014617919922),(-6.31088924407959, -169.58694458007812, 65.8025131225586),(-6.31088924407959, -183.76715087890625, 65.8025131225586),(-15.899452209472656, -169.58694458007812, 63.47014617919922),(2.4215030670166016, -169.58694458007812, 68.66136932373047),(2.4215030670166016, -183.76715087890625, 68.66136932373047),(11.461684226989746, -169.58694458007812, 72.69279479980469),(11.461684226989746, -183.76715087890625, 72.69279479980469),(21.112689971923828, -169.58694458007812, 78.06802368164062),(21.112689971923828, -183.76715087890625, 78.06802368164062),(28.68689727783203, -169.58694458007812, 83.0767822265625),(28.68689727783203, -183.76715087890625, 83.0767822265625),(25.632781982421875, -169.58694458007812, 89.79582977294922),(25.632781982421875, -183.76715087890625, 89.79582977294922),(28.68689727783203, -183.76715087890625, 83.0767822265625),(28.68689727783203, -169.58694458007812, 83.0767822265625),(22.822994232177734, -169.58694458007812, 95.17107391357422),(22.822994232177734, -183.76715087890625, 95.17107391357422),(25.632781982421875, -183.76715087890625, 89.79582977294922),(19.035892486572266, -169.58694458007812, 100.66848754882812),(19.035892486572266, -183.76715087890625, 100.66848754882812),(22.822994232177734, -183.76715087890625, 95.17107391357422),(19.035892486572266, -169.58694458007812, 100.66848754882812),(13.054874420166016, -169.58694458007812, 97.15288543701172),(13.054875373840332, -183.76715087890625, 97.15288543701172),(6.763396263122559, -169.58694458007812, 93.7322769165039),(6.763396263122559, -183.76715087890625, 93.7322769165039),(6.763396263122559, -169.58694458007812, 93.7322769165039),(0.0, -169.58694458007812, 90.98357391357422),(0.0, -183.76715087890625, 90.98357391357422),(6.763396263122559, -169.58694458007812, 93.7322769165039),(-5.5141472816467285, -169.58694458007812, 88.90676879882812),(-5.5141472816467285, -183.76715087890625, 88.90676879882812),(0.0, -183.76715087890625, 90.98357391357422),(0.0, -169.58694458007812, 90.98357391357422),(-5.5141472816467285, -169.58694458007812, 88.90676879882812),(-12.72186279296875, -169.58694458007812, 86.46348571777344),(-12.72186279296875, -183.76715087890625, 86.46348571777344),(-5.5141472816467285, -183.76715087890625, 88.90676879882812),(-5.5141472816467285, -169.58694458007812, 88.90676879882812),(-21.029056549072266, -169.58694458007812, 84.38668823242188),(-21.029056549072266, -183.76715087890625, 84.38668823242188),(-12.72186279296875, -183.76715087890625, 86.46348571777344),(-12.72186279296875, -169.58694458007812, 86.46348571777344),(-28.42001724243164, -169.58694458007812, 83.04287719726562),(-28.42001724243164, -183.76715087890625, 83.04287719726562),(-21.029056549072266, -169.58694458007812, 84.38668823242188),(-28.42001724243164, -169.58694458007812, 83.04287719726562),(-34.71149444580078, -169.58694458007812, 82.49313354492188),(-34.71149444580078, -183.76715087890625, 82.49313354492188),(-41.064056396484375, -169.58694458007812, 82.55421447753906),(-41.064056396484375, -183.76715087890625, 82.55421447753906),(-34.71149444580078, -169.58694458007812, 82.49313354492188),(-41.064056396484375, -169.58694458007812, 82.55421447753906),(-41.49762725830078, -169.58694458007812, 82.9196548461914),(-41.49762725830078, -183.76715087890625, 82.9196548461914),(-41.369468688964844, -169.58694458007812, 83.53153991699219),(-41.369468688964844, -183.76715087890625, 83.53153991699219),(-41.49762725830078, -183.76715087890625, 82.9196548461914),(-41.49762725830078, -169.58694458007812, 82.9196548461914),(-38.376434326171875, -169.58694458007812, 89.82300567626953),(-38.376434326171875, -183.76715087890625, 89.82300567626953),(-35.50556945800781, -169.58694458007812, 95.07608795166016),(-35.50556945800781, -183.76715087890625, 95.07608795166016),(-31.962791442871094, -169.58694458007812, 100.69566345214844),(-31.962791442871094, -183.76715087890625, 100.69566345214844),(-27.396411895751953, -169.58694458007812, 107.13595581054688),(-27.396411895751953, -183.76715087890625, 107.13595581054688),(-31.962791442871094, -183.76715087890625, 100.69566345214844),(-31.962791442871094, -169.58694458007812, 100.69566345214844),(-27.396411895751953, -169.58694458007812, 107.13595581054688),(-20.555194854736328, -169.58694458007812, 115.47315979003906),(-20.555194854736328, -183.76715087890625, 115.47315979003906),(-27.396411895751953, -183.76715087890625, 107.13595581054688),(-14.263715744018555, -169.58694458007812, 122.13113403320312),(-14.263715744018555, -183.76715087890625, 122.13113403320312),(-8.033321380615234, -169.58694458007812, 127.68962097167969),(-8.033321380615234, -183.76715087890625, 127.68962097167969),(-3.146735429763794, -169.58694458007812, 131.35455322265625),(-3.146735429763794, -183.76715087890625, 131.35455322265625),(1.312273383140564, -169.58694458007812, 127.93395233154297),(1.3122735023498535, -183.76715087890625, 127.93395233154297),(-3.146735429763794, -183.76715087890625, 131.35455322265625),(-3.146735429763794, -169.58694458007812, 131.35455322265625),(1.312273383140564, -169.58694458007812, 127.93395233154297),(6.443188667297363, -169.58694458007812, 123.2306137084961),(6.443188667297363, -183.76715087890625, 123.2306137084961),(11.207608222961426, -169.58694458007812, 118.40511322021484),(11.207608222961426, -183.76715087890625, 118.40511322021484),(16.1552734375, -169.58694458007812, 112.602294921875),(16.1552734375, -183.76715087890625, 112.602294921875),(11.207608222961426, -169.58694458007812, 118.40511322021484),(16.1552734375, -169.58694458007812, 112.602294921875),(22.56296157836914, -169.58694458007812, 104.28055572509766),(22.56296157836914, -183.76715087890625, 104.28055572509766),(26.10468292236328, -169.58694458007812, 98.9247817993164),(26.10468292236328, -183.76715087890625, 98.9247817993164),(22.56296157836914, -169.58694458007812, 104.28055572509766),(26.10468292236328, -169.58694458007812, 98.9247817993164),(30.164703369140625, -169.58694458007812, 91.84133911132812),(30.164703369140625, -183.76715087890625, 91.84133911132812),(33.533660888671875, -169.58694458007812, 85.53535461425781),(33.533660888671875, -183.76715087890625, 85.53535461425781),(30.164703369140625, -169.58694458007812, 91.84133911132812),(33.533660888671875, -169.58694458007812, 85.53535461425781),(36.47069549560547, -169.58694458007812, 78.97019958496094),(36.47069549560547, -183.76715087890625, 78.97019958496094),(39.40773010253906, -169.58694458007812, 72.2322998046875),(39.40773010253906, -183.76715087890625, 72.2322998046875),(36.47069549560547, -169.58694458007812, 78.97019958496094),(39.40773010253906, -169.58694458007812, 72.2322998046875),(41.82646942138672, -169.58694458007812, 65.0624771118164),(41.82646942138672, -183.76715087890625, 65.0624771118164),(43.84032440185547, -169.58694458007812, 58.449851989746094),(43.84032440185547, -183.76715087890625, 58.449851989746094),(41.82646942138672, -169.58694458007812, 65.0624771118164),(43.84032440185547, -169.58694458007812, 58.449851989746094),(-4.84045934677124, -185.76715087890625, 87.02335357666016),(-5.5141472816467285, -183.76715087890625, 88.90676879882812),(-12.72186279296875, -183.76715087890625, 86.46348571777344),(-12.157343864440918, -185.76715087890625, 84.54306030273438),(-21.029056549072266, -183.76715087890625, 84.38668823242188),(-20.607187271118164, -185.76715087890625, 82.43060302734375),(-12.157343864440918, -185.76715087890625, 84.54306030273438),(-20.607187271118164, -185.76715087890625, 82.43060302734375),(-28.42001724243164, -183.76715087890625, 83.04287719726562),(-28.153512954711914, -185.76715087890625, 81.05854034423828),(-20.607187271118164, -185.76715087890625, 82.43060302734375),(-28.153512954711914, -185.76715087890625, 81.05854034423828),(-34.71149444580078, -183.76715087890625, 82.49313354492188),(-34.633880615234375, -185.76715087890625, 80.49229431152344),(-28.153512954711914, -185.76715087890625, 81.05854034423828),(-34.633880615234375, -185.76715087890625, 80.49229431152344),(-41.064056396484375, -183.76715087890625, 82.55421447753906),(-41.26000213623047, -185.76715087890625, 80.63983154296875),(-41.49762725830078, -183.76715087890625, 82.9196548461914),(-43.378509521484375, -185.76715087890625, 81.54956817626953),(-43.378509521484375, -185.76715087890625, 81.54956817626953),(-41.49762725830078, -183.76715087890625, 82.9196548461914),(-41.369468688964844, -183.76715087890625, 83.53153991699219),(-43.630367279052734, -185.76715087890625, 83.73722076416016),(-38.376434326171875, -183.76715087890625, 89.82300567626953),(-40.158363342285156, -185.76715087890625, 90.73287963867188),(-35.50556945800781, -183.76715087890625, 95.07608795166016),(-37.230674743652344, -185.76715087890625, 96.0899429321289),(-31.962791442871094, -183.76715087890625, 100.69566345214844),(-33.625694274902344, -185.76715087890625, 101.80818176269531),(-27.396411895751953, -183.76715087890625, 107.13595581054688),(-28.98719024658203, -185.76715087890625, 108.3501968383789),(-20.555194854736328, -183.76715087890625, 115.47315979003906),(-22.056913375854492, -185.76715087890625, 116.79593658447266),(-14.263715744018555, -183.76715087890625, 122.13113403320312),(-15.658801078796387, -185.76715087890625, 123.56675720214844),(-8.033321380615234, -183.76715087890625, 127.68962097167969),(-9.301332473754883, -185.76715087890625, 129.23861694335938),(-3.146735429763794, -183.76715087890625, 131.35455322265625),(-3.1330935955047607, -185.76715087890625, 133.86477661132812),(-3.1330935955047607, -185.76715087890625, 133.86477661132812),(-3.146735429763794, -183.76715087890625, 131.35455322265625),(1.3122735023498535, -183.76715087890625, 127.93395233154297),(2.5991225242614746, -185.76715087890625, 129.4674835205078),(-3.1330935955047607, -185.76715087890625, 133.86477661132812),(1.3122735023498535, -183.76715087890625, 127.93395233154297),(6.443188667297363, -183.76715087890625, 123.2306137084961),(7.8313703536987305, -185.76715087890625, 124.67124938964844),(11.207608222961426, -183.76715087890625, 118.40511322021484),(12.68211841583252, -185.76715087890625, 119.75831604003906),(16.1552734375, -183.76715087890625, 112.602294921875),(17.70952033996582, -185.76715087890625, 113.86197662353516),(22.56296157836914, -183.76715087890625, 104.28055572509766),(24.191511154174805, -185.76715087890625, 105.44374084472656),(26.10468292236328, -183.76715087890625, 98.9247817993164),(27.808122634887695, -185.76715087890625, 99.97471618652344),(30.164703369140625, -183.76715087890625, 91.84133911132812),(31.914701461791992, -185.76715087890625, 92.81005096435547),(33.533660888671875, -183.76715087890625, 85.53535461425781),(35.3306999206543, -185.76715087890625, 86.416015625),(36.47069549560547, -183.76715087890625, 78.97019958496094),(38.30025100708008, -185.76715087890625, 79.77816772460938),(39.40773010253906, -183.76715087890625, 72.2322998046875),(41.275390625, -185.76715087890625, 72.9528579711914),(41.82646942138672, -183.76715087890625, 65.0624771118164),(43.731048583984375, -185.76715087890625, 65.67359924316406),(43.84032440185547, -183.76715087890625, 58.449851989746094),(45.16139221191406, -185.76715087890625, 60.97697067260742),(45.16139221191406, -185.76715087890625, 60.97697067260742),(43.84032440185547, -183.76715087890625, 58.449851989746094),(66.01319885253906, -183.76715087890625, 65.59647369384766),(63.55059051513672, -185.76715087890625, 66.90406036376953),(45.16139221191406, -185.76715087890625, 60.97697067260742),(63.55059051513672, -185.76715087890625, 66.90406036376953),(66.01319885253906, -183.76715087890625, 65.59647369384766),(63.38666915893555, -183.76715087890625, 74.63664245605469),(61.48212432861328, -185.76715087890625, 74.0234375),(60.9433708190918, -183.76715087890625, 81.53895568847656),(59.08427810668945, -185.76715087890625, 80.79735565185547),(57.21734619140625, -183.76715087890625, 89.9072265625),(55.408477783203125, -185.76715087890625, 89.05282592773438),(59.08427810668945, -185.76715087890625, 80.79735565185547),(54.52972412109375, -183.76715087890625, 95.282470703125),(52.75949478149414, -185.76715087890625, 94.35079193115234),(51.35344696044922, -183.76715087890625, 101.02420806884766),(49.61638641357422, -185.76715087890625, 100.0325698852539),(47.75469970703125, -183.76715087890625, 107.13595581054688),(46.059364318847656, -185.76715087890625, 106.07345581054688),(43.23460388183594, -183.76715087890625, 113.92342376708984),(41.59737014770508, -185.76715087890625, 112.77367401123047),(37.676116943359375, -183.76715087890625, 121.43655395507812),(36.099945068359375, -185.76715087890625, 120.20427703857422),(33.339271545410156, -183.76715087890625, 126.68962860107422),(31.827030181884766, -185.76715087890625, 125.37991333007812),(27.29212188720703, -183.76715087890625, 133.34759521484375),(25.859580993652344, -185.76715087890625, 131.95013427734375),(20.57306671142578, -183.76715087890625, 139.76123046875),(19.234745025634766, -185.76715087890625, 138.27383422851562),(14.953495979309082, -183.76715087890625, 144.52566528320312),(13.718064308166504, -185.76715087890625, 142.95103454589844),(10.066911697387695, -183.76715087890625, 148.06842041015625),(8.953731536865234, -185.76715087890625, 146.4051513671875),(4.813830375671387, -183.76715087890625, 151.3057861328125),(3.834045648574829, -185.76715087890625, 149.560302734375),(-2.855802536010742, -183.76715087890625, 155.20838928222656),(-3.4889843463897705, -185.76715087890625, 153.6962432861328),(-4.410704612731934, -183.76715087890625, 155.6379852294922),(-4.411761283874512, -185.76715087890625, 153.9688720703125),(-4.411761283874512, -185.76715087890625, 153.9688720703125),(-4.410704612731934, -183.76715087890625, 155.6379852294922),(-5.965607166290283, -183.76715087890625, 155.2106170654297),(-5.266057014465332, -185.76715087890625, 153.72877502441406),(-12.703516006469727, -183.76715087890625, 150.97671508789062),(-11.557331085205078, -185.76715087890625, 149.33486938476562),(-20.305259704589844, -183.76715087890625, 145.10263061523438),(-19.024404525756836, -185.76715087890625, 143.56484985351562),(-28.68445587158203, -183.76715087890625, 137.5872802734375),(-27.29422378540039, -185.76715087890625, 136.14759826660156),(-35.249595642089844, -183.76715087890625, 130.76300048828125),(-33.764408111572266, -185.76715087890625, 129.42202758789062),(-41.469200134277344, -183.76715087890625, 123.42040252685547),(-39.90833282470703, -185.76715087890625, 122.16876983642578),(-47.170509338378906, -183.76715087890625, 115.90504455566406),(-45.52481460571289, -185.76715087890625, 114.76522827148438),(-52.698795318603516, -183.76715087890625, 107.13595581054688),(-50.99568176269531, -185.76715087890625, 106.08721923828125),(-56.93158721923828, -183.76715087890625, 100.09672546386719),(-55.180259704589844, -185.76715087890625, 99.12816619873047),(-60.21415710449219, -183.76715087890625, 93.61796569824219),(-58.4123649597168, -185.76715087890625, 92.74901580810547),(-64.01502990722656, -183.76715087890625, 85.32516479492188),(-62.17707824707031, -185.76715087890625, 84.53510284423828),(-67.55674743652344, -183.76715087890625, 76.51405334472656),(-65.68428802490234, -185.76715087890625, 75.80984497070312),(-62.17707824707031, -185.76715087890625, 84.53510284423828),(-65.68428802490234, -185.76715087890625, 75.80984497070312),(-69.88910675048828, -183.76715087890625, 69.86251831054688),(-67.93692016601562, -185.76715087890625, 69.38566589355469),(-70.3210220336914, -183.76715087890625, 66.83910369873047),(-68.26371765136719, -185.76715087890625, 67.09807586669922),(-69.28441619873047, -183.76715087890625, 64.33397674560547),(-67.64595031738281, -185.76715087890625, 65.6051254272461),(-67.64595031738281, -185.76715087890625, 65.6051254272461),(-69.28441619873047, -183.76715087890625, 64.33397674560547),(-67.55674743652344, -183.76715087890625, 63.038230895996094),(-66.65562438964844, -185.76715087890625, 64.86238861083984),(-64.79248046875, -183.76715087890625, 62.26079559326172),(-64.43421173095703, -185.76715087890625, 64.23762512207031),(-53.56262969970703, -183.76715087890625, 61.310569763183594),(-53.434059143066406, -185.76715087890625, 63.30683898925781),(-43.801300048828125, -183.76715087890625, 60.87865447998047),(-43.75707244873047, -185.76715087890625, 62.87865447998047),(-53.434059143066406, -185.76715087890625, 63.30683898925781),(-43.75707244873047, -185.76715087890625, 62.87865447998047),(-36.458709716796875, -183.76715087890625, 60.87865447998047),(-36.53684997558594, -185.76715087890625, 62.87865447998047),(-26.524616241455078, -183.76715087890625, 61.656089782714844),(-26.77144432067871, -185.76715087890625, 63.642887115478516),(-36.53684997558594, -185.76715087890625, 62.87865447998047),(-15.899452209472656, -183.76715087890625, 63.47014617919922),(-16.304590225219727, -185.76715087890625, 65.42991638183594),(-26.77144432067871, -185.76715087890625, 63.642887115478516),(-15.899452209472656, -183.76715087890625, 63.47014617919922),(-6.31088924407959, -183.76715087890625, 65.8025131225586),(-6.859206676483154, -185.76715087890625, 67.72745513916016),(-16.304590225219727, -185.76715087890625, 65.42991638183594),(-6.31088924407959, -183.76715087890625, 65.8025131225586),(2.4215030670166016, -183.76715087890625, 68.66136932373047),(1.7011723518371582, -185.76715087890625, 70.52999877929688),(11.461684226989746, -183.76715087890625, 72.69279479980469),(10.566060066223145, -185.76715087890625, 74.4832534790039),(21.112689971923828, -183.76715087890625, 78.06802368164062),(20.073013305664062, -185.76715087890625, 79.77825164794922),(28.68689727783203, -183.76715087890625, 83.0767822265625),(26.159725189208984, -185.76715087890625, 83.80333709716797),(26.159725189208984, -185.76715087890625, 83.80333709716797),(28.68689727783203, -183.76715087890625, 83.0767822265625),(25.632781982421875, -183.76715087890625, 89.79582977294922),(23.834829330444336, -185.76715087890625, 88.91810607910156),(22.822994232177734, -183.76715087890625, 95.17107391357422),(21.1069278717041, -185.76715087890625, 94.1366958618164),(23.834829330444336, -185.76715087890625, 88.91810607910156),(19.035892486572266, -183.76715087890625, 100.66848754882812),(18.44477653503418, -185.76715087890625, 98.0011215209961),(21.1069278717041, -185.76715087890625, 94.1366958618164),(18.44477653503418, -185.76715087890625, 98.0011215209961),(19.035892486572266, -183.76715087890625, 100.66848754882812),(13.054875373840332, -183.76715087890625, 97.15288543701172),(14.039544105529785, -185.76715087890625, 95.41175079345703),(6.763396263122559, -183.76715087890625, 93.7322769165039),(7.620238780975342, -185.76715087890625, 91.92164611816406),(14.039544105529785, -185.76715087890625, 95.41175079345703),(0.0, -183.76715087890625, 90.98357391357422),(0.7290870547294617, -185.76715087890625, 89.12102508544922),(7.620238780975342, -185.76715087890625, 91.92164611816406),(0.0, -183.76715087890625, 90.98357391357422),(-5.5141472816467285, -183.76715087890625, 88.90676879882812),(-4.84045934677124, -185.76715087890625, 87.02335357666016),(-4.411761283874512, -185.76715087890625, 153.9688720703125),(-5.266057014465332, -185.76715087890625, 153.72877502441406),(-3.1330935955047607, -185.76715087890625, 133.86477661132812),(-11.557331085205078, -185.76715087890625, 149.33486938476562),(-3.4889843463897705, -185.76715087890625, 153.6962432861328),(-4.411761283874512, -167.58694458007812, 153.96885681152344),(-3.4889843463897705, -167.58694458007812, 153.6962432861328),(-3.1330933570861816, -167.58694458007812, 133.86477661132812),(3.834045648574829, -167.58694458007812, 149.560302734375),(-5.266057014465332, -167.58694458007812, 153.72877502441406),(-4.411761283874512, -167.58694458007812, 153.96885681152344),(-41.26000213623047, -167.58694458007812, 80.63983154296875),(-43.378509521484375, -167.58694458007812, 81.54956817626953),(-41.49762725830078, -169.58694458007812, 82.9196548461914),(-41.064056396484375, -169.58694458007812, 82.55421447753906),(-41.26000213623047, -167.58694458007812, 80.63983154296875),(-43.378509521484375, -167.58694458007812, 81.54956817626953),(-43.630367279052734, -167.58694458007812, 83.73722839355469),(-41.369468688964844, -169.58694458007812, 83.53153991699219),(-41.49762725830078, -169.58694458007812, 82.9196548461914),(-4.840459823608398, -167.58694458007812, 87.02335357666016),(-12.157344818115234, -167.58694458007812, 84.54306030273438),(-12.72186279296875, -169.58694458007812, 86.46348571777344),(-5.5141472816467285, -169.58694458007812, 88.90676879882812),(-4.840459823608398, -167.58694458007812, 87.02335357666016),(-20.607189178466797, -167.58694458007812, 82.43060302734375),(-21.029056549072266, -169.58694458007812, 84.38668823242188),(-12.72186279296875, -169.58694458007812, 86.46348571777344),(-28.153512954711914, -167.58694458007812, 81.05854034423828),(-28.42001724243164, -169.58694458007812, 83.04287719726562),(-21.029056549072266, -169.58694458007812, 84.38668823242188),(-28.153512954711914, -167.58694458007812, 81.05854034423828),(-34.633880615234375, -167.58694458007812, 80.49229431152344),(-34.71149444580078, -169.58694458007812, 82.49313354492188),(-41.26000213623047, -167.58694458007812, 80.63983154296875),(-41.064056396484375, -169.58694458007812, 82.55421447753906),(-34.633880615234375, -167.58694458007812, 80.49229431152344),(-43.630367279052734, -167.58694458007812, 83.73722839355469),(-40.158363342285156, -167.58694458007812, 90.73287963867188),(-38.376434326171875, -169.58694458007812, 89.82300567626953),(-41.369468688964844, -169.58694458007812, 83.53153991699219),(-40.158363342285156, -167.58694458007812, 90.73287963867188),(-37.230674743652344, -167.58694458007812, 96.0899429321289),(-35.50556945800781, -169.58694458007812, 95.07608795166016),(-33.625694274902344, -167.58694458007812, 101.80818176269531),(-31.962791442871094, -169.58694458007812, 100.69566345214844),(-37.230674743652344, -167.58694458007812, 96.0899429321289),(-33.625694274902344, -167.58694458007812, 101.80818176269531),(-28.98719024658203, -167.58694458007812, 108.3501968383789),(-27.396411895751953, -169.58694458007812, 107.13595581054688),(-22.056913375854492, -167.58694458007812, 116.79593658447266),(-20.555194854736328, -169.58694458007812, 115.47315979003906),(-28.98719024658203, -167.58694458007812, 108.3501968383789),(-22.056913375854492, -167.58694458007812, 116.79593658447266),(-15.65880012512207, -167.58694458007812, 123.56675720214844),(-14.263715744018555, -169.58694458007812, 122.13113403320312),(-9.301332473754883, -167.58694458007812, 129.23861694335938),(-8.033321380615234, -169.58694458007812, 127.68962097167969),(-15.65880012512207, -167.58694458007812, 123.56675720214844),(-9.301332473754883, -167.58694458007812, 129.23861694335938),(-3.1330933570861816, -167.58694458007812, 133.86477661132812),(-3.146735429763794, -169.58694458007812, 131.35455322265625),(-3.1330933570861816, -167.58694458007812, 133.86477661132812),(2.5991225242614746, -167.58694458007812, 129.4674835205078),(1.312273383140564, -169.58694458007812, 127.93395233154297),(-3.146735429763794, -169.58694458007812, 131.35455322265625),(-3.1330933570861816, -167.58694458007812, 133.86477661132812),(7.8313703536987305, -167.58694458007812, 124.67124938964844),(6.443188667297363, -169.58694458007812, 123.2306137084961),(1.312273383140564, -169.58694458007812, 127.93395233154297),(2.5991225242614746, -167.58694458007812, 129.4674835205078),(12.682117462158203, -167.58694458007812, 119.75831604003906),(11.207608222961426, -169.58694458007812, 118.40511322021484),(6.443188667297363, -169.58694458007812, 123.2306137084961),(7.8313703536987305, -167.58694458007812, 124.67124938964844),(17.70952033996582, -167.58694458007812, 113.86197662353516),(16.1552734375, -169.58694458007812, 112.602294921875),(11.207608222961426, -169.58694458007812, 118.40511322021484),(12.682117462158203, -167.58694458007812, 119.75831604003906),(24.191511154174805, -167.58694458007812, 105.44374084472656),(22.56296157836914, -169.58694458007812, 104.28055572509766),(16.1552734375, -169.58694458007812, 112.602294921875),(17.70952033996582, -167.58694458007812, 113.86197662353516),(27.808122634887695, -167.58694458007812, 99.97471618652344),(26.10468292236328, -169.58694458007812, 98.9247817993164),(22.56296157836914, -169.58694458007812, 104.28055572509766),(24.191511154174805, -167.58694458007812, 105.44374084472656),(31.914701461791992, -167.58694458007812, 92.81005096435547),(30.164703369140625, -169.58694458007812, 91.84133911132812),(26.10468292236328, -169.58694458007812, 98.9247817993164),(27.808122634887695, -167.58694458007812, 99.97471618652344),(35.3306999206543, -167.58694458007812, 86.416015625),(33.533660888671875, -169.58694458007812, 85.53535461425781),(30.164703369140625, -169.58694458007812, 91.84133911132812),(31.914701461791992, -167.58694458007812, 92.81005096435547),(38.30025100708008, -167.58694458007812, 79.77816772460938),(36.47069549560547, -169.58694458007812, 78.97019958496094),(33.533660888671875, -169.58694458007812, 85.53535461425781),(35.3306999206543, -167.58694458007812, 86.416015625),(41.275390625, -167.58694458007812, 72.9528579711914),(39.40773010253906, -169.58694458007812, 72.2322998046875),(36.47069549560547, -169.58694458007812, 78.97019958496094),(38.30025100708008, -167.58694458007812, 79.77816772460938),(43.731048583984375, -167.58694458007812, 65.67359924316406),(41.82646942138672, -169.58694458007812, 65.0624771118164),(39.40773010253906, -169.58694458007812, 72.2322998046875),(41.275390625, -167.58694458007812, 72.9528579711914),(45.16139221191406, -167.58694458007812, 60.97697067260742),(43.84032440185547, -169.58694458007812, 58.449851989746094),(41.82646942138672, -169.58694458007812, 65.0624771118164),(43.731048583984375, -167.58694458007812, 65.67359924316406),(45.16139221191406, -167.58694458007812, 60.97697067260742),(63.55059051513672, -167.58694458007812, 66.90406036376953),(66.01319885253906, -169.58694458007812, 65.59647369384766),(43.84032440185547, -169.58694458007812, 58.449851989746094),(63.55059051513672, -167.58694458007812, 66.90406036376953),(61.48212432861328, -167.58694458007812, 74.0234375),(63.38667297363281, -169.58694458007812, 74.63664245605469),(66.01319885253906, -169.58694458007812, 65.59647369384766),(61.48212432861328, -167.58694458007812, 74.0234375),(59.08427810668945, -167.58694458007812, 80.79735565185547),(60.94337463378906, -169.58694458007812, 81.53895568847656),(55.408477783203125, -167.58694458007812, 89.05282592773438),(57.21734619140625, -169.58694458007812, 89.9072265625),(59.08427810668945, -167.58694458007812, 80.79735565185547),(55.408477783203125, -167.58694458007812, 89.05282592773438),(52.75949478149414, -167.58694458007812, 94.35079193115234),(54.52972412109375, -169.58694458007812, 95.282470703125),(49.61638641357422, -167.58694458007812, 100.0325698852539),(51.35344696044922, -169.58694458007812, 101.02420806884766),(52.75949478149414, -167.58694458007812, 94.35079193115234),(49.61638641357422, -167.58694458007812, 100.0325698852539),(46.059364318847656, -167.58694458007812, 106.07345581054688),(47.75469970703125, -169.58694458007812, 107.13595581054688),(41.59737014770508, -167.58694458007812, 112.77367401123047),(43.23460388183594, -169.58694458007812, 113.92342376708984),(46.059364318847656, -167.58694458007812, 106.07345581054688),(41.59737014770508, -167.58694458007812, 112.77367401123047),(36.099945068359375, -167.58694458007812, 120.20427703857422),(37.676116943359375, -169.58694458007812, 121.43655395507812),(31.827028274536133, -167.58694458007812, 125.37991333007812),(33.339271545410156, -169.58694458007812, 126.68962860107422),(36.099945068359375, -167.58694458007812, 120.20427703857422),(31.827028274536133, -167.58694458007812, 125.37991333007812),(25.859580993652344, -167.58694458007812, 131.95013427734375),(27.29212188720703, -169.58694458007812, 133.34759521484375),(19.234745025634766, -167.58694458007812, 138.27383422851562),(20.57306671142578, -169.58694458007812, 139.76123046875),(25.859580993652344, -167.58694458007812, 131.95013427734375),(19.234745025634766, -167.58694458007812, 138.27383422851562),(13.718063354492188, -167.58694458007812, 142.95103454589844),(14.953495025634766, -169.58694458007812, 144.52566528320312),(8.953731536865234, -167.58694458007812, 146.4051513671875),(10.066911697387695, -169.58694458007812, 148.06842041015625),(13.718063354492188, -167.58694458007812, 142.95103454589844),(8.953731536865234, -167.58694458007812, 146.4051513671875),(3.834045648574829, -167.58694458007812, 149.560302734375),(4.813830375671387, -169.58694458007812, 151.3057861328125),(-3.4889843463897705, -167.58694458007812, 153.6962432861328),(-2.855802536010742, -169.58694458007812, 155.20838928222656),(3.834045648574829, -167.58694458007812, 149.560302734375),(-3.4889843463897705, -167.58694458007812, 153.6962432861328),(-4.411761283874512, -167.58694458007812, 153.96885681152344),(-4.410704612731934, -169.58694458007812, 155.63796997070312),(-4.411761283874512, -167.58694458007812, 153.96885681152344),(-5.266057014465332, -167.58694458007812, 153.72877502441406),(-5.965607166290283, -169.58694458007812, 155.2106170654297),(-4.410704612731934, -169.58694458007812, 155.63796997070312),(-11.557331085205078, -167.58694458007812, 149.33486938476562),(-12.703516006469727, -169.58694458007812, 150.97671508789062),(-19.024404525756836, -167.58694458007812, 143.56484985351562),(-20.305259704589844, -169.58694458007812, 145.10263061523438),(-27.29422378540039, -167.58694458007812, 136.14759826660156),(-28.68445587158203, -169.58694458007812, 137.5872802734375),(-33.764408111572266, -167.58694458007812, 129.42202758789062),(-35.249595642089844, -169.58694458007812, 130.76300048828125),(-28.68445587158203, -169.58694458007812, 137.5872802734375),(-39.90833282470703, -167.58694458007812, 122.16876983642578),(-41.469200134277344, -169.58694458007812, 123.42040252685547),(-45.52481460571289, -167.58694458007812, 114.76522827148438),(-47.170509338378906, -169.58694458007812, 115.90504455566406),(-50.99568176269531, -167.58694458007812, 106.08721923828125),(-52.698795318603516, -169.58694458007812, 107.13595581054688),(-55.180259704589844, -167.58694458007812, 99.12816619873047),(-56.93158721923828, -169.58694458007812, 100.09672546386719),(-58.4123649597168, -167.58694458007812, 92.74900817871094),(-60.21415710449219, -169.58694458007812, 93.61796569824219),(-62.17707824707031, -167.58694458007812, 84.53510284423828),(-64.01502990722656, -169.58694458007812, 85.32516479492188),(-58.4123649597168, -167.58694458007812, 92.74900817871094),(-65.68428802490234, -167.58694458007812, 75.80984497070312),(-67.55674743652344, -169.58694458007812, 76.51405334472656),(-67.93692016601562, -167.58694458007812, 69.38566589355469),(-69.88910675048828, -169.58694458007812, 69.86251831054688),(-68.26371765136719, -167.58694458007812, 67.09807586669922),(-70.3210220336914, -169.58694458007812, 66.83910369873047),(-67.93692016601562, -167.58694458007812, 69.38566589355469),(-68.26371765136719, -167.58694458007812, 67.09807586669922),(-67.64595031738281, -167.58694458007812, 65.6051254272461),(-69.28441619873047, -169.58694458007812, 64.33397674560547),(-67.64595031738281, -167.58694458007812, 65.6051254272461),(-66.65562438964844, -167.58694458007812, 64.86238861083984),(-67.55674743652344, -169.58694458007812, 63.038230895996094),(-69.28441619873047, -169.58694458007812, 64.33397674560547),(-67.64595031738281, -167.58694458007812, 65.6051254272461),(-64.43421173095703, -167.58694458007812, 64.23762512207031),(-64.79248046875, -169.58694458007812, 62.26079559326172),(-67.55674743652344, -169.58694458007812, 63.038230895996094),(-66.65562438964844, -167.58694458007812, 64.86238861083984),(-53.434059143066406, -167.58694458007812, 63.30683898925781),(-53.56262969970703, -169.58694458007812, 61.310569763183594),(-64.79248046875, -169.58694458007812, 62.26079559326172),(-43.75707244873047, -167.58694458007812, 62.87865447998047),(-43.801300048828125, -169.58694458007812, 60.87865447998047),(-36.53684997558594, -167.58694458007812, 62.87865447998047),(-36.458709716796875, -169.58694458007812, 60.87865447998047),(-26.77144432067871, -167.58694458007812, 63.642887115478516),(-26.524616241455078, -169.58694458007812, 61.656089782714844),(-36.53684997558594, -167.58694458007812, 62.87865447998047),(-16.30459213256836, -167.58694458007812, 65.42991638183594),(-15.899452209472656, -169.58694458007812, 63.47014617919922),(-26.524616241455078, -169.58694458007812, 61.656089782714844),(-6.859206676483154, -167.58694458007812, 67.72745513916016),(-6.31088924407959, -169.58694458007812, 65.8025131225586),(-15.899452209472656, -169.58694458007812, 63.47014617919922),(1.7011723518371582, -167.58694458007812, 70.52999877929688),(2.4215030670166016, -169.58694458007812, 68.66136932373047),(10.566061019897461, -167.58694458007812, 74.4832534790039),(11.461684226989746, -169.58694458007812, 72.69279479980469),(2.4215030670166016, -169.58694458007812, 68.66136932373047),(20.073013305664062, -167.58694458007812, 79.77825164794922),(21.112689971923828, -169.58694458007812, 78.06802368164062),(11.461684226989746, -169.58694458007812, 72.69279479980469),(20.073013305664062, -167.58694458007812, 79.77825164794922),(26.159725189208984, -167.58694458007812, 83.80333709716797),(28.68689727783203, -169.58694458007812, 83.0767822265625),(26.159725189208984, -167.58694458007812, 83.80333709716797),(23.834829330444336, -167.58694458007812, 88.91810607910156),(25.632781982421875, -169.58694458007812, 89.79582977294922),(28.68689727783203, -169.58694458007812, 83.0767822265625),(26.159725189208984, -167.58694458007812, 83.80333709716797),(21.1069278717041, -167.58694458007812, 94.1366958618164),(22.822994232177734, -169.58694458007812, 95.17107391357422),(25.632781982421875, -169.58694458007812, 89.79582977294922),(23.834829330444336, -167.58694458007812, 88.91810607910156),(18.44477653503418, -167.58694458007812, 98.0011215209961),(19.035892486572266, -169.58694458007812, 100.66848754882812),(22.822994232177734, -169.58694458007812, 95.17107391357422),(21.1069278717041, -167.58694458007812, 94.1366958618164),(18.44477653503418, -167.58694458007812, 98.0011215209961),(14.039543151855469, -167.58694458007812, 95.41175079345703),(13.054874420166016, -169.58694458007812, 97.15288543701172),(19.035892486572266, -169.58694458007812, 100.66848754882812),(14.039543151855469, -167.58694458007812, 95.41175079345703),(7.620238304138184, -167.58694458007812, 91.92164611816406),(6.763396263122559, -169.58694458007812, 93.7322769165039),(0.7290869355201721, -167.58694458007812, 89.12102508544922),(0.0, -169.58694458007812, 90.98357391357422),(7.620238304138184, -167.58694458007812, 91.92164611816406),(0.7290869355201721, -167.58694458007812, 89.12102508544922),(-4.840459823608398, -167.58694458007812, 87.02335357666016),(-5.5141472816467285, -169.58694458007812, 88.90676879882812),(-19.024404525756836, -185.76715087890625, 143.56484985351562),(-9.301332473754883, -185.76715087890625, 129.23861694335938),(-3.1330935955047607, -185.76715087890625, 133.86477661132812),(-11.557331085205078, -185.76715087890625, 149.33486938476562),(-27.29422378540039, -185.76715087890625, 136.14759826660156),(-15.658801078796387, -185.76715087890625, 123.56675720214844),(-33.764408111572266, -185.76715087890625, 129.42202758789062),(-22.056913375854492, -185.76715087890625, 116.79593658447266),(3.834045648574829, -185.76715087890625, 149.560302734375),(-3.4889843463897705, -185.76715087890625, 153.6962432861328),(8.953731536865234, -185.76715087890625, 146.4051513671875),(3.834045648574829, -185.76715087890625, 149.560302734375),(2.5991225242614746, -185.76715087890625, 129.4674835205078),(7.8313703536987305, -185.76715087890625, 124.67124938964844),(13.718064308166504, -185.76715087890625, 142.95103454589844),(8.953731536865234, -185.76715087890625, 146.4051513671875),(19.234745025634766, -185.76715087890625, 138.27383422851562),(12.68211841583252, -185.76715087890625, 119.75831604003906),(17.70952033996582, -185.76715087890625, 113.86197662353516),(25.859580993652344, -185.76715087890625, 131.95013427734375),(31.827030181884766, -185.76715087890625, 125.37991333007812),(24.191511154174805, -185.76715087890625, 105.44374084472656),(27.808122634887695, -185.76715087890625, 99.97471618652344),(36.099945068359375, -185.76715087890625, 120.20427703857422),(41.59737014770508, -185.76715087890625, 112.77367401123047),(31.914701461791992, -185.76715087890625, 92.81005096435547),(35.3306999206543, -185.76715087890625, 86.416015625),(46.059364318847656, -185.76715087890625, 106.07345581054688),(49.61638641357422, -185.76715087890625, 100.0325698852539),(38.30025100708008, -185.76715087890625, 79.77816772460938),(41.275390625, -185.76715087890625, 72.9528579711914),(52.75949478149414, -185.76715087890625, 94.35079193115234),(55.408477783203125, -185.76715087890625, 89.05282592773438),(43.731048583984375, -185.76715087890625, 65.67359924316406),(59.08427810668945, -185.76715087890625, 80.79735565185547),(45.16139221191406, -185.76715087890625, 60.97697067260742),(61.48212432861328, -185.76715087890625, 74.0234375),(-39.90833282470703, -185.76715087890625, 122.16876983642578),(-28.98719024658203, -185.76715087890625, 108.3501968383789),(-45.52481460571289, -185.76715087890625, 114.76522827148438),(-33.625694274902344, -185.76715087890625, 101.80818176269531),(-50.99568176269531, -185.76715087890625, 106.08721923828125),(-37.230674743652344, -185.76715087890625, 96.0899429321289),(-55.180259704589844, -185.76715087890625, 99.12816619873047),(-40.158363342285156, -185.76715087890625, 90.73287963867188),(-37.230674743652344, -185.76715087890625, 96.0899429321289),(-58.4123649597168, -185.76715087890625, 92.74901580810547),(-43.630367279052734, -185.76715087890625, 83.73722076416016),(-40.158363342285156, -185.76715087890625, 90.73287963867188),(-62.17707824707031, -185.76715087890625, 84.53510284423828),(-43.630367279052734, -185.76715087890625, 83.73722076416016),(-43.378509521484375, -185.76715087890625, 81.54956817626953),(-43.630367279052734, -185.76715087890625, 83.73722076416016),(21.1069278717041, -185.76715087890625, 94.1366958618164),(18.44477653503418, -185.76715087890625, 98.0011215209961),(14.039544105529785, -185.76715087890625, 95.41175079345703),(-62.17707824707031, -185.76715087890625, 84.53510284423828),(-65.68428802490234, -185.76715087890625, 75.80984497070312),(-67.93692016601562, -185.76715087890625, 69.38566589355469),(-68.26371765136719, -185.76715087890625, 67.09807586669922),(-67.64595031738281, -185.76715087890625, 65.6051254272461),(-66.65562438964844, -185.76715087890625, 64.86238861083984),(-64.43421173095703, -185.76715087890625, 64.23762512207031),(-41.26000213623047, -185.76715087890625, 80.63983154296875),(-53.434059143066406, -185.76715087890625, 63.30683898925781),(-43.75707244873047, -185.76715087890625, 62.87865447998047),(-34.633880615234375, -185.76715087890625, 80.49229431152344),(-36.53684997558594, -185.76715087890625, 62.87865447998047),(-28.153512954711914, -185.76715087890625, 81.05854034423828),(-26.77144432067871, -185.76715087890625, 63.642887115478516),(-20.607187271118164, -185.76715087890625, 82.43060302734375),(-16.304590225219727, -185.76715087890625, 65.42991638183594),(-12.157343864440918, -185.76715087890625, 84.54306030273438),(-6.859206676483154, -185.76715087890625, 67.72745513916016),(-4.84045934677124, -185.76715087890625, 87.02335357666016),(1.7011723518371582, -185.76715087890625, 70.52999877929688),(0.7290870547294617, -185.76715087890625, 89.12102508544922),(10.566060066223145, -185.76715087890625, 74.4832534790039),(7.620238780975342, -185.76715087890625, 91.92164611816406),(20.073013305664062, -185.76715087890625, 79.77825164794922),(26.159725189208984, -185.76715087890625, 83.80333709716797),(23.834829330444336, -185.76715087890625, 88.91810607910156),(-11.557331085205078, -167.58694458007812, 149.33486938476562),(-5.266057014465332, -167.58694458007812, 153.72877502441406),(-3.1330933570861816, -167.58694458007812, 133.86477661132812),(-19.024404525756836, -167.58694458007812, 143.56484985351562),(-9.301332473754883, -167.58694458007812, 129.23861694335938),(-27.29422378540039, -167.58694458007812, 136.14759826660156),(-15.65880012512207, -167.58694458007812, 123.56675720214844),(-33.764408111572266, -167.58694458007812, 129.42202758789062),(-22.056913375854492, -167.58694458007812, 116.79593658447266),(-39.90833282470703, -167.58694458007812, 122.16876983642578),(-28.98719024658203, -167.58694458007812, 108.3501968383789),(-45.52481460571289, -167.58694458007812, 114.76522827148438),(-33.625694274902344, -167.58694458007812, 101.80818176269531),(-50.99568176269531, -167.58694458007812, 106.08721923828125),(-37.230674743652344, -167.58694458007812, 96.0899429321289),(-55.180259704589844, -167.58694458007812, 99.12816619873047),(-40.158363342285156, -167.58694458007812, 90.73287963867188),(-58.4123649597168, -167.58694458007812, 92.74900817871094),(-43.630367279052734, -167.58694458007812, 83.73722839355469),(-62.17707824707031, -167.58694458007812, 84.53510284423828),(-43.378509521484375, -167.58694458007812, 81.54956817626953),(-65.68428802490234, -167.58694458007812, 75.80984497070312),(-67.93692016601562, -167.58694458007812, 69.38566589355469),(-68.26371765136719, -167.58694458007812, 67.09807586669922),(-41.26000213623047, -167.58694458007812, 80.63983154296875),(-64.43421173095703, -167.58694458007812, 64.23762512207031),(-66.65562438964844, -167.58694458007812, 64.86238861083984),(-67.64595031738281, -167.58694458007812, 65.6051254272461),(-53.434059143066406, -167.58694458007812, 63.30683898925781),(-34.633880615234375, -167.58694458007812, 80.49229431152344),(-43.75707244873047, -167.58694458007812, 62.87865447998047),(-28.153512954711914, -167.58694458007812, 81.05854034423828),(-36.53684997558594, -167.58694458007812, 62.87865447998047),(-20.607189178466797, -167.58694458007812, 82.43060302734375),(-26.77144432067871, -167.58694458007812, 63.642887115478516),(-12.157344818115234, -167.58694458007812, 84.54306030273438),(-16.30459213256836, -167.58694458007812, 65.42991638183594),(-4.840459823608398, -167.58694458007812, 87.02335357666016),(-6.859206676483154, -167.58694458007812, 67.72745513916016),(0.7290869355201721, -167.58694458007812, 89.12102508544922),(1.7011723518371582, -167.58694458007812, 70.52999877929688),(7.620238304138184, -167.58694458007812, 91.92164611816406),(10.566061019897461, -167.58694458007812, 74.4832534790039),(0.7290869355201721, -167.58694458007812, 89.12102508544922),(14.039543151855469, -167.58694458007812, 95.41175079345703),(20.073013305664062, -167.58694458007812, 79.77825164794922),(21.1069278717041, -167.58694458007812, 94.1366958618164),(23.834829330444336, -167.58694458007812, 88.91810607910156),(18.44477653503418, -167.58694458007812, 98.0011215209961),(26.159725189208984, -167.58694458007812, 83.80333709716797),(8.953731536865234, -167.58694458007812, 146.4051513671875),(2.5991225242614746, -167.58694458007812, 129.4674835205078),(3.834045648574829, -167.58694458007812, 149.560302734375),(13.718063354492188, -167.58694458007812, 142.95103454589844),(7.8313703536987305, -167.58694458007812, 124.67124938964844),(8.953731536865234, -167.58694458007812, 146.4051513671875),(19.234745025634766, -167.58694458007812, 138.27383422851562),(12.682117462158203, -167.58694458007812, 119.75831604003906),(25.859580993652344, -167.58694458007812, 131.95013427734375),(17.70952033996582, -167.58694458007812, 113.86197662353516),(31.827028274536133, -167.58694458007812, 125.37991333007812),(24.191511154174805, -167.58694458007812, 105.44374084472656),(36.099945068359375, -167.58694458007812, 120.20427703857422),(27.808122634887695, -167.58694458007812, 99.97471618652344),(41.59737014770508, -167.58694458007812, 112.77367401123047),(31.914701461791992, -167.58694458007812, 92.81005096435547),(46.059364318847656, -167.58694458007812, 106.07345581054688),(35.3306999206543, -167.58694458007812, 86.416015625),(49.61638641357422, -167.58694458007812, 100.0325698852539),(38.30025100708008, -167.58694458007812, 79.77816772460938),(52.75949478149414, -167.58694458007812, 94.35079193115234),(41.275390625, -167.58694458007812, 72.9528579711914),(38.30025100708008, -167.58694458007812, 79.77816772460938),(55.408477783203125, -167.58694458007812, 89.05282592773438),(43.731048583984375, -167.58694458007812, 65.67359924316406),(59.08427810668945, -167.58694458007812, 80.79735565185547),(45.16139221191406, -167.58694458007812, 60.97697067260742),(61.48212432861328, -167.58694458007812, 74.0234375),(63.55059051513672, -167.58694458007812, 66.90406036376953)]
-		faces = [(0, 1, 2),(3, 4, 5),(6, 7, 8),(8, 9, 10),(9, 11, 12),(12, 13, 9),(14, 15, 16),(16, 17, 18),(17, 19, 20),(20, 21, 17),(21, 20, 22),(22, 23, 21),(23, 22, 24),(24, 25, 23),(25, 24, 26),(26, 27, 25),(27, 26, 28),(28, 29, 27),(29, 28, 30),(30, 31, 29),(31, 30, 32),(32, 33, 31),(33, 32, 34),(34, 35, 33),(35, 34, 36),(36, 37, 35),(37, 36, 38),(38, 39, 37),(39, 38, 40),(40, 41, 39),(41, 40, 42),(42, 43, 41),(43, 42, 44),(44, 45, 43),(45, 44, 46),(46, 47, 45),(47, 46, 48),(48, 49, 47),(50, 51, 52),(52, 53, 50),(54, 55, 7),(7, 56, 54),(57, 58, 59),(59, 54, 57),(60, 61, 58),(58, 57, 60),(62, 63, 61),(61, 60, 62),(64, 65, 66),(66, 62, 64),(67, 68, 65),(65, 64, 67),(69, 70, 68),(68, 67, 69),(71, 72, 73),(73, 69, 71),(74, 75, 72),(72, 71, 74),(76, 77, 75),(75, 74, 76),(78, 79, 77),(77, 76, 78),(80, 81, 79),(79, 78, 80),(82, 83, 81),(81, 80, 82),(84, 85, 86),(86, 87, 84),(88, 89, 90),(90, 91, 88),(92, 93, 94),(94, 95, 92),(96, 97, 98),(98, 99, 96),(100, 101, 102),(102, 103, 100),(104, 105, 106),(106, 100, 104),(107, 108, 105),(105, 104, 107),(109, 110, 108),(108, 111, 109),(112, 113, 110),(110, 109, 112),(114, 115, 113),(113, 112, 114),(116, 117, 115),(115, 114, 116),(118, 119, 117),(117, 116, 118),(120, 121, 122),(122, 123, 120),(124, 125, 126),(126, 120, 124),(127, 128, 129),(129, 124, 130),(131, 132, 128),(128, 130, 131),(133, 134, 132),(132, 131, 135),(136, 137, 134),(134, 138, 136),(139, 140, 141),(141, 142, 143),(144, 145, 146),(146, 147, 144),(148, 149, 150),(150, 151, 148),(152, 153, 149),(149, 154, 155),(156, 157, 153),(153, 155, 156),(158, 159, 157),(157, 160, 161),(162, 163, 159),(159, 161, 162),(164, 165, 166),(166, 167, 164),(168, 169, 165),(165, 164, 168),(170, 171, 169),(169, 168, 170),(172, 173, 171),(171, 170, 172),(174, 175, 176),(176, 177, 178),(179, 180, 181),(181, 178, 179),(182, 183, 180),(180, 179, 182),(184, 185, 183),(183, 182, 184),(186, 187, 185),(185, 184, 186),(188, 189, 190),(190, 191, 192),(193, 194, 189),(189, 192, 193),(195, 196, 194),(194, 193, 195),(197, 198, 196),(196, 199, 200),(201, 202, 198),(198, 200, 201),(203, 204, 202),(202, 205, 206),(207, 208, 204),(204, 206, 207),(209, 210, 208),(208, 211, 212),(213, 214, 210),(210, 212, 213),(215, 216, 214),(214, 217, 218),(219, 220, 216),(216, 218, 219),(221, 222, 220),(220, 223, 224),(225, 226, 227),(227, 228, 225),(228, 227, 229),(229, 230, 231),(232, 229, 233),(233, 234, 235),(236, 233, 237),(237, 238, 239),(240, 237, 241),(241, 242, 240),(242, 241, 243),(243, 244, 242),(245, 246, 247),(247, 248, 245),(248, 247, 249),(249, 250, 248),(250, 249, 251),(251, 252, 250),(252, 251, 253),(253, 254, 252),(254, 253, 255),(255, 256, 254),(256, 255, 257),(257, 258, 256),(258, 257, 259),(259, 260, 258),(260, 259, 261),(261, 262, 260),(262, 261, 263),(263, 264, 262),(265, 266, 267),(267, 268, 269),(268, 270, 271),(271, 272, 268),(272, 271, 273),(273, 274, 272),(274, 273, 275),(275, 276, 274),(276, 275, 277),(277, 278, 276),(278, 277, 279),(279, 280, 278),(280, 279, 281),(281, 282, 280),(282, 281, 283),(283, 284, 282),(284, 283, 285),(285, 286, 284),(286, 285, 287),(287, 288, 286),(288, 287, 289),(289, 290, 288),(290, 289, 291),(291, 292, 290),(293, 294, 295),(295, 296, 297),(298, 299, 300),(300, 301, 298),(301, 300, 302),(302, 303, 301),(303, 302, 304),(304, 305, 306),(305, 304, 307),(307, 308, 305),(308, 307, 309),(309, 310, 308),(310, 309, 311),(311, 312, 310),(312, 311, 313),(313, 314, 312),(314, 313, 315),(315, 316, 314),(316, 315, 317),(317, 318, 316),(318, 317, 319),(319, 320, 318),(320, 319, 321),(321, 322, 320),(322, 321, 323),(323, 324, 322),(324, 323, 325),(325, 326, 324),(326, 325, 327),(327, 328, 326),(328, 327, 329),(329, 330, 328),(330, 329, 331),(331, 332, 330),(333, 334, 335),(335, 336, 333),(336, 335, 337),(337, 338, 336),(338, 337, 339),(339, 340, 338),(340, 339, 341),(341, 342, 340),(342, 341, 343),(343, 344, 342),(344, 343, 345),(345, 346, 344),(346, 345, 347),(347, 348, 346),(348, 347, 349),(349, 350, 348),(350, 349, 351),(351, 352, 350),(352, 351, 353),(353, 354, 352),(354, 353, 355),(355, 356, 354),(356, 355, 357),(357, 358, 359),(360, 357, 361),(361, 362, 360),(362, 361, 363),(363, 364, 362),(364, 363, 365),(365, 366, 364),(367, 368, 369),(369, 370, 367),(370, 369, 371),(371, 372, 370),(372, 371, 373),(373, 374, 372),(374, 373, 375),(375, 376, 377),(378, 375, 379),(379, 380, 378),(380, 379, 381),(381, 382, 383),(382, 381, 384),(384, 385, 386),(385, 387, 388),(388, 389, 390),(389, 391, 392),(392, 393, 389),(393, 392, 394),(394, 395, 393),(395, 394, 396),(396, 397, 395),(397, 396, 398),(398, 399, 397),(400, 401, 402),(402, 403, 400),(403, 402, 404),(404, 405, 406),(405, 404, 407),(407, 408, 409),(410, 411, 412),(412, 413, 410),(413, 412, 414),(414, 415, 416),(415, 414, 417),(417, 418, 419),(418, 420, 421),(421, 422, 418),(423, 424, 425),(424, 426, 425),(427, 423, 425),(428, 429, 430),(429, 431, 430),(432, 433, 430),(434, 435, 436),(436, 437, 438),(439, 440, 441),(441, 442, 439),(443, 444, 445),(445, 446, 447),(444, 448, 449),(449, 450, 444),(448, 451, 452),(452, 453, 448),(454, 455, 456),(456, 452, 454),(455, 457, 458),(458, 456, 459),(460, 461, 462),(462, 463, 460),(464, 465, 466),(466, 462, 464),(465, 467, 468),(468, 466, 469),(470, 471, 472),(472, 468, 470),(471, 473, 474),(474, 472, 475),(476, 477, 478),(478, 474, 476),(477, 479, 480),(480, 478, 481),(482, 483, 484),(484, 480, 482),(485, 486, 487),(487, 488, 489),(486, 490, 491),(491, 492, 493),(490, 494, 495),(495, 496, 497),(494, 498, 499),(499, 500, 501),(498, 502, 503),(503, 504, 505),(502, 506, 507),(507, 508, 509),(506, 510, 511),(511, 512, 513),(510, 514, 515),(515, 516, 517),(514, 518, 519),(519, 520, 521),(518, 522, 523),(523, 524, 525),(522, 526, 527),(527, 528, 529),(526, 530, 531),(531, 532, 533),(534, 535, 536),(536, 537, 534),(538, 539, 540),(540, 541, 538),(542, 543, 544),(544, 540, 542),(543, 545, 546),(546, 544, 547),(548, 549, 550),(550, 546, 548),(549, 551, 552),(552, 550, 553),(554, 555, 556),(556, 552, 554),(555, 557, 558),(558, 556, 559),(560, 561, 562),(562, 558, 560),(561, 563, 564),(564, 562, 565),(566, 567, 568),(568, 564, 566),(567, 569, 570),(570, 568, 571),(572, 573, 574),(574, 570, 572),(573, 575, 576),(576, 574, 577),(578, 579, 580),(580, 576, 578),(579, 581, 582),(582, 580, 583),(584, 585, 586),(586, 582, 584),(587, 588, 589),(589, 590, 587),(588, 591, 592),(592, 589, 588),(591, 593, 594),(594, 592, 591),(593, 595, 596),(596, 594, 593),(595, 597, 598),(598, 599, 595),(597, 600, 601),(601, 598, 597),(600, 602, 603),(603, 601, 600),(602, 604, 605),(605, 603, 602),(604, 606, 607),(607, 605, 604),(606, 608, 609),(609, 607, 606),(608, 610, 611),(611, 609, 612),(610, 613, 614),(614, 611, 610),(613, 615, 616),(616, 614, 613),(615, 617, 618),(618, 616, 619),(620, 621, 622),(622, 618, 620),(623, 624, 625),(625, 626, 627),(624, 628, 629),(629, 630, 631),(628, 632, 633),(633, 634, 628),(632, 635, 636),(636, 633, 632),(635, 637, 638),(638, 636, 635),(637, 639, 640),(640, 638, 641),(639, 642, 643),(643, 644, 639),(642, 645, 646),(646, 647, 642),(645, 648, 649),(649, 646, 645),(648, 650, 651),(651, 652, 648),(650, 653, 654),(654, 655, 650),(656, 657, 658),(658, 654, 656),(659, 660, 661),(661, 662, 663),(660, 664, 665),(665, 666, 667),(664, 668, 669),(669, 670, 671),(672, 673, 674),(674, 675, 672),(676, 677, 678),(678, 674, 676),(677, 679, 680),(680, 678, 681),(682, 683, 684),(684, 680, 682),(685, 686, 687),(687, 688, 685),(689, 690, 686),(686, 685, 689),(691, 692, 690),(690, 689, 691),(693, 694, 687),(695, 696, 687),(687, 697, 695),(697, 698, 699),(699, 700, 697),(701, 699, 698),(698, 702, 701),(702, 703, 704),(704, 701, 702),(705, 704, 703),(703, 706, 705),(706, 707, 708),(708, 705, 706),(709, 708, 707),(707, 710, 709),(710, 711, 712),(712, 709, 710),(713, 712, 711),(711, 714, 713),(714, 715, 716),(716, 713, 714),(717, 716, 715),(715, 718, 717),(719, 717, 718),(718, 720, 719),(721, 719, 720),(722, 723, 692),(692, 691, 722),(724, 725, 723),(723, 722, 724),(726, 727, 725),(725, 724, 726),(728, 729, 730),(730, 726, 728),(731, 732, 733),(733, 728, 731),(731, 734, 735),(734, 736, 737),(738, 739, 740),(736, 741, 742),(736, 742, 743),(736, 743, 744),(736, 744, 745),(736, 745, 746),(736, 746, 747),(747, 748, 736),(748, 747, 749),(748, 749, 750),(750, 751, 748),(751, 750, 752),(752, 753, 751),(753, 752, 754),(754, 755, 753),(755, 754, 756),(756, 757, 755),(757, 756, 758),(758, 759, 757),(759, 758, 760),(760, 761, 759),(761, 760, 762),(762, 763, 761),(763, 762, 764),(764, 740, 763),(764, 765, 766),(766, 738, 740),(740, 764, 766),(767, 768, 769),(770, 767, 769),(769, 771, 770),(772, 770, 771),(771, 773, 772),(774, 772, 773),(773, 775, 774),(776, 774, 775),(775, 777, 776),(778, 776, 777),(777, 779, 778),(780, 778, 779),(779, 781, 780),(782, 780, 781),(781, 783, 782),(784, 782, 783),(783, 785, 784),(786, 784, 785),(787, 788, 786),(787, 789, 788),(787, 790, 789),(787, 791, 792),(792, 793, 787),(794, 790, 787),(793, 794, 787),(791, 795, 792),(791, 796, 797),(797, 795, 791),(796, 798, 799),(799, 797, 796),(798, 800, 801),(801, 799, 798),(800, 802, 803),(803, 801, 800),(802, 804, 805),(805, 803, 802),(804, 806, 807),(807, 805, 804),(806, 808, 809),(809, 807, 810),(808, 811, 812),(812, 809, 808),(813, 814, 812),(812, 811, 813),(811, 815, 813),(814, 816, 812),(817, 818, 769),(769, 819, 817),(820, 821, 818),(818, 822, 820),(823, 824, 821),(821, 820, 823),(825, 826, 824),(824, 823, 825),(827, 828, 826),(826, 825, 827),(829, 830, 828),(828, 827, 829),(831, 832, 830),(830, 829, 831),(833, 834, 832),(832, 831, 833),(835, 836, 834),(834, 833, 835),(837, 838, 839),(839, 835, 837),(840, 841, 838),(838, 837, 840),(842, 843, 841),(841, 840, 842),(842, 844, 843),(844, 845, 843)]
+		faces=[(0,1,2),(3,4,5),(6,7,8),(9,10,11),(12,13,14),(15,16,17),(18,19,20),(21,22,23),(24,25,26),(27,28,29),(30,31,32),(33,34,35),(36,37,38),(39,40,41),(42,43,44),(45,46,47),(48,49,50),(51,52,53),(54,55,56),(57,58,59),(60,61,62),(63,64,65),(66,67,68),(69,70,71),(72,73,74),(75,76,77),(78,79,80),(81,82,83),(84,85,86),(87,88,89),(90,91,92),(93,94,95),(96,97,98),(99,100,101),(102,103,104),(105,106,107),(108,109,110),(111,112,113),(114,115,116),(117,118,119),(120,121,122),(123,124,125),(126,127,128),(129,130,131),(132,133,134),(135,136,137),(138,139,140),(141,142,143),(144,145,146),(147,148,149),(150,151,152),(153,154,155),(156,157,158),(159,160,161),(162,163,164),(165,166,167),(168,169,170),(171,172,173),(174,175,176),(177,178,179),(180,181,182),(183,184,185),(186,187,188),(189,190,191),(192,193,194),(195,196,197),(198,199,200),(201,202,203),(204,205,206),(207,208,209),(210,211,212),(213,214,215),(216,217,218),(219,220,221),(222,223,224),(225,226,227),(228,229,230),(231,232,233),(234,235,236),(237,238,239),(240,241,242),(243,244,245),(246,247,248),(249,250,251),(252,253,254),(255,256,257),(258,259,260),(261,262,263),(264,265,266),(267,268,269),(270,271,272),(273,274,275),(276,277,278),(279,280,281),(282,283,284),(285,286,287),(288,289,290),(291,292,293),(294,295,296),(297,298,299),(300,301,302),(303,304,305),(306,307,308),(309,310,311),(312,313,314),(315,316,317),(318,319,320),(321,322,323),(324,325,326),(327,328,329),(330,331,332),(333,334,335),(336,337,338),(339,340,341),(342,343,344),(345,346,347),(348,349,350),(351,352,353),(354,355,356),(357,358,359),(360,361,362),(363,364,365),(366,367,368),(369,370,371),(372,373,374),(375,376,377),(378,379,380),(381,382,383),(384,385,386),(387,388,389),(390,391,392),(393,394,395),(396,397,398),(399,400,401),(402,403,404),(405,406,407),(408,409,410),(411,412,413),(414,415,416),(417,418,419),(420,421,422),(423,424,425),(426,427,428),(429,430,431),(432,433,434),(435,436,437),(438,439,440),(441,442,443),(444,445,446),(447,448,449),(450,451,452),(453,454,455),(456,457,458),(459,460,461),(462,463,464),(465,466,467),(468,469,470),(471,472,473),(474,475,476),(477,478,479),(480,481,482),(483,484,485),(486,487,488),(489,490,491),(492,493,494),(495,496,497),(498,499,500),(501,502,503),(504,505,506),(507,508,509),(510,511,512),(513,514,515),(516,517,518),(519,520,521),(522,523,524),(525,526,527),(528,529,530),(531,532,533),(534,535,536),(537,538,539),(540,541,542),(543,544,545),(546,547,548),(549,550,551),(552,553,554),(555,556,557),(558,559,560),(561,562,563),(564,565,566),(567,568,569),(570,571,572),(573,574,575),(576,577,578),(579,580,581),(582,583,584),(585,586,587),(588,589,590),(591,592,593),(594,595,596),(597,598,599),(600,601,602),(603,604,605),(606,607,608),(609,610,611),(612,613,614),(615,616,617),(618,619,620),(621,622,623),(624,625,626),(627,628,629),(630,631,632),(633,634,635),(636,637,638),(639,640,641),(642,643,644),(645,646,647),(648,649,650),(651,652,653),(654,655,656),(657,658,659),(660,661,662),(663,664,665),(666,667,668),(669,670,671),(672,673,674),(675,676,677),(678,679,680),(681,682,683),(684,685,686),(687,688,689),(690,691,692),(693,694,695),(696,697,698),(699,700,701),(702,703,704),(705,706,707),(708,709,710),(711,712,713),(714,715,716),(717,718,719),(720,721,722),(723,724,725),(726,727,728),(729,730,731),(732,733,734),(735,736,737),(738,739,740),(741,742,743),(744,745,746),(747,748,749),(750,751,752),(753,754,755),(756,757,758),(759,760,761),(762,763,764),(765,766,767),(768,769,770),(771,772,773),(774,775,776),(777,778,779),(780,781,782),(783,784,785),(786,787,788),(789,790,791),(792,793,794),(795,796,797),(798,799,800),(801,802,803),(804,805,806),(807,808,809),(810,811,812),(813,814,815),(816,817,818),(819,820,821),(822,823,824),(825,826,827),(828,829,830),(831,832,833),(834,835,836),(837,838,839),(840,841,842),(843,844,845),(846,847,848),(849,850,851),(852,853,854),(855,856,857),(858,859,860),(861,862,863),(864,865,866),(867,868,869),(870,871,872),(873,874,875),(876,877,878),(879,880,881),(882,883,884),(885,886,887),(888,889,890),(891,892,893),(894,895,896),(897,898,899),(900,901,902),(903,904,905),(906,907,908),(909,910,911),(912,913,914),(915,916,917),(918,919,920),(921,922,923),(924,925,926),(927,928,929),(930,931,932),(933,934,935),(936,937,938),(939,940,941),(942,943,944),(945,946,947),(948,949,950),(951,952,953),(954,955,956),(957,958,959),(960,961,962),(963,964,965),(966,967,968),(969,970,971),(972,973,974),(975,976,977),(978,979,980),(981,982,983),(984,985,986),(987,988,989),(990,991,992),(993,994,995),(996,997,998),(999,1000,1001),(1002,1003,1004),(1005,1006,1007),(1008,1009,1010),(1011,1012,1013),(1014,1015,1016),(1017,1018,1019),(1020,1021,1022),(1023,1024,1025),(1026,1027,1028),(1029,1030,1031),(1032,1033,1034),(1035,1036,1037),(1038,1039,1040),(1041,1042,1043),(1044,1045,1046),(1047,1048,1049),(1050,1051,1052),(1053,1054,1055),(1056,1057,1058),(1059,1060,1061),(1062,1063,1064),(1065,1066,1067),(1068,1069,1070),(1071,1072,1073),(1074,1075,1076),(1077,1078,1079),(1080,1081,1082),(1083,1084,1085),(1086,1087,1088),(1089,1090,1091),(1092,1093,1094),(1095,1096,1097),(1098,1099,1100),(1101,1102,1103),(1104,1105,1106),(1107,1108,1109),(1110,1111,1112),(1113,1114,1115),(1116,1117,1118),(1119,1120,1121),(1122,1123,1124),(1125,1126,1127),(1128,1129,1130),(1131,1132,1133),(1134,1135,1136),(1137,1138,1139),(1140,1141,1142),(1143,1144,1145),(1146,1147,1148),(1149,1150,1151),(1152,1153,1154),(1155,1156,1157),(1158,1159,1160),(1161,1162,1163),(1164,1165,1166),(1167,1168,1169),(1170,1171,1172),(1173,1174,1175),(1176,1177,1178),(1179,1180,1181),(1182,1183,1184),(1185,1186,1187),(1188,1189,1190),(1191,1192,1193),(1194,1195,1196),(1197,1198,1199),(1200,1201,1202),(1203,1204,1205),(1206,1207,1208),(1209,1210,1211),(1212,1213,1214),(1215,1216,1217),(1218,1219,1220),(1221,1222,1223),(1224,1225,1226),(1227,1228,1229),(1230,1231,1232),(1233,1234,1235),(1236,1237,1238),(1239,1240,1241),(1242,1243,1244),(1245,1246,1247),(1248,1249,1250),(1251,1252,1253),(1254,1255,1256),(1257,1258,1259),(1260,1261,1262),(1263,1264,1265),(1266,1267,1268),(1269,1270,1271),(1272,1273,1274),(1275,1276,1277),(1278,1279,1280),(1281,1282,1283),(1284,1285,1286),(1287,1288,1289),(1290,1291,1292),(1293,1294,1295),(1296,1297,1298),(1299,1300,1301),(1302,1303,1304),(1305,1306,1307),(1308,1309,1310),(1311,1312,1313),(1314,1315,1316),(1317,1318,1319),(1320,1321,1322),(1323,1324,1325),(1326,1327,1328),(1329,1330,1331),(1332,1333,1334),(1335,1336,1337),(1338,1339,1340),(1341,1342,1343),(1344,1345,1346),(1347,1348,1349),(1350,1351,1352),(1353,1354,1355),(1356,1357,1358),(1359,1360,1361),(1362,1363,1364),(1365,1366,1367),(1368,1369,1370),(1371,1372,1373),(1374,1375,1376),(1377,1378,1379),(1380,1381,1382),(1383,1384,1385),(1386,1387,1388),(1389,1390,1391),(1392,1393,1394),(1395,1396,1397),(1398,1399,1400),(1401,1402,1403),(1404,1405,1406),(1407,1408,1409),(1410,1411,1412),(1413,1414,1415),(1416,1417,1418),(1419,1420,1421),(1422,1423,1424),(1425,1426,1427),(1428,1429,1430),(1431,1432,1433),(1434,1435,1436),(1437,1438,1439),(1440,1441,1442),(1443,1444,1445),(1446,1447,1448),(1449,1450,1451),(1452,1453,1454),(1455,1456,1457),(1458,1459,1460),(1461,1462,1463),(1464,1465,1466),(1467,1468,1469),(1470,1471,1472),(1473,1474,1475),(1476,1477,1478),(1479,1480,1481),(1482,1483,1484),(1485,1486,1487),(1488,1489,1490),(1491,1492,1493),(1494,1495,1496),(1497,1498,1499),(1500,1501,1502),(1503,1504,1505),(1506,1507,1508),(1509,1510,1511),(1512,1513,1514),(1515,1516,1517),(1518,1519,1520),(1521,1522,1523),(1524,1525,1526),(1527,1528,1529),(1530,1531,1532),(1533,1534,1535),(1536,1537,1538),(1539,1540,1541),(1542,1543,1544),(1545,1546,1547),(1548,1549,1550),(1551,1552,1553),(1554,1555,1556),(1557,1558,1559),(1560,1561,1562),(1563,1564,1565),(1566,1567,1568),(1569,1570,1571),(1572,1573,1574),(1575,1576,1577),(1578,1579,1580),(1581,1582,1583),(1584,1585,1586),(1587,1588,1589),(1590,1591,1592),(1593,1594,1595),(1596,1597,1598),(1599,1600,1601),(1602,1603,1604),(1605,1606,1607),(1608,1609,1610),(1611,1612,1613),(1614,1615,1616),(1617,1618,1619),(1620,1621,1622),(1623,1624,1625),(1626,1627,1628),(1629,1630,1631),(1632,1633,1634),(1635,1636,1637),(1638,1639,1640),(1641,1642,1643),(1644,1645,1646),(1647,1648,1649),(1650,1651,1652),(1653,1654,1655),(1656,1657,1658),(1659,1660,1661),(1662,1663,1664),(1665,1666,1667),(1668,1669,1670),(1671,1672,1673),(1674,1675,1676),(1677,1678,1679),(1680,1681,1682),(1683,1684,1685),(1686,1687,1688),(1689,1690,1691),(1692,1693,1694),(1695,1696,1697),(1698,1699,1700),(1701,1702,1703),(1704,1705,1706),(1707,1708,1709),(1710,1711,1712),(1713,1714,1715),(1716,1717,1718),(1719,1720,1721),(1722,1723,1724),(1725,1726,1727),(1728,1729,1730),(1731,1732,1733),(1734,1735,1736),(1737,1738,1739),(1740,1741,1742),(1743,1744,1745),(1746,1747,1748),(1749,1750,1751),(1752,1753,1754),(1755,1756,1757),(1758,1759,1760),(1761,1762,1763),(1764,1765,1766),(1767,1768,1769),(1770,1771,1772),(1773,1774,1775),(1776,1777,1778),(1779,1780,1781),(1782,1783,1784),(1785,1786,1787),(1788,1789,1790),(1791,1792,1793),(1794,1795,1796),(1797,1798,1799),(1800,1801,1802),(1803,1804,1805),(1806,1807,1808),(1809,1810,1811),(1812,1813,1814),(1815,1816,1817),(1818,1819,1820),(1821,1822,1823),(1824,1825,1826),(1827,1828,1829),(1830,1831,1832),(1833,1834,1835),(1836,1837,1838),(1839,1840,1841),(1842,1843,1844),(1845,1846,1847),(1848,1849,1850),(1851,1852,1853),(1854,1855,1856),(1857,1858,1859)]	
 		
 		# create a new mesh  
-		me = bpy.data.meshes.new("a3dlogo") 
+		me = bpy.data.meshes.new("A3DLogo") 
 		
 		# create an object with that mesh
-		ob = bpy.data.objects.new("a3dlogo", me)   
+		ob = bpy.data.objects.new("A3DLogo", me)   
 		
 		# position object at 3d-cursor
 		ob.location = bpy.context.scene.cursor_location   
@@ -5563,7 +6006,7 @@ class AddA3DLogo(bpy.types.Operator):
 		return {'FINISHED'}
 		
 class AddOccluder(bpy.types.Operator):
-	bl_idname = "mesh.a3d_occluder"
+	bl_idname = "a3dobj.a3d_occluder"
 	bl_label = "Add Occluder"
 	bl_options = {'REGISTER', 'UNDO'}
 		
@@ -5573,10 +6016,10 @@ class AddOccluder(bpy.types.Operator):
 		faces=[ (0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (4, 0, 3, 7) ]
 		
 		# create a new mesh  
-		me = bpy.data.meshes.new("Occluder") 
+		me = bpy.data.meshes.new("A3DOccluder") 
 		
 		# create an object with that mesh
-		ob = bpy.data.objects.new("Occluder", me)  		
+		ob = bpy.data.objects.new("A3DOccluder", me)  		
 		
 		# position object at 3d-cursor
 		ob.location = bpy.context.scene.cursor_location   
@@ -5585,7 +6028,7 @@ class AddOccluder(bpy.types.Operator):
 		bpy.context.scene.objects.link(ob)  
 		
 		# give custom property type
-		ob["a3dtype"] = "occluder"
+		ob["a3dtype"] = "A3DOccluder"
 
 		# Fill the mesh with verts, edges, faces 
 		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
@@ -5593,7 +6036,7 @@ class AddOccluder(bpy.types.Operator):
 		return {'FINISHED'}
 		
 class AddSprite3D(bpy.types.Operator):
-	bl_idname = "mesh.a3d_sprite3d"
+	bl_idname = "a3dobj.a3d_sprite3d"
 	bl_label = "Add Sprite3D"
 	bl_options = {'REGISTER', 'UNDO'}
 		
@@ -5603,10 +6046,10 @@ class AddSprite3D(bpy.types.Operator):
 		faces=[ (0, 3, 2, 1) ]
 		
 		# create a new mesh  
-		me = bpy.data.meshes.new("Sprite3D") 
+		me = bpy.data.meshes.new("A3DSprite3D") 
 		
 		# create an object with that mesh
-		ob = bpy.data.objects.new("Sprite3D", me)  
+		ob = bpy.data.objects.new("A3DSprite3D", me)  
 		
 		# position object at 3d-cursor
 		ob.location = bpy.context.scene.cursor_location   
@@ -5618,7 +6061,7 @@ class AddSprite3D(bpy.types.Operator):
 		bpy.context.scene.objects.link(ob)  
 		
 		# give custom property type
-		ob["a3dtype"] = "sprite3d"
+		ob["a3dtype"] = "A3DSprite3D"
 
 		# Fill the mesh with verts, edges, faces 
 		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
@@ -5626,7 +6069,7 @@ class AddSprite3D(bpy.types.Operator):
 		return {'FINISHED'}
 				
 class AddSkybox(bpy.types.Operator):
-	bl_idname = "mesh.a3d_skybox"
+	bl_idname = "a3dobj.a3d_skybox"
 	bl_label = "Add Skybox"
 	bl_options = {'REGISTER', 'UNDO'}
 		
@@ -5636,10 +6079,10 @@ class AddSkybox(bpy.types.Operator):
 		faces=[ (0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (4, 0, 3, 7) ]
 		
 		# create a new mesh  
-		me = bpy.data.meshes.new("Skybox") 
+		me = bpy.data.meshes.new("A3DSkybox") 
 		
 		# create an object with that mesh
-		ob = bpy.data.objects.new("Skybox", me)  
+		ob = bpy.data.objects.new("A3DSkybox", me)  
 				
 		# position object at 3d-cursor
 		ob.location = bpy.context.scene.cursor_location   
@@ -5648,7 +6091,7 @@ class AddSkybox(bpy.types.Operator):
 		bpy.context.scene.objects.link(ob) 
 
 		# give custom property type
-		ob["a3dtype"] = "skybox"		
+		ob["a3dtype"] = "A3DSkybox"		
 		
 		# set the skybox to active
 		bpy.context.scene.objects.active = ob
@@ -5666,22 +6109,209 @@ class AddSkybox(bpy.types.Operator):
 		bpy.ops.object.select_all(action='DESELECT')
 		
 		return {'FINISHED'}
+
+class AddAmbientLight(bpy.types.Operator):
+	bl_idname = "a3dobj.a3d_ambientlight"
+	bl_label = "Add AmbientLight"
+	bl_options = {'REGISTER', 'UNDO'}
+		
+	def execute(self, context):
+		lamp = bpy.data.lamps.new("A3DAmbientLight","HEMI") 
+		ob = bpy.data.objects.new("A3DAmbientLight", lamp)
+
+		ob.location = bpy.context.scene.cursor_location
+		bpy.context.scene.objects.link(ob)
+	
+		# give custom property type
+		ob["a3dtype"] = "A3DAmbientLight"		
+		
+		# set the skybox to active
+		bpy.context.scene.objects.active = ob
+		
+		return {'FINISHED'}
+		
+class AddDirectionalLight(bpy.types.Operator):
+	bl_idname = "a3dobj.a3d_directionallight"
+	bl_label = "Add DirectionalLight"
+	bl_options = {'REGISTER', 'UNDO'}
+		
+	def execute(self, context):
+		lamp = bpy.data.lamps.new("A3DDirectionalLight","AREA") 
+		ob = bpy.data.objects.new("A3DDirectionalLight", lamp)
+
+		ob.location = bpy.context.scene.cursor_location
+		bpy.context.scene.objects.link(ob)
+	
+		# give custom property type
+		ob["a3dtype"] = "A3DDirectionalLight"		
+		
+		# set the skybox to active
+		bpy.context.scene.objects.active = ob
+		
+		return {'FINISHED'}
+
+class AddOmniLight(bpy.types.Operator):
+	bl_idname = "a3dobj.a3d_omnilight"
+	bl_label = "Add OmniLight"
+	bl_options = {'REGISTER', 'UNDO'}
+		
+	def execute(self, context):
+		lamp = bpy.data.lamps.new("A3DOmniLight","POINT") 
+		ob = bpy.data.objects.new("A3DOmniLight", lamp)
+
+		ob.location = bpy.context.scene.cursor_location
+		bpy.context.scene.objects.link(ob)
+	
+		# give custom property type
+		ob["a3dtype"] = "A3DOmniLight"		
+		
+		# set the skybox to active
+		bpy.context.scene.objects.active = ob
+		
+		return {'FINISHED'}
+
+class AddSpotLight(bpy.types.Operator):
+	bl_idname = "a3dobj.a3d_spotlight"
+	bl_label = "Add SpotLight"
+	bl_options = {'REGISTER', 'UNDO'}
+		
+	def execute(self, context):
+		lamp = bpy.data.lamps.new("A3DSpotLight","SPOT") 
+		ob = bpy.data.objects.new("A3DSpotLight", lamp)
+
+		ob.location = bpy.context.scene.cursor_location
+		bpy.context.scene.objects.link(ob)
+	
+		# give custom property type
+		ob["a3dtype"] = "A3DSpotLight"		
+		
+		# set the skybox to active
+		bpy.context.scene.objects.active = ob
+		
+		return {'FINISHED'}
+
+class AddPlane(bpy.types.Operator):
+	bl_idname = "a3dobj.a3d_plane"
+	bl_label = "Add Plane"
+	bl_options = {'REGISTER', 'UNDO'}
+		
+	def execute(self, context):
+		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
+		coords=[ (1, 1, 0), (1, -1, 0), (-1, -0.9999998, 0), (-0.9999997, 1, 0) ]
+		faces=[ (0, 3, 2, 1) ]
+		
+		# create a new mesh  
+		me = bpy.data.meshes.new("A3DPlane") 
+		
+		# create an object with that mesh
+		ob = bpy.data.objects.new("A3DPlane", me)  
+		
+		# position object at 3d-cursor
+		ob.location = bpy.context.scene.cursor_location   
+		
+		#rotate 90 degrees so plane is upright
+		ob.rotation_euler = (1.57079633,0,1) 
+		
+		# Link object to scene
+		bpy.context.scene.objects.link(ob)  
+		
+		# give custom property type
+		ob["a3dtype"] = "A3DPlane"
+
+		# Fill the mesh with verts, edges, faces 
+		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
+		me.update(calc_edges=True)    # Update mesh with new data	
+		return {'FINISHED'}		
+		
+class AddLOD(bpy.types.Operator):
+	bl_idname = "a3dobj.a3d_lod"
+	bl_label = "Add LOD"
+	bl_options = {'REGISTER', 'UNDO'}
+		
+	def execute(self, context):
+		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
+		coords=[ (1, 1, 0), (1, -1, 0), (-1, -0.9999998, 0), (-0.9999997, 1, 0) ]
+		faces=[ (0, 3, 2, 1) ]
+		
+		# create a new mesh  
+		me = bpy.data.meshes.new("A3DLod") 
+		
+		# create an object with that mesh
+		ob = bpy.data.objects.new("A3DLod", me)  
+		
+		# position object at 3d-cursor
+		ob.location = bpy.context.scene.cursor_location   
+		
+		#rotate 90 degrees so plane is upright
+		ob.rotation_euler = (1.57079633,0,1) 
+		
+		# Link object to scene
+		bpy.context.scene.objects.link(ob)  
+		
+		# give custom property type
+		ob["a3dtype"] = "A3DLod"
+
+		# Fill the mesh with verts, edges, faces 
+		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
+		me.update(calc_edges=True)    # Update mesh with new data	
+		return {'FINISHED'}		
+		
+class AddBox(bpy.types.Operator):
+	bl_idname = "a3dobj.a3d_box"
+	bl_label = "Add Box"
+	bl_options = {'REGISTER', 'UNDO'}
+		
+	def execute(self, context):
+		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
+		coords=[ (1, 1, -1), (1, -1, -1), (-1, -0.9999998, -1), (-0.9999997, 1, -1), (1, 0.9999995, 1), (0.9999994, -1.000001, 1), (-1, -0.9999997, 1), (-1, 1, 1) ]
+		faces=[ (0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (4, 0, 3, 7) ]
+		
+		# create a new mesh  
+		me = bpy.data.meshes.new("A3DBox") 
+		
+		# create an object with that mesh
+		ob = bpy.data.objects.new("A3DBox", me)  
+		
+		# position object at 3d-cursor
+		ob.location = bpy.context.scene.cursor_location   
+		
+		#rotate 90 degrees so plane is upright
+		ob.rotation_euler = (1.57079633,0,1) 
+		
+		# Link object to scene
+		bpy.context.scene.objects.link(ob)  
+		
+		# give custom property type
+		ob["a3dtype"] = "A3DBox"
+
+		# Fill the mesh with verts, edges, faces 
+		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
+		me.update(calc_edges=True)    # Update mesh with new data	
+		return {'FINISHED'}		
 		
 # note to self
 # blender info on custom properties
 # http://wiki.blender.org/index.php/Doc:2.5/Manual/Extensions/Python/Properties
 
 class A3d_submenu(bpy.types.Menu):
-    bl_idname = "A3d_submenu"
-    bl_label = "Alternativa3D"
+	bl_idname = "A3d_submenu"
+	bl_label = "Alternativa3D"
 
-    def draw(self, context):
-        layout = self.layout
-        layout.operator_context = 'INVOKE_REGION_WIN'
-        layout.operator("mesh.a3d_skybox", text="Skybox", icon='MESH_CUBE')
-        layout.operator("mesh.a3d_sprite3d", text="Sprite3D", icon='MESH_PLANE')
-        layout.operator("mesh.a3d_occluder", text="Occluder", icon='MESH_CUBE')
-        layout.operator("mesh.a3d_logo", text="A3D Logo", icon='MESH_TORUS')
+	def draw(self, context):
+		layout = self.layout
+		layout.operator_context = 'INVOKE_REGION_WIN'
+		layout.operator("a3dobj.a3d_logo", text="A3D Logo", icon='MESH_TORUS')
+		layout.operator("a3dobj.a3d_plane", text="Plane", icon='MESH_PLANE')
+		layout.operator("a3dobj.a3d_box", text="Box", icon='MESH_CUBE')
+		layout.operator("a3dobj.a3d_sprite3d", text="Sprite3D", icon='MESH_PLANE')
+		layout.operator("a3dobj.a3d_skybox", text="Skybox", icon='MESH_CUBE')
+		layout.operator("a3dobj.a3d_occluder", text="Occluder", icon='MESH_CUBE')
+		layout.operator("a3dobj.a3d_lod", text="LOD", icon='MESH_CUBE')
+		layout.separator()
+		layout.operator("a3dobj.a3d_ambientlight", text="AmbientLight", icon='OUTLINER_OB_LAMP')
+		layout.operator("a3dobj.a3d_directionallight", text="DirectionalLight", icon='OUTLINER_OB_LAMP')
+		layout.operator("a3dobj.a3d_omnilight", text="OmniLight", icon='OUTLINER_OB_LAMP')
+		layout.operator("a3dobj.a3d_spotlight", text="SpotLight", icon='OUTLINER_OB_LAMP')
 		
 #==================================
 # REGISTRATION

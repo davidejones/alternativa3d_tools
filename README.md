@@ -4,6 +4,8 @@ Alternativa 3d Blender Tool
 Created by David E Jones, [http://davidejones.com](http://davidejones.com)
 Follow me on twitter [@david3jones](https://twitter.com/david3jones)
 
+If you like this tool, then please tweet, like or googleplus my website http://davidejones.com
+
 What is the alternativa 3d blender tool?
 ----------------------------------------
 
@@ -43,10 +45,17 @@ Changelog
 ---------
 
 ### 1.1.5
-- Fixed version 5.6.0 uv mapping
-- Added basic exports to .a3d version 2.0, 2.4, 2.5
-- export tangents for classes and .a3d
-- Flat or Smooth normals work
+- Updated min version of blender to be 2.62
+- Fixed export class version 5.6.0 uv mapping
+- Basic export to a3d 2.0
+- Partial exporting to 2.4, 2.5, 2.6
+- Basic import of a3d 2.0
+- Partial importing of a3d 2.4, 2.5, 2.6
+- Export tangents for classes and a3d
+- Flat or Smooth normals exports
+- Fixed export documentclass to do something useful
+- Updated mesh menu with a3dclasses
+- Updated examples
 
 ### 1.1.4
 - Added example exports for each version with built swf
