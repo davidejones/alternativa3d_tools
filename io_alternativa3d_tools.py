@@ -1934,7 +1934,7 @@ def a3dexport(file,Config):
 			#a3dvbuf._vertexCount = int(len(ins)) 
 			#a3dvbuf._vertexCount = 24
 			vertexBuffers.append(a3dvbuf)
-			print("vs="+str(len(vs)))	
+			print("vs="+str(len(vs)))
 	
 	if Config.A3DVersionSystem <= 3:
 		print("Exporting layers...\n")
@@ -2968,7 +2968,7 @@ class A3D2:
 				vbuf = vbuffers[v]
 				#print(vbuf._byteBuffer)
 				#print(vbuf._id)
-				#print(vbuf._attributes)
+				print("Attributes:"+str(vbuf._attributes))
 				numflts = 0
 				for att in vbuf._attributes:
 					if att == 0:
@@ -2998,6 +2998,13 @@ class A3D2:
 						z = vbuf._byteBuffer[i]
 						i = i + 1
 						verts.append((x, y, z))
+					if 4 in vbuf._attributes:
+						uv1 = vbuf._byteBuffer[i]
+						i = i + 1
+						uv2 = vbuf._byteBuffer[i]
+						uv2 = 1.0 - uv2
+						i = i + 1
+						uvs.append([uv1,uv2])
 					if 1 in vbuf._attributes:
 						x = vbuf._byteBuffer[i]
 						i = i + 1
@@ -3007,21 +3014,22 @@ class A3D2:
 						i = i + 1
 						norms.append((x, y, z))
 					if 2 in vbuf._attributes:
+						x = vbuf._byteBuffer[i]
 						i = i + 1
+						x = vbuf._byteBuffer[i]
 						i = i + 1
+						x = vbuf._byteBuffer[i]
 						i = i + 1
+						x = vbuf._byteBuffer[i]
 						i = i + 1
 					if 3 in vbuf._attributes:
 						i = i + 1
+						x = vbuf._byteBuffer[i]
 						i = i + 1
+						x = vbuf._byteBuffer[i]
 						i = i + 1
+						x = vbuf._byteBuffer[i]
 						i = i + 1
-					if 4 in vbuf._attributes:
-						uv1 = vbuf._byteBuffer[i]
-						i = i + 1
-						uv2 = vbuf._byteBuffer[i]
-						i = i + 1
-						uvs.append([uv1,uv2])
 			
 			#print(verts)
 			#print(faces)
@@ -3286,13 +3294,11 @@ class A3D2:
 			for fidx, uf in enumerate(uv_faces):
 				face = faces[fidx]
 				v1, v2, v3 = face
-				
-				print(face)
-
+				if diffuseimg is not None:
+					uf.image = diffuseimg
 				uf.uv1 = uvs[v1]
 				uf.uv2 = uvs[v2]
 				uf.uv3 = uvs[v3]
-			print(uvs)
 			
 			#bpy.ops.object.editmode_toggle() 
 			#bpy.ops.uv.unwrap() 
