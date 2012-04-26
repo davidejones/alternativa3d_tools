@@ -322,7 +322,7 @@ def asexport(file,Config,fp):
 	
 	#Create document class
 	if Config.DocClass:
-		WriteDocuClass(file,aobjs,Config)
+		WriteDocuClass(file,objs,aobjs,Config,fp)
 	
 	print('Export Completed...\n')
 
@@ -379,7 +379,50 @@ def WritePackageHeader(file,Config):
 		file.write("\n")
 	else:
 		print("version not found")
+
+def WriteDocPackageHeader(file,Config):
+	file.write("//Alternativa3D Class Export For Blender 2.62 and above\n")
+	file.write("//Plugin Author: David E Jones, http://davidejones.com\n\n")
+	file.write("package {\n\n")
 	
+	if Config.A3DVersionSystem == 1:
+		# version 5.6.0
+		file.write("\timport alternativa.engine3d.core.Scene3D;\n")
+		file.write("\timport alternativa.engine3d.core.Object3D;\n")
+		file.write("\timport alternativa.engine3d.core.Camera3D;\n")
+		file.write("\timport alternativa.engine3d.display.View;\n")
+		file.write("\timport alternativa.utils.MathUtils;\n")
+		file.write("\timport alternativa.utils.FPS;\n")
+		file.write("\timport flash.display.Sprite;\n")
+		file.write("\timport flash.display.StageAlign;\n")
+		file.write("\timport flash.display.StageScaleMode;\n")
+		file.write("\timport flash.events.Event;\n")
+	elif (Config.A3DVersionSystem == 2) or (Config.A3DVersionSystem == 3)  or (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5) or (Config.A3DVersionSystem == 6):
+		# version 7.5.0, 7.5.1, 7.6.0, 7.7.0, 7.8.0
+		file.write("\timport alternativa.engine3d.core.Camera3D;\n")
+		file.write("\timport alternativa.engine3d.core.Object3DContainer;\n")
+		file.write("\timport alternativa.engine3d.core.View;\n")
+		file.write("\timport flash.display.Sprite;\n")
+		file.write("\timport flash.display.StageAlign;\n")
+		file.write("\timport flash.display.StageScaleMode;\n")
+		file.write("\timport flash.events.Event;\n")
+	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10) or (Config.A3DVersionSystem == 11):
+		# version 8.5.0, 8.8.0, 8.12.0, 8.17.0, 8.27.0
+		file.write("\timport alternativa.engine3d.core.Camera3D;\n")
+		file.write("\timport alternativa.engine3d.core.Object3D;\n")
+		file.write("\timport alternativa.engine3d.core.Resource;\n")
+		file.write("\timport alternativa.engine3d.core.View;\n")
+		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
+		file.write("\timport flash.display.Sprite;\n")
+		file.write("\timport flash.display.Stage3D;\n")
+		file.write("\timport flash.display.StageAlign;\n")
+		file.write("\timport flash.display.StageScaleMode;\n")
+		file.write("\timport flash.events.Event;\n")
+	else:
+		print("version not found")
+		
+	file.write('\n\t[SWF(backgroundColor="#000000", frameRate="100", width="800", height="600")]\n\n')
+		
 def WritePackageEnd(file):
 	file.write("}")
 	
@@ -1299,23 +1342,150 @@ def WriteClass5(file,obj,Config):
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 
-def WriteDocuClass(file,aobjs,Config):
-	WritePackageHeader(file,Config)
-	file.write("\tpublic class main extends Sprite {\n\n")
-	file.write("\t\tpublic function main() {\n\n")
+def WriteDocuClass(ofile,objs,aobjs,Config,fp):
+
+	#docclass filename
+	#fp = os.path.splitext(fp)[0] + "main.as"
+	fp = os.path.dirname(fp) + os.sep + "main.as"
 	
-	for obj in aobjs:
-		#print(obj["a3dtype"])
-		if obj["a3dtype"] == "skybox":
-			WriteSkyBox(file,obj,Config)
-		if obj["a3dtype"] == "occluder":
-			WriteOccluder(file,obj,Config)
-		if obj["a3dtype"] == "sprite3d":
-			WriteSprite3d(file,obj,Config)
-	
-	file.write("\t\t}\n")
-	file.write("\t}\n")
-	WritePackageEnd(file)
+	if os.path.exists(fp) == True:
+		print("Docuclass "+fp+" Already exists")
+	else:
+		#create new file same location as other
+		if not fp.lower().endswith('.as'):
+			fp += '.as'
+		try:
+			file = open(fp, 'w')
+		except Exception as e:
+			print(e)
+
+		WriteDocPackageHeader(file,Config)
+		file.write("\tpublic class main extends Sprite {\n\n")
+		
+		#variables
+		for i, obj in enumerate(objs):
+			file.write("\t\tprivate var obj"+str(i)+":"+cleanupString(obj.data.name)+";\n\n")
+		
+		#for obj in aobjs:
+		#	#print(obj["a3dtype"])
+		#	if obj["a3dtype"] == "skybox":
+		#		WriteSkyBox(file,obj,Config)
+		#	if obj["a3dtype"] == "occluder":
+		#		WriteOccluder(file,obj,Config)
+		#	if obj["a3dtype"] == "sprite3d":
+		#		WriteSprite3d(file,obj,Config)
+		
+		if Config.A3DVersionSystem == 1:
+			# version 5.6.0
+			file.write("\t\tprivate var scene:Scene3D = new Scene3D();\n")
+			file.write('\t\tprivate var rootContainer:Object3D = scene.root = new Object3D("root");\n')
+			file.write("\t\tprivate var camera:Camera3D;\n")
+			file.write("\t\tprivate var view:View;\n\n")
+			
+			file.write("\t\tpublic function main() {\n\n")
+			
+			file.write("\t\t\tstage.align = StageAlign.TOP_LEFT;\n")
+			file.write("\t\t\tstage.scaleMode = StageScaleMode.NO_SCALE;\n\n")
+			
+			file.write('\t\t\tcamera = new Camera3D("camera");\n')
+			file.write("\t\t\tcamera.fov = MathUtils.DEG1*100;\n")
+			file.write("\t\t\tcamera.z = -10;\n")
+			file.write("\t\t\trootContainer.addChild(camera);\n\n")
+			
+			for i, obj in enumerate(objs):
+				file.write("\t\t\tobj"+str(i)+" = new "+cleanupString(obj.data.name)+"();\n")
+				file.write("\t\t\trootContainer.addChild(obj"+str(i)+");\n")
+			file.write("\n")
+			
+			file.write("\t\t\tview = new View(camera);\n")
+			file.write("\t\t\taddChild(view);\n")
+			file.write("\t\t\tview.interactive = true;\n")
+			file.write("\t\t\tFPS.init(this);\n\n")
+			
+			file.write("\t\t\tstage.addEventListener(Event.ENTER_FRAME, onEnterFrame);\n")
+			file.write("\t\t\tstage.addEventListener(Event.RESIZE, onResize);\n")
+			file.write("\t\t}\n\n")
+			
+			file.write("\t\tprivate function onEnterFrame(e:Event):void {\n")
+			file.write("\t\t\tscene.calculate();\n")
+			file.write("\t\t}\n")
+		elif (Config.A3DVersionSystem == 2) or (Config.A3DVersionSystem == 3) or (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5) or (Config.A3DVersionSystem == 6):
+			# version 7.5.0, 7.5.1, 7.6.0, 7.7.0, 7.8.0
+			file.write("\t\tprivate var rootContainer:Object3DContainer = new Object3DContainer();\n")
+			file.write("\t\tprivate var camera:Camera3D;\n")
+			file.write("\t\tprivate var stage3D:Stage3D;\n\n")
+			
+			file.write("\t\tpublic function main() {\n\n")
+			
+			file.write("\t\t\tstage.align = StageAlign.TOP_LEFT;\n")
+			file.write("\t\t\tstage.scaleMode = StageScaleMode.NO_SCALE;\n\n")
+			
+			file.write("\t\t\tcamera = new Camera3D(0.1, 10000);\n")
+			file.write("\t\t\tcamera.view = new View(stage.stageWidth, stage.stageHeight);\n")
+			file.write("\t\t\taddChild(camera.view);\n")
+			file.write("\t\t\taddChild(camera.diagram);\n")
+			file.write("\t\t\trootContainer.addChild(camera);\n\n")		
+			
+			for i, obj in enumerate(objs):
+				file.write("\t\t\tobj"+str(i)+" = new "+cleanupString(obj.data.name)+"();\n")
+				file.write("\t\t\trootContainer.addChild(obj"+str(i)+");\n")
+			file.write("\n")
+			
+			file.write("\t\t\tstage.addEventListener(Event.ENTER_FRAME, onEnterFrame);\n")
+			file.write("\t\t}\n\n")
+			
+			file.write("\t\tprivate function onEnterFrame(e:Event):void {\n")
+			file.write("\t\t\tcamera.view.width = stage.stageWidth;\n")
+			file.write("\t\t\tcamera.view.height = stage.stageHeight;\n")		
+			file.write("\t\t\tcamera.render();\n")
+			file.write("\t\t}\n")
+		elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10) or (Config.A3DVersionSystem == 11):
+			# version 8.5.0, 8.8.0, 8.12.0, 8.17.0, 8.27.0
+			file.write("\t\tprivate var rootContainer:Object3D = new Object3D();\n")
+			file.write("\t\tprivate var camera:Camera3D;\n")
+			file.write("\t\tprivate var stage3D:Stage3D;\n\n")
+			
+			file.write("\t\tpublic function main() {\n\n")
+			
+			file.write("\t\t\tstage.align = StageAlign.TOP_LEFT;\n")
+			file.write("\t\t\tstage.scaleMode = StageScaleMode.NO_SCALE;\n\n")
+			
+			file.write("\t\t\tcamera = new Camera3D(0.1, 10000);\n")
+			file.write("\t\t\tcamera.view = new View(stage.stageWidth, stage.stageHeight);\n")
+			file.write("\t\t\taddChild(camera.view);\n")
+			file.write("\t\t\taddChild(camera.diagram);\n")
+			file.write("\t\t\trootContainer.addChild(camera);\n\n")		
+			
+			for i, obj in enumerate(objs):
+				file.write("\t\t\tobj"+str(i)+" = new "+cleanupString(obj.data.name)+"();\n")
+				file.write("\t\t\trootContainer.addChild(obj"+str(i)+");\n")
+			file.write("\n")
+			
+			file.write("\t\t\tstage3D = stage.stage3Ds[0];\n")
+			file.write("\t\t\tstage3D.addEventListener(Event.CONTEXT3D_CREATE, onContextCreate);\n")
+			file.write("\t\t\tstage3D.requestContext3D();\n\n")
+			
+			file.write("\t\t}\n\n")
+			
+			file.write("\t\tprivate function onContextCreate(e:Event):void {\n")
+			file.write("\t\t\tfor each (var resource:Resource in rootContainer.getResources(true)) {\n")
+			file.write("\t\t\t\tresource.upload(stage3D.context3D);\n")
+			file.write("\t\t\t}\n")
+			file.write("\t\t\tstage.addEventListener(Event.ENTER_FRAME, onEnterFrame);\n")
+			file.write("\t\t}\n\n")
+			
+			file.write("\t\tprivate function onEnterFrame(e:Event):void {\n")
+			file.write("\t\t\tcamera.view.width = stage.stageWidth;\n")
+			file.write("\t\t\tcamera.view.height = stage.stageHeight;\n")		
+			file.write("\t\t\tcamera.render(stage3D);\n")
+			file.write("\t\t}\n")
+		else:
+			print("version not found")
+		
+		file.write("\t}\n")
+		WritePackageEnd(file)
+		
+		file.close()
 
 #==================================
 # A3D EXPORTER
@@ -1872,7 +2042,7 @@ def loadA3d1(file,Config):
 	file.seek(4)
 	
 	# read null mask
-	a3dnull = A3DNull(Config)
+	a3dnull = A3D2Null(Config)
 	a3dnull.read(file)
 	print(a3dnull._mask)
 	print(a3dnull._byte_list)
@@ -1895,7 +2065,7 @@ def loadA3d2(file,Config):
 	file.seek(0)
 	
 	# read package length
-	a3dpackage = A3DPackage(Config)
+	a3dpackage = A3D2Package(Config)
 	a3dpackage.read(file)
 	
 	#set current position
@@ -1923,7 +2093,7 @@ def loadA3d2(file,Config):
 		file.seek(0)
 		
 	# read null mask
-	a3dnull = A3DNull(Config)
+	a3dnull = A3D2Null(Config)
 	a3dnull.read(file)
 	print(a3dnull._mask)
 	print(a3dnull._byte_list)
@@ -1934,23 +2104,23 @@ def loadA3d2(file,Config):
 	
 	#setup config version to match export
 	# set default to 2.0
-	Config.A3DVersionSystem = 4
+	Config.A3DVersionSystem = "4"
 	if ver.baseversion == 1:
 		#1.0
-		Config.A3DVersionSystem=5
+		Config.A3DVersionSystem="5"
 	elif ver.baseversion == 2:
 		if ver.pointversion == 0:
 			#2.0
-			Config.A3DVersionSystem=4
+			Config.A3DVersionSystem="4"
 		elif ver.pointversion == 4:
 			#2.4
-			Config.A3DVersionSystem=3
+			Config.A3DVersionSystem="3"
 		elif ver.pointversion == 5:
 			#2.5
-			Config.A3DVersionSystem=2
+			Config.A3DVersionSystem="2"
 		elif ver.pointversion == 6:
 			#2.5
-			Config.A3DVersionSystem=1
+			Config.A3DVersionSystem="1"
 	
 	#read data
 	#a3d2 = A3D2([],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],Config)
@@ -1986,6 +2156,19 @@ def loadA3d2(file,Config):
 # A3D1
 #==================================
 
+class A3DNull:
+	def __init__(self,Config):
+		self._byte_list = []
+		self._mask = ""
+		self.Config = Config
+		
+	def reset(self):
+		self._byte_list = []
+		self._mask = ""
+		
+	def read(self,file):
+		print("coming soon")
+		
 class A3D:
 	def __init__(self,boxes=[],geometries=[],images=[],maps=[],materials=[],objects=[],Config=None):
 		self.boxes = boxes
@@ -2131,6 +2314,7 @@ class A3DBox:
 
 	def read(self,file,mask,mskindex):
 		print("read A3DBox")
+		print("tell="+str(file.tell()))
 		arr = A3D2Array()
 		arr.read(file)
 		for a in range(arr.length):
@@ -2289,7 +2473,7 @@ class A3DObject:
 # A3D2
 #==================================
 
-class A3DPackage:
+class A3D2Package:
 	def __init__(self,Config):
 		self._packed = 1
 		self._length = 0
@@ -2374,7 +2558,7 @@ class A3DPackage:
 		else:
 			print("package bytes too long!\n")
 
-class A3DNull:
+class A3D2Null:
 	def __init__(self,Config):
 		self._byte_list = []
 		self._mask = ""
@@ -2766,9 +2950,10 @@ class A3D2:
 		#render meshes
 		for mesh in self.meshes:
 		
-			coords = []
+			verts = []
 			faces = []
 			uvs = []
+			norms = []
 		
 			#index buff
 			ibuf = ibuffers[mesh._indexBufferId]
@@ -2812,7 +2997,7 @@ class A3D2:
 						i = i + 1
 						z = vbuf._byteBuffer[i]
 						i = i + 1
-						coords.append((x, y, z))
+						verts.append((x, y, z))
 					if 1 in vbuf._attributes:
 						x = vbuf._byteBuffer[i]
 						i = i + 1
@@ -2820,6 +3005,7 @@ class A3D2:
 						i = i + 1
 						z = vbuf._byteBuffer[i]
 						i = i + 1
+						norms.append((x, y, z))
 					if 2 in vbuf._attributes:
 						i = i + 1
 						i = i + 1
@@ -2837,7 +3023,7 @@ class A3D2:
 						i = i + 1
 						uvs.append([uv1,uv2])
 			
-			#print(coords)
+			#print(verts)
 			#print(faces)
 			#print(uvs)
 			#print(mesh._name)
@@ -2863,8 +3049,30 @@ class A3D2:
 			bpy.context.scene.objects.link(ob)  
 			
 			# Fill the mesh with verts, edges, faces 
-			me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
-			me.update(calc_edges=True)    # Update mesh with new data
+			# from_pydata doesn't work correctly, it swaps vertices in some triangles 
+			#me.from_pydata(verts,[],faces)   # edges or faces should be [], or you ask for problems
+			
+			me.vertices.add(len(verts))
+			me.faces.add(len(faces))
+			
+			for i in range(len(verts)):
+				me.vertices[i].co=verts[i]
+				
+			for i in range(len(faces)):
+				me.faces[i].vertices=faces[i]
+			
+			#select object
+			for object in bpy.data.objects:
+				object.select = False
+			ob.select = True
+			bpy.context.scene.objects.active = ob
+			
+			#me.update(calc_edges=True)    # Update mesh with new data
+			
+			#add uv layer
+			uvname = "UV1"
+			uvlayer = me.uv_textures.new(uvname)
+			diffuseimg = None
 			
 			if mesh._visible == False:
 				ob.hide = True
@@ -2893,12 +3101,16 @@ class A3D2:
 						DIR = os.path.dirname(self.Config.FilePath)
 						image = load_image(img._url, DIR)
 						texture.image = image
+						
+						#set diffuse img for uv window
+						diffuseimg = image
 					
 						#new texture
 						mtex = surf_mat.texture_slots.add()
 						mtex.texture = texture
 						mtex.texture_coords = 'UV'
 						mtex.use_map_color_diffuse = True
+						mtex.uv_layer = uvname
 						
 					if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
 						#get map
@@ -2917,6 +3129,7 @@ class A3D2:
 						mtex.texture = texture
 						mtex.texture_coords = 'UV'
 						mtex.use_map_color_diffuse = True
+						mtex.uv_layer = uvname
 						
 					if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
 						#get map
@@ -2935,6 +3148,7 @@ class A3D2:
 						mtex.texture = texture
 						mtex.texture_coords = 'UV'
 						mtex.use_map_color_diffuse = True
+						mtex.uv_layer = uvname
 						
 					if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
 						#get map
@@ -2954,6 +3168,7 @@ class A3D2:
 						mtex.texture_coords = 'UV'
 						mtex.use_map_color_diffuse = False
 						mtex.use_map_normal = True
+						mtex.uv_layer = uvname
 						
 					if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
 						#get map
@@ -2972,6 +3187,7 @@ class A3D2:
 						mtex.texture = texture
 						mtex.texture_coords = 'UV'
 						mtex.use_map_color_diffuse = True
+						mtex.uv_layer = uvname
 						
 					if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
 						#get map
@@ -2990,6 +3206,7 @@ class A3D2:
 						mtex.texture = texture
 						mtex.texture_coords = 'UV'
 						mtex.use_map_color_diffuse = True
+						mtex.uv_layer = uvname
 						
 					if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
 						#get map
@@ -3008,134 +3225,84 @@ class A3D2:
 						mtex.texture = texture
 						mtex.texture_coords = 'UV'
 						mtex.use_map_color_diffuse = True
+						mtex.uv_layer = uvname
 			
-			#add uv
-			uvlayer = me.uv_textures.new()
-			
-			i=0
-			for u in uvlayer.data:
-				u.uv[0][0] = uvs[i][0]
-				u.uv[0][1] = uvs[i][1]
-				i=i+1
-			
-			#for i, uv in enumerate(uvlayer.data):
-			#	uvs = uv.uv1, uv.uv2, uv.uv3, uv.uv4
-			#	for j, v_idx in enumerate(me.faces[i].vertices):
-			#		uv[j] = uvs[j][0],uvs[j][1]
-			
-			#print(me.uv_textures[0].data[0])
-			
-			#i=0
-			#for meshface in me.uv_textures[0].data:
-				
-			#	if i >= len(me.uv_textures[0].data)/3:
-			#		break
-			
-			#	meshface.uv[i][0] = uvs[i][0]
-			#	meshface.uv[i][1] = uvs[i][1]
-			#	meshface.uv[i+1][0] = uvs[i+1][0]
-			#	meshface.uv[i+1][1] = uvs[i+1][1]
-			#	meshface.uv[i+2][0] = uvs[i+2][0]
-			#	meshface.uv[i+2][1] = uvs[i+2][1]
-			#	i = i + 3
-			
-			#j=0
+			#reorder uvs to current face order
+			#newuvs = []
 			#for i in range(len(me.faces)):
-			#	for v in range(len(me.faces[i].vertices)):
-			#		me.uv_textures.active.data[i].uv[v][0] = uvs[j][0]
-			#		me.uv_textures.active.data[i].uv[v][1] = uvs[j][1]
-			#		j=j+1
-			
-
-			#for uv_index, uv_itself in enumerate(uvlayer.data):
-			#	uvs = uv_itself.uv1, uv_itself.uv2, uv_itself.uv3, uv_itself.uv4
-			#	for vertex_index, vertex_itself in enumerate(me.faces[uv_index].vertices):
-			#		uv_itself.uv[vertex_index][0] = uvs[uv_index][0]
-			#		uv_itself.uv[vertex_index][1] = uvs[uv_index][1]
-			
-			#x=0
-			#for i, face in enumerate(me.faces):
-			#	uf = uvlayer.data[i]
-			#	uf.uv1 = (uvs[faces[x][0]][0],uvs[faces[x][0]][1]) #verts[faceTable[i * 4 + 0]].uv
-			#	uf.uv2 = (uvs[faces[x+1][1]][0],uvs[faces[x+1][1]][1]) #verts[faceTable[i * 4 + 1]].uv
-			#	uf.uv3 = (uvs[faces[x+2][2]][0],uvs[faces[x+2][2]][1]) #verts[faceTable[i * 4 + 2]].uv
-			#	uf.uv4 = (0, 0)
-			#	x=x+3
-			
-			#x=0
-			#for f in faces:
-			#	uvlayer.data[x].uv[0]
-				#uvlayer.data[x].uv1 = (uvs[f[0]][0],uvs[f[0]][1])
-				#uvlayer.data[x].uv2 = (uvs[f[1]][0],uvs[f[1]][1])
-				#uvlayer.data[x].uv3 = (uvs[f[2]][0],uvs[f[2]][1])
-				#print(uvlayer.data[x].uv1)
-				#print(uvlayer.data[x].uv2)
-				#print(uvlayer.data[x].uv3)
-			#	x=x+1
-			#x=0
-			#for uv_index, uv_itself in enumerate(uvlayer.data):
-			#	uv_itself.uv1 = (uvs[x][0],uvs[x][1])
-			#	uv_itself.uv2 = (uvs[x+1][0],uvs[x+1][1])
-			#	uv_itself.uv3 = (uvs[x+2][0],uvs[x+2][1])
-			#	x = x +3
-			
-			#for mtf in uvlayer.data:
-			#	mtf.uv = (0, 0, 0, 0, 0, 0, 0, 0)
-			
-			#print("len uvs="+str(len(uvs))) #174
-			#for uv_index, uv_itself in enumerate(uvs):
-				#print(str(uv_index)+"-"+str(uv_itself))
-				#me.vertices[uv_index].
-			#	print("")
-							
-			me.update()
-			
-			#x=0
-			#for i in range(len(faces)):
-			#
-			#	if i >= len(faces)/3:
-			#		break
-			#
-			#	#uv
-			#	au = uvs[x][0]
-			#	av = uvs[x][1]
-			#	#uv
-			#	bu = uvs[x + 1][0]
-			#	bv = uvs[x + 1][1]
-			#	#uv
-			#	cu = uvs[x + 2][0]
-			#	cv = uvs[x + 2][1]
-			#	
-			#	#me.uv_textures[0].data[i].uv1 = (au,av)
-			#	#me.uv_textures[0].data[i].uv2 = (bu,bv)
-			#	#me.uv_textures[0].data[i].uv3 = (cu,cv)
-			#	
-			#	x = x + 3
-			
-			#for i in range (len(me.faces)): 
-			#	for j in range (len(me.faces[i])): 
-			#		uvFace = uvlayer.data[i], 
-			#		uvFace += ((uvs[faces[i][0]])), 
-			#		uvFace += ((uvs[faces[i][1]])), 
-			#		uvFace += ((uvs[faces[i][2]])) 
+			#	for j in range(len(me.faces[i].vertices)):
+			#		ut = [ uvs[me.faces[i].vertices[j]][0] , uvs[me.faces[i].vertices[j]][1] ]
+			#		newuvs.append(ut)
 			
 			#i=0
-			#for uv in me.uv_textures[0].data:
-			#	uv.uv1 = (uvs[faces[i][0],uvs[faces[i][1])
-			#	uv.uv2 = (1,1)
-			#	uv.uv3 = (0,1)
-			#	i=i+1
+			#for u in uvlayer.data:
+			#	if diffuseimg is not None:
+			#		u.image = diffuseimg
+			#	u.uv[0][0] = newuvs[i][0]
+			#	u.uv[0][1] = newuvs[i][1]
+			#	i=i+1	
 			
-			#for face in me.faces:
-			#	for i in range(len(face.vertices)):
-			#		me.uv_textures[0].data[face.index].uv[i][0] = uvs[i][0]
-			#		me.uv_textures[0].data[face.index].uv[i][1] = uvs[i][1]
-			#		#me.uv_textures.active.data[face.index].uv[i][0] = uvs[i][0]
-			#		#me.uv_textures.active.data[face.index].uv[i][1] = uvs[i][1]				
+			#x=0
+			#each face
+			#for i in range(len(me.faces)):
+			#	#set image in uv window to diffuseimg
+			#	if diffuseimg is not None:
+			#		uvlayer.data[i].image = diffuseimg
+			#	#for each vert in face set uv vert
+			#	for j in range(len(me.faces[i].vertices)):
+			#		uvlayer.data[i].uv[j][0] = uvs[i][0]
+			#		uvlayer.data[i].uv[j][1] = uvs[i][1]
+			#		#uvlayer.data[i].uv[j][1] = 1.0 + uvlayer.data[i].uv[j][1] #flip back
+			#		x=x+1
+			
+			#print(uvs)
+			
+			#print final uvs
+			#for i in range(len(me.faces)):
+			#    for j in range(len(me.faces[i].vertices)):
+			#        uv = [me.uv_textures.active.data[i].uv[j][0], me.uv_textures.active.data[i].uv[j][1]]
+			#        print(me.uv_textures.active.data[i].uv1)
+			#        print(me.uv_textures.active.data[i].uv2)
+			#        print(me.uv_textures.active.data[i].uv3)
+
+			#set norms
+			if len(norms) > 0:
+				for i in range(len(norms)):
+					me.vertices[i].normal=norms[i]
+			
+			#set uvs
+			#for i in range(len(faces)):
+			#	if diffuseimg is not None:
+			#		uvlayer.data[i].image = diffuseimg
+			#	uvlayer.data[i].uv1=uvs[faces[i][0]]
+			#	uvlayer.data[i].uv2=uvs[faces[i][1]]
+			#	uvlayer.data[i].uv3=uvs[faces[i][2]]
+			#	print(uvlayer.data[i].uv1)
+			#	print(uvlayer.data[i].uv2)
+			#	print(uvlayer.data[i].uv3)
+			
+			#loop over all uv layers
+			uv_faces = me.uv_textures.active.data[:]
+			for fidx, uf in enumerate(uv_faces):
+				face = faces[fidx]
+				v1, v2, v3 = face
+				
+				print(face)
+
+				uf.uv1 = uvs[v1]
+				uf.uv2 = uvs[v2]
+				uf.uv3 = uvs[v3]
+			print(uvs)
+			
+			#bpy.ops.object.editmode_toggle() 
+			#bpy.ops.uv.unwrap() 
+			#bpy.ops.object.editmode_toggle() 
+			me.validate()
+			me.update(calc_edges=True) 		
 
 		#render skins
 		for skin in self.skins:		
-			coords = []
+			verts = []
 			faces = []
 			uvs = []
 		
@@ -3181,7 +3348,7 @@ class A3D2:
 						i = i + 1
 						z = vbuf._byteBuffer[i]
 						i = i + 1
-						coords.append((x, y, z))
+						verts.append((x, y, z))
 					if 1 in vbuf._attributes:
 						x = vbuf._byteBuffer[i]
 						i = i + 1
@@ -3206,7 +3373,7 @@ class A3D2:
 						i = i + 1
 						uvs.append([uv1,uv2])
 			
-			#print(coords)
+			#print(verts)
 			#print(faces)
 			#print(uvs)
 			#print(mesh._name)
@@ -3232,7 +3399,7 @@ class A3D2:
 			bpy.context.scene.objects.link(ob)  
 			
 			# Fill the mesh with verts, edges, faces 
-			me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
+			me.from_pydata(verts,[],faces)   # edges or faces should be [], or you ask for problems
 			me.update(calc_edges=True)    # Update mesh with new data
 			
 			if skin._visible == False:
@@ -3681,8 +3848,7 @@ class A3D2:
 				self.nullmask = self.nullmask + cla._optmask
 		else:
 			self.nullmask = self.nullmask + str(1)
-			
-		print(self.Config.A3DVersionSystem)
+					
 		if self.Config.A3DVersionSystem >= 2:
 			if len(self.layers) > 0:
 				arr = A3D2Array()
@@ -3721,23 +3887,26 @@ class A3D2:
 		print("nullmask = "+self.nullmask)
 		
 		#nullmask
-		null = A3DNull(self.Config)
+		null = A3D2Null(self.Config)
 		null._mask = self.nullmask
 		null.write(tfile2)
 		
 		#version
 		ver = A3DVersion(self.Config)
 		
-		if self.Config.A3DVersionSystem == 1:
+		if self.Config.A3DVersionSystem == 5:
+			major = 1
+			minor = 0
+		elif self.Config.A3DVersionSystem == 4:
 			major = 2
 			minor = 0
-		elif self.Config.A3DVersionSystem == 2:
-			major = 2
-			minor = 4
 		elif self.Config.A3DVersionSystem == 3:
 			major = 2
+			minor = 4
+		elif self.Config.A3DVersionSystem == 2:
+			major = 2
 			minor = 5
-		elif self.Config.A3DVersionSystem == 4:
+		elif self.Config.A3DVersionSystem == 1:
 			major = 2
 			minor = 6
 		
@@ -3752,7 +3921,7 @@ class A3D2:
 		tfile.close()
 		
 		#write package length
-		a3dpack = A3DPackage(self.Config)
+		a3dpack = A3D2Package(self.Config)
 		if self.Config.CompressData == 1:
 			a3dpack._packed = 1
 			tfile2.seek(0)
@@ -5417,17 +5586,13 @@ class A3D2VertexBuffer:
 		
 		arr = A3D2Array()
 		arr.read(file)
-		if self.Config.A3DVersionSystem is not None:
-			if self.Config.A3DVersionSystem == 1:
-				#2.6
-				for a in range(int(arr.length/2)):
-					self._byteBuffer.append(struct.unpack(">H",file.read(struct.calcsize(">H")))[0])
-			else:
-				for a in range(int(arr.length/4)):
-					self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
+		if self.Config.A3DVersionSystem == 1:
+			#2.6
+			for a in range(int(arr.length/2)):
+				self._byteBuffer.append(struct.unpack(">H",file.read(struct.calcsize(">H")))[0])
 		else:
 			for a in range(int(arr.length/4)):
-					self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
+				self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
 		self._id  = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
 		self._vertexCount  = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
 		
@@ -5445,6 +5610,7 @@ class A3D2VertexBuffer:
 		#bybufsize = int(len(self._byteBuffer)*3)
 		#bybufsize = int( (self._vertexCount*3)*4 )
 		
+		print("A3DVersionSystem="+str(self.Config.A3DVersionSystem))
 		#if version 2.6 then compressed vertex buffer
 		if self.Config.A3DVersionSystem == 1:
 			#2.6
