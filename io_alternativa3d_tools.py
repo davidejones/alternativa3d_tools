@@ -2344,10 +2344,21 @@ class A3D:
 							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+2]) #vert3
 							c = c+3
 						if 1 in attar:
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c])
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+1])
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+2])
 							c = c+3
 						if 2 in attar:
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c])
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+1])
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+2])
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+3])
 							c = c+4
 						if 3 in attar:
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c])
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+1])
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+2])
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+3])
 							c = c+4
 						if 4 in attar:
 							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c])
@@ -2426,9 +2437,9 @@ class A3D:
 		
 		#test
 		# remove some bits
-		mask = mask[16:]
-		print(mask)
-		print(str(len(mask)))
+		#mask = mask[16:]
+		#print(mask)
+		#print(str(len(mask)))
 		
 		
 		#counter that just deals with the func keys
@@ -2469,12 +2480,16 @@ class A3DBox:
 
 	def read(self,file,mask,mskindex):
 		print("read A3DBox - "+str(mask[mskindex]))
-		arr = A3D2Array()
-		arr.read(file)
-		for a in range(arr.length):
-			self._box.append( struct.unpack(">f",file.read(struct.calcsize(">f")))[0] )
+		if mask[mskindex + self._mskindex] == "0":
+			arr = A3D2Array()
+			arr.read(file)
+			for a in range(arr.length):
+				self._box.append( struct.unpack(">f",file.read(struct.calcsize(">f")))[0] )
+		self._mskindex = self._mskindex + 1
 		
-		self._id = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		if mask[mskindex + self._mskindex] == "0":
+			self._id = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
 		
 		print("box="+str(self._box))
 		print("id="+str(self._id))
@@ -2506,18 +2521,22 @@ class A3DGeometry:
 	def read(self,file,mask,mskindex):
 		print("read A3DGeometry - "+str(mask[mskindex]))
 		
-		self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		if mask[mskindex + self._mskindex] == "0":
+			self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
 		
-		ibuf = A3DIndexBuffer(self.Config)
-		self._indexBuffer = ibuf.read(file,mask,mskindex + self._mskindex)
-		#self._mskindex = self._mskindex + ibuf._mskindex
+		if mask[mskindex + self._mskindex] == "0":
+			ibuf = A3DIndexBuffer(self.Config)
+			self._indexBuffer = ibuf.read(file,mask,mskindex + self._mskindex)
+			self._mskindex = self._mskindex + ibuf._mskindex
 		
-		arr = A3D2Array()
-		arr.read(file)
-		for a in range(arr.length):
-			vbuf = A3DVertexBuffer(self.Config)
-			self._vertexBuffers.append(vbuf.read(file,mask,mskindex + self._mskindex))
-			#self._mskindex = self._mskindex + vbuf._mskindex
+		if mask[mskindex + self._mskindex] == "0":
+			arr = A3D2Array()
+			arr.read(file)
+			for a in range(arr.length):
+				vbuf = A3DVertexBuffer(self.Config)
+				self._vertexBuffers.append(vbuf.read(file,mask,mskindex + self._mskindex))
+				self._mskindex = self._mskindex + vbuf._mskindex
 			
 		print("id="+str(self._id))
 					
@@ -2539,11 +2558,16 @@ class A3DImage:
 
 	def read(self,file,mask,mskindex):
 		print("read A3DImage - "+str(mask[mskindex]))
-		self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
 		
-		a3dstr = A3D2String()
-		a3dstr.read(file)
-		self._url = a3dstr.name
+		if mask[mskindex + self._mskindex] == "0":
+			self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			a3dstr = A3D2String()
+			a3dstr.read(file)
+			self._url = a3dstr.name
+		self._mskindex = self._mskindex + 1
 		
 		print("id="+str(self._id))
 		print("url="+str(self._url))
@@ -2576,19 +2600,34 @@ class A3DMap:
 
 	def read(self,file,mask,mskindex):
 		print("read A3DMap - "+str(mask[mskindex]))
-		self._channel = struct.unpack(">H", file.read(struct.calcsize(">H")))[0]
-			
-		self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-			
-		self._imageId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-
-		self._uOffset = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
 		
-		self._uScale = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+		if mask[mskindex + self._mskindex] == "0":
+			self._channel = struct.unpack(">H", file.read(struct.calcsize(">H")))[0]
+		self._mskindex = self._mskindex + 1
 		
-		self._vOffset = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+		if mask[mskindex + self._mskindex] == "0":		
+			self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._imageId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
 
-		self._vScale = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+		if mask[mskindex + self._mskindex] == "0":
+			self._uOffset = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._uScale = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._vOffset = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+		self._mskindex = self._mskindex + 1
+
+		if mask[mskindex + self._mskindex] == "0":
+			self._vScale = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+		self._mskindex = self._mskindex + 1
 		
 		print("channel="+str(self._channel))
 		print("id="+str(self._id))
@@ -2737,12 +2776,16 @@ class A3DIndexBuffer:
 
 	def read(self,file,mask,mskindex):
 		print("read A3DIndexBuffer - "+str(mask[mskindex]))
-		arr = A3D2Array()
-		arr.read(file)
-		for a in range(int(arr.length/2)):
-			self._byteBuffer.append( struct.unpack("<H",file.read(struct.calcsize("<H")))[0] )
-
-		self._indexCount = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		if mask[mskindex + self._mskindex] == "0":
+			arr = A3D2Array()
+			arr.read(file)
+			for a in range(int(arr.length/2)):
+				self._byteBuffer.append( struct.unpack("<H",file.read(struct.calcsize("<H")))[0] )
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._indexCount = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
 		
 		return self
 		
@@ -2767,18 +2810,24 @@ class A3DVertexBuffer:
 	def read(self,file,mask,mskindex):
 		print("read A3DVertexBuffer - "+str(mask[mskindex]))
 		
-		arr = A3D2Array()
-		arr.read(file)
-		self._attributes = []
-		for a in range(arr.length):
-			self._attributes.append(struct.unpack("B",file.read(struct.calcsize("B")))[0])
-	
-		arr = A3D2Array()
-		arr.read(file)
-		for a in range(int(arr.length/4)):
-			self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
+		if mask[mskindex + self._mskindex] == "0":
+			arr = A3D2Array()
+			arr.read(file)
+			self._attributes = []
+			for a in range(arr.length):
+				self._attributes.append(struct.unpack("B",file.read(struct.calcsize("B")))[0])
+		self._mskindex = self._mskindex + 1
 		
-		self._vertexCount  = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
+		if mask[mskindex + self._mskindex] == "0":
+			arr = A3D2Array()
+			arr.read(file)
+			for a in range(int(arr.length/4)):
+				self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._vertexCount  = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
+		self._mskindex = self._mskindex + 1
 		
 		return self
 		
@@ -3641,16 +3690,17 @@ class A3D2:
 			#	print(uvlayer.data[i].uv2)
 			#	print(uvlayer.data[i].uv3)
 			
-			#loop over all uv layers
-			uv_faces = me.uv_textures.active.data[:]
-			for fidx, uf in enumerate(uv_faces):
-				face = faces[fidx]
-				v1, v2, v3 = face
-				if diffuseimg is not None:
-					uf.image = diffuseimg
-				uf.uv1 = uvs[v1]
-				uf.uv2 = uvs[v2]
-				uf.uv3 = uvs[v3]
+			if len(uvs) > 0:
+				#loop over all uv layers
+				uv_faces = me.uv_textures.active.data[:]
+				for fidx, uf in enumerate(uv_faces):
+					face = faces[fidx]
+					v1, v2, v3 = face
+					if diffuseimg is not None:
+						uf.image = diffuseimg
+					uf.uv1 = uvs[v1]
+					uf.uv2 = uvs[v2]
+					uf.uv3 = uvs[v3]
 			
 			#bpy.ops.object.editmode_toggle() 
 			#bpy.ops.uv.unwrap() 
