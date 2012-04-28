@@ -1493,7 +1493,7 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 
 #Container for the exporter settings
 class A3DExporterSettings:
-	def __init__(self,A3DVersionSystem=1,ExportMode=1,CompressData=1,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1):
+	def __init__(self,A3DVersionSystem=4,ExportMode=1,CompressData=1,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1):
 		self.A3DVersionSystem = int(A3DVersionSystem)
 		self.ExportMode = int(ExportMode)
 		self.CompressData = int(CompressData)
@@ -1513,7 +1513,7 @@ class A3DExporter(bpy.types.Operator):
 	A3DVersions.append(("3", "2.4", ""))
 	A3DVersions.append(("4", "2.0", ""))
 	A3DVersions.append(("5", "1.0", ""))
-	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D .A3D to export to", items=A3DVersions, default="1")
+	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D .A3D to export to", items=A3DVersions, default="4")
 	
 	ExportModes = []
 	ExportModes.append(("1", "Selected Objects", ""))
@@ -1717,20 +1717,52 @@ def a3dexport(file,Config):
 			arm = obj.data
 			bones = arm.bones
 			
-			print(arm.name)
-			for b in bones:
-				
-				a3dstr = A3D2String()
-				a3dstr.name = b.name
+			bonedict = {}
 			
-				jnt = A3D2Joint(Config)
+			#taken from .x exporter
+			ParentList = [Bone for Bone in arm.bones if Bone.parent is None]
+			PoseBones = obj.pose.bones
+			
+			for Bone in ParentList:
+			
+				bonedict[Bone] = len(joints)
+			
+				a3dstr = A3D2String()
+				a3dstr.name = Bone.name
+				
+				a3djnt = A3D2Joint(Config)
+				a3djnt._id = len(joints)
+				a3djnt._name = a3dstr
+				a3djnt._visible = 1
+
+				PoseBone = PoseBones[Bone.name]
+				if Bone.parent:
+					jnt._parentId = bonedict[Bone.parent]
+					BoneMatrix = PoseBone.parent.matrix.inverted()
+				else:
+					BoneMatrix = mathutils.Matrix()
+				BoneMatrix *= PoseBone.matrix
+				
+				#a3djnt._transform = [BoneMatrix[0][0],BoneMatrix[0][1],BoneMatrix[0][2],BoneMatrix[1][0],BoneMatrix[1][1],BoneMatrix[1][2],BoneMatrix[2][0],BoneMatrix[2][1],BoneMatrix[2][2],BoneMatrix[3][0],BoneMatrix[3][1],BoneMatrix[3][2]]
+				joints.append(a3djnt)
+				
+				#now do same as above for bone children
+				#Bone.children
+			
+			#print(arm.name)
+			#for b in bones:
+				
+			#	a3dstr = A3D2String()
+			#	a3dstr.name = b.name
+			
+			#	jnt = A3D2Joint(Config)
 				#jnt._boundBoxId = a3dbox
-				jnt._id = len(joints)
-				jnt._name = a3dstr
+			#	jnt._id = len(joints)
+			#	jnt._name = a3dstr
 				#jnt._parentId = None
 				#jnt._transform = getObjTransform(b)
-				jnt._visible = 1
-				joints.append(jnt)
+			#	jnt._visible = 1
+			#	joints.append(jnt)
 				#print(b.name) #name bone
 				#print(b.head_local) #vector xyz - head_radius
 				#print(b.tail_local) #vector xyz - tail_radius
@@ -1787,6 +1819,11 @@ def a3dexport(file,Config):
 			#	image_map["map_Ns"] = image
 			
 			mesh_surfaces = []
+			
+			# NOTE TO SELF
+			# Each Surface has a material/blender material
+			# a material can then have the various textures diffuse, spec, norm etc
+			
 			
 			#set surfaces
 			if len(mts) > 0:
@@ -1935,7 +1972,7 @@ def a3dexport(file,Config):
 			#a3dvbuf._vertexCount = 24
 			vertexBuffers.append(a3dvbuf)
 			print("vs="+str(len(vs)))
-	
+		
 	if Config.A3DVersionSystem <= 3:
 		print("Exporting layers...\n")
 			
@@ -2057,6 +2094,10 @@ def loadA3d1(file,Config):
 	a3d2 = a3d.convert1_2()
 	
 	a3d2.render()
+	
+	#after render unset data
+	a3dnull.reset()
+	a3d2.reset()
 	
 	return {'FINISHED'}
 
@@ -2201,17 +2242,21 @@ class A3D:
 		a3d2meshes = []
 		a3d2objects = []
 		a3d2vertexBuffers = []
-
+		
+		#index geometries
+		geoindex = {}
+		
+		if len(self.geometries) > 0:
+			for x in range(len(self.geometries)):
+				geoindex[self.geometries[x]._id] = self.geometries[x]
+		
+		
 		if len(self.boxes) > 0:
 			for x in range(len(self.boxes)):
 				a3dbox = A3D2Box(self.Config)
 				a3dbox._box = self.boxes[x]._box
 				a3dbox._id = len(a3d2boxes)
 				a3d2boxes.append(a3dbox)
-				
-		if len(self.geometries) > 0:
-			for x in range(len(self.geometries)):
-				print("")
 				
 		if len(self.images) > 0:
 			for x in range(len(self.images)):
@@ -2223,9 +2268,9 @@ class A3D:
 		if len(self.maps) > 0:
 			for x in range(len(self.maps)):
 				a3dmap = A3D2Map(self.Config)
-				a3dmap._channel = self.map[x]._channel
+				a3dmap._channel = self.maps[x]._channel
 				a3dmap._id = len(a3d2maps)
-				a3dmap._imageId = self.map[x]._imageId
+				a3dmap._imageId = self.maps[x]._imageId
 				a3d2maps.append(a3dmap)
 				
 		if len(self.materials) > 0:
@@ -2239,10 +2284,94 @@ class A3D:
 				a3dmat._opacityMapId = self.materials[x]._opacityMapId
 				a3dmat._specularMapId = self.materials[x]._specularMapId
 				a3d2materials.append(a3dmat)
-				
+
 		if len(self.objects) > 0:
 			for x in range(len(self.objects)):
-				print("")
+			
+				#get geometry
+				geom = geoindex[self.objects[x]._geometryId]
+				
+				#create indexbuffer
+				a3dibuf = A3D2IndexBuffer(self.Config)
+				for x in range(len(geom._indexBuffer._byteBuffer)):
+					a3dibuf._byteBuffer.append(geom._indexBuffer._byteBuffer[x])
+				a3dibuf._id = len(a3d2indexBuffers)
+				a3dibuf._indexCount = len(a3dibuf._byteBuffer)
+				a3d2indexBuffers.append(a3dibuf)
+				
+				#create vertexbuffers
+				vbuffers = []
+				for x in range(len(geom._vertexBuffers)):
+					a3dvbuf = A3D2VertexBuffer(self.Config)
+					attar = []
+					for j in range(len(geom._vertexBuffers[x]._attributes)):
+						if geom._vertexBuffers[x]._attributes[j] == 0:
+							#position
+							attar.append(0)
+							print("position")
+						if geom._vertexBuffers[x]._attributes[j] == 1:
+							#normal
+							attar.append(1)
+							print("normal")
+						if geom._vertexBuffers[x]._attributes[j] == 2:
+							#tangent
+							attar.append(2)
+							print("tangent")
+						if geom._vertexBuffers[x]._attributes[j] == 3:
+							#binormal
+							attar.append(1)
+							print("binormal")
+						if geom._vertexBuffers[x]._attributes[j] == 4:
+							#color
+							#attar.append(1)
+							print("color")
+						if geom._vertexBuffers[x]._attributes[j] == 5:
+							#texcoords
+							attar.append(4)
+							print("texcoords")
+						if geom._vertexBuffers[x]._attributes[j] == 6:
+							#user def
+							#attar.append(1)
+							print("user def")
+					
+					c = 0
+					for k in range(len(geom._vertexBuffers[x]._byteBuffer)):
+						if c >= len(geom._vertexBuffers[x]._byteBuffer):
+							break
+						if 0 in attar:
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c]) #vert1
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+1]) #vert2
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+2]) #vert3
+							c = c+3
+						if 1 in attar:
+							c = c+3
+						if 2 in attar:
+							c = c+4
+						if 3 in attar:
+							c = c+4
+						if 4 in attar:
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c])
+							a3dvbuf._byteBuffer.append(geom._vertexBuffers[x]._byteBuffer[c+1])
+							c = c+2
+							
+					a3dvbuf._attributes = attar
+					a3dvbuf._id = len(a3d2vertexBuffers)
+					a3dvbuf._vertexCount = geom._vertexBuffers[x]._vertexCount
+					a3d2vertexBuffers.append(a3dvbuf)
+					vbuffers.append(a3dvbuf._id)
+				
+				#create mesh from data
+				a3dmesh = A3D2Mesh(self.Config)
+				a3dmesh._boundBoxId = self.objects[x]._boundBoxId
+				a3dmesh._id = len(a3d2meshes)
+				a3dmesh._indexBufferId = a3dibuf._id
+				a3dmesh._name = self.objects[x]._name
+				a3dmesh._parentId = self.objects[x]._parentId
+				a3dmesh._surfaces = self.objects[x]._surfaces
+				a3dmesh._transform = None
+				a3dmesh._vertexBuffers = vbuffers
+				a3dmesh._visible = self.objects[x]._visible
+				a3d2meshes.append(a3dmesh)
 				
 		a3d2 = A3D2([],[],[],a3d2boxes,[],[],[],a3d2images,a3d2indexBuffers,[],a3d2maps,a3d2materials,a3d2meshes,a3d2objects,[],[],[],[],a3d2vertexBuffers,[],[],[],self.Config)
 				
@@ -2269,12 +2398,38 @@ class A3D:
 		# define classes
 		funcs = {
 			0: A3DBox, 
-			1: A3DGeometry, 
+			1: A3DGeometry,
 			2: A3DImage,
 			3: A3DMap,
 			4: A3DMaterial,
 			5: A3DObject
 		}
+		
+		#reverse nullmask
+		#mask = mask[::-1]
+		#reverse dicts
+		#revkeys = sorted(funcs.keys(), reverse=True)
+		#nfuncs = {}
+		#i=0
+		#for k in revkeys:
+		#	nfuncs[i] = funcs[k]
+		#	i = i +1
+		#funcs = nfuncs
+		
+		#revkeys = sorted(arrs.keys(), reverse=True)
+		#narrs = {}
+		#i=0
+		#for k in revkeys:
+		#	narrs[i] = arrs[k]
+		#	i = i +1
+		#arrs = narrs
+		
+		#test
+		# remove some bits
+		mask = mask[16:]
+		print(mask)
+		print(str(len(mask)))
+		
 		
 		#counter that just deals with the func keys
 		findex = 0
@@ -2313,13 +2468,16 @@ class A3DBox:
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
-		print("read A3DBox")
-		print("tell="+str(file.tell()))
+		print("read A3DBox - "+str(mask[mskindex]))
 		arr = A3D2Array()
 		arr.read(file)
 		for a in range(arr.length):
 			self._box.append( struct.unpack(">f",file.read(struct.calcsize(">f")))[0] )
+		
 		self._id = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		
+		print("box="+str(self._box))
+		print("id="+str(self._id))
 		
 	def write(self,file):
 		print("write boundbox\n")
@@ -2346,18 +2504,23 @@ class A3DGeometry:
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
-		print("read A3DGeometry")
-		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		self._indexBuffer = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		print("read A3DGeometry - "+str(mask[mskindex]))
+		
+		self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		
+		ibuf = A3DIndexBuffer(self.Config)
+		self._indexBuffer = ibuf.read(file,mask,mskindex + self._mskindex)
+		#self._mskindex = self._mskindex + ibuf._mskindex
+		
 		arr = A3D2Array()
 		arr.read(file)
-		for x in range(arr.length):
-			self._vertexBuffers.append(struct.unpack(">L", file.read(struct.calcsize(">L")))[0])
+		for a in range(arr.length):
+			vbuf = A3DVertexBuffer(self.Config)
+			self._vertexBuffers.append(vbuf.read(file,mask,mskindex + self._mskindex))
+			#self._mskindex = self._mskindex + vbuf._mskindex
 			
-		print(self._id)
-		print(self._indexBuffer)
-		print(self._vertexBuffers)
-		
+		print("id="+str(self._id))
+					
 	def write(self,file):
 		print("write A3DGeometry")
 
@@ -2375,7 +2538,15 @@ class A3DImage:
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
-		print("read A3DImage")
+		print("read A3DImage - "+str(mask[mskindex]))
+		self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		
+		a3dstr = A3D2String()
+		a3dstr.read(file)
+		self._url = a3dstr.name
+		
+		print("id="+str(self._id))
+		print("url="+str(self._url))
 		
 	def write(self,file):
 		print("write A3DImage")
@@ -2404,36 +2575,92 @@ class A3DMap:
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
-		print("read A3DMap")
+		print("read A3DMap - "+str(mask[mskindex]))
+		self._channel = struct.unpack(">H", file.read(struct.calcsize(">H")))[0]
+			
+		self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+			
+		self._imageId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+
+		self._uOffset = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+		
+		self._uScale = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+		
+		self._vOffset = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+
+		self._vScale = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+		
+		print("channel="+str(self._channel))
+		print("id="+str(self._id))
+		print("imageId="+str(self._imageId))
+		print("uOffset="+str(self._uOffset))
+		print("uScale="+str(self._uScale))
+		print("vOffset="+str(self._vOffset))
+		print("vScale="+str(self._vScale))
 		
 	def write(self,file):
 		print("write A3DMap")
 		
 class A3DMaterial:
 	def __init__(self,Config):
-		self._diffuseMapId = 0
-		self._glossinessMapId = 0
+		self._diffuseMapId = None
+		self._glossinessMapId = None
 		self._id = 0
-		self._lightMapId = 0
-		self._normalMapId = 0
-		self._opacityMapId = 0
-		self._specularMapId = 0
+		self._lightMapId = None
+		self._normalMapId = None
+		self._opacityMapId = None
+		self._specularMapId = None
 
 		self.Config = Config
 		self._mskindex = 0
 	
 	def reset(self):
-		self._diffuseMapId = 0
-		self._glossinessMapId = 0
+		self._diffuseMapId = None
+		self._glossinessMapId = None
 		self._id = 0
-		self._lightMapId = 0
-		self._normalMapId = 0
-		self._opacityMapId = 0
-		self._specularMapId = 0
+		self._lightMapId = None
+		self._normalMapId = None
+		self._opacityMapId = None
+		self._specularMapId = None
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
-		print("read A3dMaterial")
+		print("read A3dMaterial - "+str(mask[mskindex]))
+		if mask[mskindex + self._mskindex] == "0":
+			self._diffuseMapId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+			
+		if mask[mskindex + self._mskindex] == "0":	
+			self._glossinessMapId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":	
+			self._id = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._lightMapId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+			
+		if mask[mskindex + self._mskindex] == "0":
+			self._normalMapId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+			
+		if mask[mskindex + self._mskindex] == "0":
+			self._opacityMapId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+			
+		if mask[mskindex + self._mskindex] == "0":
+			self._specularMapId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		print("diffuseMapId="+str(self._diffuseMapId))
+		print("glossinessMapId="+str(self._glossinessMapId))
+		print("id="+str(self._id))
+		print("lightMapId="+str(self._lightMapId))
+		print("normalMapId="+str(self._normalMapId))
+		print("opacityMapId="+str(self._opacityMapId))
+		print("specularMapId="+str(self._specularMapId))
 		
 	def write(self,file):
 		print("write A3dMaterial")
@@ -2445,7 +2672,7 @@ class A3DObject:
 		self._id = 0
 		self._name = 0
 		self._parentId = 0
-		self._surfaces = 0
+		self._surfaces = []
 		self._transformation = 0
 		self._visible = 0
 
@@ -2458,17 +2685,133 @@ class A3DObject:
 		self._id = 0
 		self._name = 0
 		self._parentId = 0
-		self._surfaces = 0
+		self._surfaces = []
 		self._transformation = 0
 		self._visible = 0
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
-		print("read A3DObject")
+		print("read A3DObject - "+str(mask[mskindex]))
+		self._boundBoxId = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		self._geometryId = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		self._id = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		
+		a3dstr = A3D2String()
+		a3dstr.read(file)
+		self._name = a3dstr.name
+		
+		self._parentId = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		
+		arr = A3D2Array()
+		arr.read(file)
+		for a in range(arr.length):
+			a3dsurf = A3DSurface(self.Config)
+			self._surfaces.append(a3dsurf.read(file,mask,mskindex + self._mskindex))
+			#self._mskindex = self._mskindex + a3dsurf._mskindex
+		
+		a3dtran = A3D2Transform(self.Config)
+		a3dtran.read(file)
+		self._transformation = a3dtran
+			
+		print("boundBoxId="+str(self._boundBoxId))
+		print("geometryId="+str(self._geometryId))
+		print("id="+str(self._id))
+		print("name="+self._name)
+		print("parentId="+str(self._parentId))
 		
 	def write(self,file):
 		print("write A3DObject")
 
+class A3DIndexBuffer:
+	def __init__(self,Config):
+		self._byteBuffer = []
+		self._indexCount = 0
+		
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._byteBuffer = []
+		self._indexCount = 0
+		self._mskindex = 0
+
+	def read(self,file,mask,mskindex):
+		print("read A3DIndexBuffer - "+str(mask[mskindex]))
+		arr = A3D2Array()
+		arr.read(file)
+		for a in range(int(arr.length/2)):
+			self._byteBuffer.append( struct.unpack("<H",file.read(struct.calcsize("<H")))[0] )
+
+		self._indexCount = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		
+		return self
+		
+	def write(self,file):
+		print("write A3DIndexBuffer")
+		
+class A3DVertexBuffer:
+	def __init__(self,Config):
+		self._attributes = []
+		self._byteBuffer = []
+		self._vertexCount = 0
+		
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._attributes = []
+		self._byteBuffer = []
+		self._vertexCount = 0
+		self._mskindex = 0
+
+	def read(self,file,mask,mskindex):
+		print("read A3DVertexBuffer - "+str(mask[mskindex]))
+		
+		arr = A3D2Array()
+		arr.read(file)
+		self._attributes = []
+		for a in range(arr.length):
+			self._attributes.append(struct.unpack("B",file.read(struct.calcsize("B")))[0])
+	
+		arr = A3D2Array()
+		arr.read(file)
+		for a in range(int(arr.length/4)):
+			self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
+		
+		self._vertexCount  = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
+		
+		return self
+		
+	def write(self,file):
+		print("write A3DVertexBuffer")
+		
+class A3DSurface:
+	def __init__(self,Config):
+		self._indexBegin = 0
+		self._materialId = None
+		self._numTriangles = 0
+		
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._indexBegin = 0
+		self._materialId = None
+		self._numTriangles = 0
+		self._mskindex = 0
+
+	def read(self,file,mask,mskindex):
+		print("read A3DSurface - "+str(mask[mskindex]))
+		self._indexBegin = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		if mask[mskindex + self._mskindex] == "0":
+			self._materialId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		self._numTriangles = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		return self
+		
+	def write(self,file):
+		print("write A3DSurface")
+		
 #==================================
 # A3D2
 #==================================
@@ -2954,6 +3297,8 @@ class A3D2:
 			faces = []
 			uvs = []
 			norms = []
+			tans = []
+			joints = []
 		
 			#index buff
 			ibuf = ibuffers[mesh._indexBufferId]
@@ -2966,8 +3311,6 @@ class A3D2:
 			#vert buff
 			for v in mesh._vertexBuffers:
 				vbuf = vbuffers[v]
-				#print(vbuf._byteBuffer)
-				#print(vbuf._id)
 				print("Attributes:"+str(vbuf._attributes))
 				numflts = 0
 				for att in vbuf._attributes:
@@ -2990,47 +3333,52 @@ class A3D2:
 				points = int(flcount/numflts)
 				i = 0
 				for p in range(points):
-					if 0 in vbuf._attributes:
-						x = vbuf._byteBuffer[i]
-						i = i + 1
-						y = vbuf._byteBuffer[i]
-						i = i + 1
-						z = vbuf._byteBuffer[i]
-						i = i + 1
-						verts.append((x, y, z))
-					if 4 in vbuf._attributes:
-						uv1 = vbuf._byteBuffer[i]
-						i = i + 1
-						uv2 = vbuf._byteBuffer[i]
-						uv2 = 1.0 - uv2
-						i = i + 1
-						uvs.append([uv1,uv2])
-					if 1 in vbuf._attributes:
-						x = vbuf._byteBuffer[i]
-						i = i + 1
-						y = vbuf._byteBuffer[i]
-						i = i + 1
-						z = vbuf._byteBuffer[i]
-						i = i + 1
-						norms.append((x, y, z))
-					if 2 in vbuf._attributes:
-						x = vbuf._byteBuffer[i]
-						i = i + 1
-						x = vbuf._byteBuffer[i]
-						i = i + 1
-						x = vbuf._byteBuffer[i]
-						i = i + 1
-						x = vbuf._byteBuffer[i]
-						i = i + 1
-					if 3 in vbuf._attributes:
-						i = i + 1
-						x = vbuf._byteBuffer[i]
-						i = i + 1
-						x = vbuf._byteBuffer[i]
-						i = i + 1
-						x = vbuf._byteBuffer[i]
-						i = i + 1
-			
+					for att in vbuf._attributes:
+						if att == 0:
+							x = vbuf._byteBuffer[i]
+							i = i + 1
+							y = vbuf._byteBuffer[i]
+							i = i + 1
+							z = vbuf._byteBuffer[i]
+							i = i + 1
+							verts.append((x, y, z))
+						if att == 1:
+							x = vbuf._byteBuffer[i]
+							i = i + 1
+							y = vbuf._byteBuffer[i]
+							i = i + 1
+							z = vbuf._byteBuffer[i]
+							i = i + 1
+							norms.append((x, y, z))
+						if att == 2:
+							a = vbuf._byteBuffer[i]
+							i = i + 1
+							b = vbuf._byteBuffer[i]
+							i = i + 1
+							c = vbuf._byteBuffer[i]
+							i = i + 1
+							d = vbuf._byteBuffer[i]
+							i = i + 1
+							tans.append((a,b,c,d))
+						if att == 3:
+							i = i + 1
+							a = vbuf._byteBuffer[i]
+							i = i + 1
+							b = vbuf._byteBuffer[i]
+							i = i + 1
+							c = vbuf._byteBuffer[i]
+							i = i + 1
+							d = vbuf._byteBuffer[i]
+							i = i + 1
+							joints.append((a, b, c, d))
+						if att == 4:
+							uv1 = vbuf._byteBuffer[i]
+							i = i + 1
+							uv2 = vbuf._byteBuffer[i]
+							uv2 = 1.0 - uv2
+							i = i + 1
+							uvs.append([uv1,uv2])
+						
 			#print(verts)
 			#print(faces)
 			#print(uvs)
@@ -3136,7 +3484,8 @@ class A3D2:
 						mtex = surf_mat.texture_slots.add()
 						mtex.texture = texture
 						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_raymir = True
 						mtex.uv_layer = uvname
 						
 					if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
@@ -3155,7 +3504,8 @@ class A3D2:
 						mtex = surf_mat.texture_slots.add()
 						mtex.texture = texture
 						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_ambient = True
 						mtex.uv_layer = uvname
 						
 					if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
@@ -3194,7 +3544,8 @@ class A3D2:
 						mtex = surf_mat.texture_slots.add()
 						mtex.texture = texture
 						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_alpha = True
 						mtex.uv_layer = uvname
 						
 					if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
@@ -3213,7 +3564,7 @@ class A3D2:
 						mtex = surf_mat.texture_slots.add()
 						mtex.texture = texture
 						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
+						mtex.use_map_color_diffuse = False
 						mtex.uv_layer = uvname
 						
 					if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
@@ -3232,7 +3583,8 @@ class A3D2:
 						mtex = surf_mat.texture_slots.add()
 						mtex.texture = texture
 						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_specular = True
 						mtex.uv_layer = uvname
 			
 			#reorder uvs to current face order
@@ -3311,6 +3663,21 @@ class A3D2:
 			verts = []
 			faces = []
 			uvs = []
+			norms = []
+			tans = []
+			joints = []
+			
+			ar = bpy.data.armatures.new("armature")
+			ob = bpy.data.objects.new("armature", ar)
+			bpy.context.scene.objects.link(ob)
+			
+			#context.scene.objects.active = ar
+			#bpy.ops.object.mode_set(mode='EDIT')
+			#add bone
+			#bo = ar.edit_bones.new("bone")
+			#bo.head = head
+			#bo.tail = tail
+			#bo.parent = parent_bone
 		
 			#index buff
 			ibuf = ibuffers[skin._indexBufferId]
@@ -3346,38 +3713,51 @@ class A3D2:
 				flcount = int(len(vbuf._byteBuffer))
 				points = int(flcount/numflts)
 				i = 0
-				for p in range(points):
-					if 0 in vbuf._attributes:
-						x = vbuf._byteBuffer[i]
-						i = i + 1
-						y = vbuf._byteBuffer[i]
-						i = i + 1
-						z = vbuf._byteBuffer[i]
-						i = i + 1
-						verts.append((x, y, z))
-					if 1 in vbuf._attributes:
-						x = vbuf._byteBuffer[i]
-						i = i + 1
-						y = vbuf._byteBuffer[i]
-						i = i + 1
-						z = vbuf._byteBuffer[i]
-						i = i + 1
-					if 2 in vbuf._attributes:
-						i = i + 1
-						i = i + 1
-						i = i + 1
-						i = i + 1
-					if 3 in vbuf._attributes:
-						i = i + 1
-						i = i + 1
-						i = i + 1
-						i = i + 1
-					if 4 in vbuf._attributes:
-						uv1 = vbuf._byteBuffer[i]
-						i = i + 1
-						uv2 = vbuf._byteBuffer[i]
-						i = i + 1
-						uvs.append([uv1,uv2])
+				for att in vbuf._attributes:
+						if att == 0:
+							x = vbuf._byteBuffer[i]
+							i = i + 1
+							y = vbuf._byteBuffer[i]
+							i = i + 1
+							z = vbuf._byteBuffer[i]
+							i = i + 1
+							verts.append((x, y, z))
+						if att == 1:
+							x = vbuf._byteBuffer[i]
+							i = i + 1
+							y = vbuf._byteBuffer[i]
+							i = i + 1
+							z = vbuf._byteBuffer[i]
+							i = i + 1
+							norms.append((x, y, z))
+						if att == 2:
+							a = vbuf._byteBuffer[i]
+							i = i + 1
+							b = vbuf._byteBuffer[i]
+							i = i + 1
+							c = vbuf._byteBuffer[i]
+							i = i + 1
+							d = vbuf._byteBuffer[i]
+							i = i + 1
+							tans.append((a,b,c,d))
+						if att == 3:
+							i = i + 1
+							a = vbuf._byteBuffer[i]
+							i = i + 1
+							b = vbuf._byteBuffer[i]
+							i = i + 1
+							c = vbuf._byteBuffer[i]
+							i = i + 1
+							d = vbuf._byteBuffer[i]
+							i = i + 1
+							joints.append((a, b, c, d))
+						if att == 4:
+							uv1 = vbuf._byteBuffer[i]
+							i = i + 1
+							uv2 = vbuf._byteBuffer[i]
+							uv2 = 1.0 - uv2
+							i = i + 1
+							uvs.append([uv1,uv2])
 			
 			#print(verts)
 			#print(faces)
@@ -3855,7 +4235,7 @@ class A3D2:
 		else:
 			self.nullmask = self.nullmask + str(1)
 					
-		if self.Config.A3DVersionSystem >= 2:
+		if self.Config.A3DVersionSystem <= 3:
 			if len(self.layers) > 0:
 				arr = A3D2Array()
 				arr.write(tfile,len(self.layers))
@@ -3866,7 +4246,7 @@ class A3D2:
 			else:
 				self.nullmask = self.nullmask + str(1)
 		
-		if self.Config.A3DVersionSystem >= 3:
+		if self.Config.A3DVersionSystem <= 2:
 			if len(self.cameras) > 0:
 				arr = A3D2Array()
 				arr.write(tfile,len(self.cameras))
