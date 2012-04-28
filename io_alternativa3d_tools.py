@@ -2087,6 +2087,7 @@ def loadA3d1(file,Config):
 	print('A3D Version %i.%i' %(1,0))
 	
 	a3d = A3D(file)
+	a3d.setConfig(Config)
 	a3d.read(file,a3dnull._mask)
 	
 	file.close()
@@ -2221,6 +2222,9 @@ class A3D:
 		self.nullmask = ""
 		self.Config = Config
 	
+	def	setConfig(self,Config):
+		self.Config = Config
+		
 	def reset(self):
 		self.boxes = []
 		self.geometries = []
@@ -2450,7 +2454,7 @@ class A3D:
 			#exit if we gone past amount
 			if i >= len(funcs):
 				break
-			#print(mask[mskindex])
+			print("mask="+str(mask[:mskindex]))
 			if mask[mskindex] == "0":
 				#read array of classes
 				arr = A3D2Array()
@@ -2537,7 +2541,7 @@ class A3DGeometry:
 				vbuf = A3DVertexBuffer(self.Config)
 				self._vertexBuffers.append(vbuf.read(file,mask,mskindex + self._mskindex))
 				self._mskindex = self._mskindex + vbuf._mskindex
-			
+
 		print("id="+str(self._id))
 					
 	def write(self,file):
@@ -2559,9 +2563,9 @@ class A3DImage:
 	def read(self,file,mask,mskindex):
 		print("read A3DImage - "+str(mask[mskindex]))
 		
-		if mask[mskindex + self._mskindex] == "0":
-			self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-		self._mskindex = self._mskindex + 1
+		#if mask[mskindex + self._mskindex] == "0":
+		self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		#self._mskindex = self._mskindex + 1
 		
 		if mask[mskindex + self._mskindex] == "0":
 			a3dstr = A3D2String()
@@ -2664,7 +2668,7 @@ class A3DMaterial:
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
-		print("read A3dMaterial - "+str(mask[mskindex]))
+		print("read A3dMaterial - "+str(mask[mskindex])+str(mask[mskindex+1])+str(mask[mskindex+2]))
 		if mask[mskindex + self._mskindex] == "0":
 			self._diffuseMapId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
 		self._mskindex = self._mskindex + 1
@@ -2731,32 +2735,52 @@ class A3DObject:
 
 	def read(self,file,mask,mskindex):
 		print("read A3DObject - "+str(mask[mskindex]))
-		self._boundBoxId = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
-		self._geometryId = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
-		self._id = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		if mask[mskindex + self._mskindex] == "0":
+			self._boundBoxId = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
 		
-		a3dstr = A3D2String()
-		a3dstr.read(file)
-		self._name = a3dstr.name
+		if mask[mskindex + self._mskindex] == "0":
+			self._geometryId = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
 		
-		self._parentId = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		if mask[mskindex + self._mskindex] == "0":
+			self._id = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
 		
-		arr = A3D2Array()
-		arr.read(file)
-		for a in range(arr.length):
-			a3dsurf = A3DSurface(self.Config)
-			self._surfaces.append(a3dsurf.read(file,mask,mskindex + self._mskindex))
-			#self._mskindex = self._mskindex + a3dsurf._mskindex
+		if mask[mskindex + self._mskindex] == "0":
+			a3dstr = A3D2String()
+			a3dstr.read(file)
+			self._name = a3dstr.name
+		self._mskindex = self._mskindex + 1
 		
-		a3dtran = A3D2Transform(self.Config)
-		a3dtran.read(file)
-		self._transformation = a3dtran
+		if mask[mskindex + self._mskindex] == "0":
+			self._parentId = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			arr = A3D2Array()
+			arr.read(file)
+			for a in range(arr.length):
+				a3dsurf = A3DSurface(self.Config)
+				self._surfaces.append(a3dsurf.read(file,mask,mskindex + self._mskindex))
+				self._mskindex = self._mskindex + a3dsurf._mskindex
+		
+		if mask[mskindex + self._mskindex] == "0":
+			a3dtran = A3DTransform(self.Config)
+			a3dtran.read(file)
+			self._transformation = a3dtran
+		self._mskindex = self._mskindex + 1
+		
+		#if mask[mskindex + self._mskindex] == "0":
+		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
+		#self._mskindex = self._mskindex + 1
 			
 		print("boundBoxId="+str(self._boundBoxId))
 		print("geometryId="+str(self._geometryId))
 		print("id="+str(self._id))
 		print("name="+self._name)
 		print("parentId="+str(self._parentId))
+		print("visible="+str(self._visible))
 		
 	def write(self,file):
 		print("write A3DObject")
@@ -2851,16 +2875,116 @@ class A3DSurface:
 
 	def read(self,file,mask,mskindex):
 		print("read A3DSurface - "+str(mask[mskindex]))
-		self._indexBegin = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
 		if mask[mskindex + self._mskindex] == "0":
-			self._materialId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+			self._indexBegin = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
 		self._mskindex = self._mskindex + 1
-		self._numTriangles = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._materialId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]			
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._numTriangles = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
 		return self
 		
 	def write(self,file):
 		print("write A3DSurface")
+
+class A3DTransform:
+	def __init__(self,Config):
+		self._matrix = A3DMatrix()
+		self.Config = Config
+		self._mskindex = 0
 		
+	def reset(self):
+		self._matrix = A3DMatrix()
+		self._mskindex = 0
+		self._matrix.reset()
+		
+	def getMatrix(self):	
+		matrx = mathutils.Matrix()
+		matrx[0][0], matrx[0][1], matrx[0][2], matrx[0][3] = self._matrix.a, self._matrix.b, self._matrix.c, self._matrix.d
+		matrx[1][0], matrx[1][1], matrx[1][2], matrx[1][3] = self._matrix.e, self._matrix.f, self._matrix.g, self._matrix.h
+		matrx[2][0], matrx[2][1], matrx[2][2], matrx[2][3] = self._matrix.i, self._matrix.j, self._matrix.k, self._matrix.l
+		return matrx
+		
+	def read(self,file):
+		self._matrix.read(file)
+		
+	def write(self,file):
+		self._matrix.write(file)
+		
+class A3DMatrix:
+	def __init__(self):
+		self.a = 0
+		self.b = 0
+		self.c = 0
+		self.d = 0
+		self.e = 0
+		self.f = 0
+		self.g = 0
+		self.h = 0
+		self.i = 0
+		self.j = 0
+		self.k = 0
+		self.l = 0
+		self._mskindex = 0
+	
+	def reset(self):
+		self.a = 0
+		self.b = 0
+		self.c = 0
+		self.d = 0
+		self.e = 0
+		self.f = 0
+		self.g = 0
+		self.h = 0
+		self.i = 0
+		self.j = 0
+		self.k = 0
+		self.l = 0
+		self._mskindex = 0
+		
+	def read(self,file):
+		temp = file.read(4)
+		self.a = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.b = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.c = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.d = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.e = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.f = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.g = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.h = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.i = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.j = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.k = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.l = struct.unpack('>f',temp)[0]
+	
+	def write(self,file):
+		file.write(struct.pack('>f',self.a))
+		file.write(struct.pack('>f',self.b))
+		file.write(struct.pack('>f',self.c))
+		file.write(struct.pack('>f',self.d))
+		file.write(struct.pack('>f',self.e))
+		file.write(struct.pack('>f',self.f))
+		file.write(struct.pack('>f',self.g))
+		file.write(struct.pack('>f',self.h))
+		file.write(struct.pack('>f',self.i))
+		file.write(struct.pack('>f',self.j))
+		file.write(struct.pack('>f',self.k))
+		file.write(struct.pack('>f',self.l))
 #==================================
 # A3D2
 #==================================
@@ -6484,12 +6608,12 @@ class A3DVersion:
 
 class A3D2Transform:
 	def __init__(self,Config):
-		self._matrix = A3DMatrix()
+		self._matrix = A3D2Matrix()
 		self.Config = Config
 		self._mskindex = 0
 		
 	def reset(self):
-		self._matrix = A3DMatrix()
+		self._matrix = A3D2Matrix()
 		self._mskindex = 0
 		self._matrix.reset()
 		
@@ -6506,7 +6630,7 @@ class A3D2Transform:
 	def write(self,file):
 		self._matrix.write(file)
 		
-class A3DMatrix:
+class A3D2Matrix:
 	def __init__(self):
 		self.a = 0
 		self.b = 0
