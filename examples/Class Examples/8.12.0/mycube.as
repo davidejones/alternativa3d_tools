@@ -1,4 +1,4 @@
-//Alternativa3D Class Export For Blender 2.57 and above
+//Alternativa3D Class Export For Blender 2.62 and above
 //Plugin Author: David E Jones, http://davidejones.com
 
 package {
@@ -39,14 +39,14 @@ package {
 			g.numVertices = 8;
 
 			var vertices:Array = [
-				1.000000, 1.000000, -1.000000,
-				1.000000, -1.000000, -1.000000,
-				-1.000000, -1.000000, -1.000000,
-				-1.000000, 1.000000, -1.000000,
-				1.000000, 0.999999, 1.000000,
-				0.999999, -1.000001, 1.000000,
-				-1.000000, -1.000000, 1.000000,
-				-1.000000, 1.000000, 1.000000,
+				1, 1, -1,
+				1, -1, -1,
+				-1, -1, -1,
+				-1, 1, -1,
+				1, 0.999999, 1,
+				0.999999, -1, 1,
+				-1, -1, 1,
+				-1, 1, 1,
 			];
 			var uvt:Array = new Array();
 			var ind:Array = [
@@ -84,6 +84,16 @@ package {
 			this.geometry = g;
 			this.addSurface(CubeMaterial, 0, 12);
 			this.calculateBoundBox();
+
+			this.x = 0.000000;
+			this.y = -6.000000;
+			this.z = 0.000000;
+			this.rotationX = 0.000000;
+			this.rotationY = -0.000000;
+			this.rotationZ = 0.000000;
+			this.scaleX = 1.000000;
+			this.scaleY = 1.000000;
+			this.scaleZ = 1.000000;
 		}
 	}
 }

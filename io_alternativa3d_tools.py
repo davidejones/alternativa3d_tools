@@ -25,6 +25,12 @@ def toRgb(RGBint):
 	Red =   (RGBint >> 16) & 255
 	return [Red,Green,Blue]
 
+def fromRgb(Red,Green,Blue):
+	RGBint = int(Red)
+	RGBint = (RGBint << 8) + int(Green)
+	RGBint = (RGBint << 8) + int(Blue)
+	return RGBint
+	
 def rgb2hex(rgb):
     #Given a len 3 rgb tuple of 0-1 floats, return the hex string
     return '0x%02x%02x%02x' % tuple([round(val*255) for val in rgb])
@@ -343,6 +349,8 @@ def WritePackageHeader(file,Config):
 		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
 		file.write("\timport alternativa.engine3d.materials.TextureMaterial;\n")
 		file.write("\timport alternativa.types.Texture;\n")
+		file.write("\timport alternativa.types.Matrix3D;\n")
+		file.write("\timport alternativa.types.Point3D;\n")
 		file.write("\timport flash.display.BlendMode;\n")
 		file.write("\timport flash.geom.Point;\n")
 		file.write("\timport flash.display.Bitmap;\n\n")
@@ -387,12 +395,14 @@ def WriteDocPackageHeader(file,Config):
 	
 	if Config.A3DVersionSystem == 1:
 		# version 5.6.0
+		file.write("\timport alternativa.engine3d.controllers.CameraController;\n")
 		file.write("\timport alternativa.engine3d.core.Scene3D;\n")
 		file.write("\timport alternativa.engine3d.core.Object3D;\n")
 		file.write("\timport alternativa.engine3d.core.Camera3D;\n")
 		file.write("\timport alternativa.engine3d.display.View;\n")
 		file.write("\timport alternativa.utils.MathUtils;\n")
 		file.write("\timport alternativa.utils.FPS;\n")
+		file.write("\timport alternativa.types.Point3D;\n")
 		file.write("\timport flash.display.Sprite;\n")
 		file.write("\timport flash.display.StageAlign;\n")
 		file.write("\timport flash.display.StageScaleMode;\n")
@@ -402,10 +412,12 @@ def WriteDocPackageHeader(file,Config):
 		file.write("\timport alternativa.engine3d.core.Camera3D;\n")
 		file.write("\timport alternativa.engine3d.core.Object3DContainer;\n")
 		file.write("\timport alternativa.engine3d.core.View;\n")
+		file.write("\timport alternativa.engine3d.controllers.SimpleObjectController;\n")
 		file.write("\timport flash.display.Sprite;\n")
 		file.write("\timport flash.display.StageAlign;\n")
 		file.write("\timport flash.display.StageScaleMode;\n")
 		file.write("\timport flash.events.Event;\n")
+		file.write("\timport flash.geom.Vector3D;\n")
 	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10) or (Config.A3DVersionSystem == 11):
 		# version 8.5.0, 8.8.0, 8.12.0, 8.17.0, 8.27.0
 		file.write("\timport alternativa.engine3d.core.Camera3D;\n")
@@ -413,11 +425,13 @@ def WriteDocPackageHeader(file,Config):
 		file.write("\timport alternativa.engine3d.core.Resource;\n")
 		file.write("\timport alternativa.engine3d.core.View;\n")
 		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
+		file.write("\timport alternativa.engine3d.controllers.SimpleObjectController;\n")
 		file.write("\timport flash.display.Sprite;\n")
 		file.write("\timport flash.display.Stage3D;\n")
 		file.write("\timport flash.display.StageAlign;\n")
 		file.write("\timport flash.display.StageScaleMode;\n")
 		file.write("\timport flash.events.Event;\n")
+		file.write("\timport flash.geom.Vector3D;\n")
 	else:
 		print("version not found")
 		
@@ -580,17 +594,6 @@ def writeByteArrayValues(file,verts,uvt,indices):
 		
 	file.write("];\n")
 
-def WriteObjPosRot(file,obj):
-	file.write("\t\t\tthis.rotationX = %.6f;\n" % obj.rotation_euler[0])
-	file.write("\t\t\tthis.rotationY = %.6f;\n" % obj.rotation_euler[1])
-	file.write("\t\t\tthis.rotationZ = %.6f;\n" % obj.rotation_euler[2])
-	file.write("\t\t\tthis.x = %.6f;\n" % obj.location[0])
-	file.write("\t\t\tthis.y = %.6f;\n" % obj.location[1])
-	file.write("\t\t\tthis.z = %.6f;\n" % obj.location[2])
-	file.write("\t\t\tthis.scaleX = %.6f;\n" % obj.scale[0])
-	file.write("\t\t\tthis.scaleY = %.6f;\n" % obj.scale[1])
-	file.write("\t\t\tthis.scaleZ = %.6f;\n" % obj.scale[2])
-
 def getCommonData(obj,flipUV=1):
 	mesh = obj.data
 	verts = mesh.vertices
@@ -640,11 +643,11 @@ def getCommonData(obj,flipUV=1):
 				ins.append(face.vertices[2])
 				#nr.append([[face.normal[0],face.normal[1],face.normal[2]]])
 				for i in range(len(face.vertices)):
-					if face.use_smooth:
-						v = mesh.vertices[face.vertices[i]]
-						nr.append([v.normal[0],v.normal[1],v.normal[2]])
-					else:
-						nr.append(face.normal)
+					#if face.use_smooth:
+					#	v = mesh.vertices[face.vertices[i]]
+					#	nr.append([v.normal[0],v.normal[1],v.normal[2]])
+					#else:
+					#	nr.append(face.normal)
 					hasFaceUV = len(mesh.uv_textures) > 0
 					if hasFaceUV:
 						uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
@@ -925,6 +928,24 @@ def getBoundBox(obj):
 	#paramsSetFloat("maxY", min(max(vec[1::3]), 1e10))
 	#paramsSetFloat("maxZ", min(max(vec[2::3]), 1e10))
 	return [minx,miny,minz,maxx,maxy,maxz]
+
+def writeTransform(file,obj,Config):
+	mesh = obj.data
+	
+	loc, rot, sca = obj.matrix_local.decompose()
+	rot1 = rot.to_euler()
+	mtrx = obj.matrix_local
+	
+	file.write("\n")
+	file.write("\t\t\tthis.x = %f;\n" % loc.x)
+	file.write("\t\t\tthis.y = %f;\n" % loc.y)
+	file.write("\t\t\tthis.z = %f;\n" % loc.z)
+	file.write("\t\t\tthis.rotationX = %f;\n" % rot1.x)
+	file.write("\t\t\tthis.rotationY = %f;\n" % rot1.y)
+	file.write("\t\t\tthis.rotationZ = %f;\n" % rot1.z)
+	file.write("\t\t\tthis.scaleX = %f;\n" % sca.x)
+	file.write("\t\t\tthis.scaleY = %f;\n" % sca.y)
+	file.write("\t\t\tthis.scaleZ = %f;\n" % sca.z)
 	
 def WriteClass8270(file,obj,Config):
 	mesh = obj.data
@@ -1084,6 +1105,9 @@ def WriteClass8270(file,obj,Config):
 	
 	#finishup
 	file.write("\t\t\tthis.calculateBoundBox();\n")
+	
+	writeTransform(file,obj,Config)
+	
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 
@@ -1173,6 +1197,9 @@ def WriteClass78(file,obj,Config):
 		file.write("\t\t\tcalculateFacesNormals();\n")
 		file.write("\t\t\tcalculateVerticesNormals();\n")
 		file.write("\t\t\tcalculateBounds();\n")
+		
+	writeTransform(file,obj,Config)
+	
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 	
@@ -1220,6 +1247,8 @@ def WriteClass75(file,obj,Config):
 	file.write("\t\t\t//g.weldVertices();\n")
 	file.write("\t\t\t//g.weldFaces();\n")
 	file.write("\t\t\tgeometry = g;\n\n")
+	
+	writeTransform(file,obj,Config)
 	
 	file.write("\t\t}\n")
 	file.write("\t}\n")
@@ -1339,6 +1368,9 @@ def WriteClass5(file,obj,Config):
 	#	file.write('], "'+mati[x]+'");\n')
 	#	file.write('\t\t\tsetMaterialToSurface('+mati[x]+', "'+mati[x]+'");\n')
 	
+	
+	writeTransform(file,obj,Config)
+	
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 
@@ -1381,6 +1413,7 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 			file.write('\t\tprivate var rootContainer:Object3D = scene.root = new Object3D("root");\n')
 			file.write("\t\tprivate var camera:Camera3D;\n")
 			file.write("\t\tprivate var view:View;\n\n")
+			file.write("\t\tprivate var controller:CameraController;\n\n")
 			
 			file.write("\t\tpublic function main() {\n\n")
 			
@@ -1389,8 +1422,12 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 			
 			file.write('\t\t\tcamera = new Camera3D("camera");\n')
 			file.write("\t\t\tcamera.fov = MathUtils.DEG1*100;\n")
-			file.write("\t\t\tcamera.z = -10;\n")
+			file.write("\t\t\tcamera.x = 10;\n")
 			file.write("\t\t\trootContainer.addChild(camera);\n\n")
+			
+			file.write('\t\t\tcontroller = new CameraController(stage);\n')
+			file.write('\t\t\tcontroller.camera = camera;\n')
+			file.write('\t\t\tcontroller.lookAt(new Point3D(0,0,0));\n\n')
 			
 			for i, obj in enumerate(objs):
 				file.write("\t\t\tobj"+str(i)+" = new "+cleanupString(obj.data.name)+"();\n")
@@ -1402,29 +1439,41 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 			file.write("\t\t\tview.interactive = true;\n")
 			file.write("\t\t\tFPS.init(this);\n\n")
 			
-			file.write("\t\t\tstage.addEventListener(Event.ENTER_FRAME, onEnterFrame);\n")
+			file.write("\t\t\taddEventListener(Event.ENTER_FRAME, onEnterFrame);\n")
 			file.write("\t\t\tstage.addEventListener(Event.RESIZE, onResize);\n")
+			file.write("\t\t\tonResize();\n")
 			file.write("\t\t}\n\n")
 			
-			file.write("\t\tprivate function onEnterFrame(e:Event):void {\n")
+			file.write("\t\tprivate function onEnterFrame(e:Event=null):void {\n")
 			file.write("\t\t\tscene.calculate();\n")
-			file.write("\t\t}\n")
+			file.write("\t\t\tcontroller.processInput();\n")
+			file.write("\t\t}\n\n")
+			
+			file.write("\t\tprivate function onResize(e:Event=null):void {\n")
+			file.write("\t\t\tview.width = stage.stageWidth;\n")
+			file.write("\t\t\tview.height = stage.stageHeight;\n")
+			file.write("\t\t\tonEnterFrame();\n")
+			file.write("\t\t}\n\n")
 		elif (Config.A3DVersionSystem == 2) or (Config.A3DVersionSystem == 3) or (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5) or (Config.A3DVersionSystem == 6):
 			# version 7.5.0, 7.5.1, 7.6.0, 7.7.0, 7.8.0
 			file.write("\t\tprivate var rootContainer:Object3DContainer = new Object3DContainer();\n")
 			file.write("\t\tprivate var camera:Camera3D;\n")
-			file.write("\t\tprivate var stage3D:Stage3D;\n\n")
+			file.write("\t\tprivate var controller:SimpleObjectController;\n\n")
 			
 			file.write("\t\tpublic function main() {\n\n")
 			
 			file.write("\t\t\tstage.align = StageAlign.TOP_LEFT;\n")
 			file.write("\t\t\tstage.scaleMode = StageScaleMode.NO_SCALE;\n\n")
 			
-			file.write("\t\t\tcamera = new Camera3D(0.1, 10000);\n")
+			file.write("\t\t\tcamera = new Camera3D();\n")
 			file.write("\t\t\tcamera.view = new View(stage.stageWidth, stage.stageHeight);\n")
 			file.write("\t\t\taddChild(camera.view);\n")
 			file.write("\t\t\taddChild(camera.diagram);\n")
-			file.write("\t\t\trootContainer.addChild(camera);\n\n")		
+			file.write("\t\t\tcamera.x = 10;\n")
+			file.write("\t\t\trootContainer.addChild(camera);\n\n")
+			
+			file.write("\t\t\tcontroller = new SimpleObjectController(stage,camera,100);\n")
+			file.write("\t\t\tcontroller.lookAt(new Vector3D(0,0,0));\n\n")
 			
 			for i, obj in enumerate(objs):
 				file.write("\t\t\tobj"+str(i)+" = new "+cleanupString(obj.data.name)+"();\n")
@@ -1443,7 +1492,8 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 			# version 8.5.0, 8.8.0, 8.12.0, 8.17.0, 8.27.0
 			file.write("\t\tprivate var rootContainer:Object3D = new Object3D();\n")
 			file.write("\t\tprivate var camera:Camera3D;\n")
-			file.write("\t\tprivate var stage3D:Stage3D;\n\n")
+			file.write("\t\tprivate var stage3D:Stage3D;\n")
+			file.write("\t\tprivate var controller:SimpleObjectController;\n\n")
 			
 			file.write("\t\tpublic function main() {\n\n")
 			
@@ -1454,7 +1504,11 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 			file.write("\t\t\tcamera.view = new View(stage.stageWidth, stage.stageHeight);\n")
 			file.write("\t\t\taddChild(camera.view);\n")
 			file.write("\t\t\taddChild(camera.diagram);\n")
-			file.write("\t\t\trootContainer.addChild(camera);\n\n")		
+			file.write("\t\t\tcamera.x = 10;\n")
+			file.write("\t\t\trootContainer.addChild(camera);\n\n")	
+
+			file.write("\t\t\tcontroller = new SimpleObjectController(stage,camera,100);\n")
+			file.write("\t\t\tcontroller.lookAt(new Vector3D(0,0,0));\n\n")
 			
 			for i, obj in enumerate(objs):
 				file.write("\t\t\tobj"+str(i)+" = new "+cleanupString(obj.data.name)+"();\n")
@@ -1642,8 +1696,8 @@ def a3dexport(file,Config):
 				
 				a3damb = A3D2AmbientLight(Config)
 				a3damb._boundBoxId = a3dbox._id
-				a3damb._color = int(rgb2hex(light.color), 0)
-				a3damb._id = len(ambientLights)
+				a3damb._color = fromRgb(light.color.r,light.color.g,light.color.b)
+				a3damb._id = int(len(ambientLights))
 				a3damb._intensity = int(light.energy)
 				a3damb._name = a3dstr
 				#a3damb._parentId = None
@@ -1661,7 +1715,7 @@ def a3dexport(file,Config):
 				a3domn._attenuationBegin = 0
 				a3domn._attenuationEnd = 0
 				a3domn._boundBoxId = a3dbox._id
-				a3domn._color = int(rgb2hex(light.color), 0)
+				a3domn._color = fromRgb(light.color.r,light.color.g,light.color.b)
 				a3domn._id = len(directionalLights)
 				a3domn._intensity = int(light.energy)
 				a3domn._name = a3dstr
@@ -1680,7 +1734,7 @@ def a3dexport(file,Config):
 				a3dspot._attenuationBegin = 0
 				a3dspot._attenuationEnd = 0
 				a3dspot._boundBoxId = a3dbox._id
-				a3dspot._color = int(rgb2hex(light.color), 0)
+				a3dspot._color = fromRgb(light.color.r,light.color.g,light.color.b)
 				#a3dspot._falloff = None
 				#a3dspot._hotspot = None
 				a3dspot._id = len(spotLights)
@@ -1699,7 +1753,7 @@ def a3dexport(file,Config):
 
 				a3ddir = A3D2DirectionalLight(Config)
 				a3ddir._boundBoxId = a3dbox._id
-				a3ddir._color = int(rgb2hex(light.color), 0)
+				a3ddir._color = fromRgb(light.color.r,light.color.g,light.color.b)
 				a3ddir._id = len(directionalLights)
 				a3ddir._intensity = int(light.energy)
 				a3ddir._name = a3dstr
@@ -4209,7 +4263,7 @@ class A3D2:
 				self.nullmask = self.nullmask + cla._optmask
 		else:
 			self.nullmask = self.nullmask + str(1)
-			
+
 		if len(self.animationClips) > 0:
 			#write
 			arr = A3D2Array()
@@ -4718,29 +4772,38 @@ class A3D2AmbientLight:
 		
 		
 	def write(self,file):
+		print("bb")
 		if self._boundBoxId is not None:
 			self._optmask = self._optmask + str(0)
 			file.write(struct.pack(">L",self._boundBoxId))
 		else:
 			self._optmask = self._optmask + str(1)
-		file.write(struct.pack(">L",self._color))
+		print("color")
+		print(self._color)
+		file.write(struct.pack("<L",self._color))
+		print("id")
 		file.write(struct.pack("Q",self._id))
+		print("intensity")
 		file.write(struct.pack(">L",self._intensity))
+		print("name")
 		if self._name is not None:
 			self._optmask = self._optmask + str(0)
 			self._name.write(file)
 		else:
 			self._optmask = self._optmask + str(1)
+		print("parentid")
 		if self._parentId is not None:
 			self._optmask = self._optmask + str(0)
 			file.write(struct.pack("Q",self._parentId))
 		else:
 			self._optmask = self._optmask + str(1)
+		print("transform")
 		if self._transform is not None:
 			self._optmask = self._optmask + str(0)
 			self._transform.write(file)
 		else:
 			self._optmask = self._optmask + str(1)
+		print("visible")
 		file.write(struct.pack("B",self._visible))
 
 class A3D2AnimationClip:

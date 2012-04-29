@@ -1,4 +1,4 @@
-//Alternativa3D Class Export For Blender 2.57 and above
+//Alternativa3D Class Export For Blender 2.62 and above
 //Plugin Author: David E Jones, http://davidejones.com
 
 package {
@@ -95,6 +95,16 @@ package {
 			//g.weldFaces();
 			geometry = g;
 
+
+			this.x = 0.000000;
+			this.y = -6.000000;
+			this.z = 0.000000;
+			this.rotationX = 0.000000;
+			this.rotationY = -0.000000;
+			this.rotationZ = 0.000000;
+			this.scaleX = 1.000000;
+			this.scaleY = 1.000000;
+			this.scaleZ = 1.000000;
 		}
 	}
 }
