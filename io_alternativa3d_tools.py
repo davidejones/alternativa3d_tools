@@ -1885,35 +1885,78 @@ def a3dexport(file,Config):
 					print("mts[x]="+str(mts[x]))
 					print("mat="+str(GetMaterialTexture(mats[x])))
 					
-					matname = GetMaterialTexture(mats[x])
-					if matname is not None:
-						#create images
-						a3dstr = A3D2String()
-						a3dstr.name = matname
-						a3dimg = A3D2Image(Config)
-						a3dimg._id = len(images)
-						a3dimg._url = a3dstr
-						images.append(a3dimg)
-						#create maps
-						a3dmap = A3D2Map(Config)
-						a3dmap._channel = 0
-						a3dmap._id = len(maps)
-						a3dmap._imageId = a3dimg._id
-						maps.append(a3dmap)
+					difmap = int("ffffffff",16)
+					glossmap = int("ffffffff",16)
+					lighmap = int("ffffffff",16)
+					normmap = int("ffffffff",16)
+					opacmap = int("ffffffff",16)
+					specmap = int("ffffffff",16)
+					reflmap = int("ffffffff",16)
+					
+					for tex in mats[x].texture_slots:
+						if tex is not None:
+							name=tex.name.lower()
+							a3dstr = A3D2String()
+							a3dstr.name = os.path.basename(tex.texture.image.filepath)
+							a3dimg = A3D2Image(Config)
+							a3dimg._id = len(images)
+							a3dimg._url = a3dstr
+							images.append(a3dimg)
+							
+							a3dmap = A3D2Map(Config)
+							a3dmap._channel = 0
+							a3dmap._id = len(maps)
+							a3dmap._imageId = a3dimg._id
+							maps.append(a3dmap)
+							
+							if name == 'diffuse':
+								difmap = a3dmap._id
+							elif name == 'normal':
+								normmap = a3dmap._id
+							elif name == 'specular':
+								specmap = a3dmap._id
+							elif name == 'opacity':
+								opacmap = a3dmap._id
+							elif name == 'glossiness':
+								glossmap = a3dmap._id
+							elif name == 'light':
+								lighmap = a3dmap._id
+							elif name == 'reflection':
+								reflmap = a3dmap._id
+							else:
+								#just write as diffuse if no matches
+								difmap = a3dmap._id
+					
+					#matname = GetMaterialTexture(mats[x])
+					#if matname is not None:
+					#	#create images
+					#	a3dstr = A3D2String()
+					#	a3dstr.name = matname
+					#	a3dimg = A3D2Image(Config)
+					#	a3dimg._id = len(images)
+					#	a3dimg._url = a3dstr
+					#	images.append(a3dimg)
+					#	#create maps
+					#	a3dmap = A3D2Map(Config)
+					#	a3dmap._channel = 0
+					#	a3dmap._id = len(maps)
+					#	a3dmap._imageId = a3dimg._id
+					#	maps.append(a3dmap)
 					
 					#create material
 					a3dmat = A3D2Material(Config)
-					if matname is not None:
-						a3dmat._diffuseMapId = a3dmap._id
-					else:
-						a3dmat._diffuseMapId = int("ffffffff",16)
-					a3dmat._glossinessMapId = int("ffffffff",16)
+					#if matname is not None:
+					#	a3dmat._diffuseMapId = a3dmap._id
+					#else:
+					#	a3dmat._diffuseMapId = int("ffffffff",16)
+					a3dmat._diffuseMapId = difmap
+					a3dmat._glossinessMapId = glossmap
 					a3dmat._id = len(materials)
-					a3dmat._lightMapId = int("ffffffff",16)
-					a3dmat._normalMapId = int("ffffffff",16)
-					a3dmat._opacityMapId = int("ffffffff",16)
-					a3dmat._reflectionCubeMapId = int("ffffffff",16)
-					a3dmat._specularMapId = int("ffffffff",16)
+					a3dmat._lightMapId = lighmap
+					a3dmat._normalMapId = normmap
+					a3dmat._opacityMapId = opacmap
+					a3dmat._reflectionCubeMapId = reflmap
+					a3dmat._specularMapId = specmap
 					materials.append(a3dmat)
 					
 					#create surface
@@ -3782,7 +3825,7 @@ class A3D2:
 						img = images[map._imageId]
 						
 						#new image
-						texture = bpy.data.textures.new("reflectioncube", type='IMAGE')
+						texture = bpy.data.textures.new("reflection", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
 						image = load_image(img._url, DIR)
 						texture.image = image
@@ -4749,7 +4792,7 @@ class A3D2AmbientLight:
 		
 		self._color = toRgb(struct.unpack(">L", file.read(struct.calcsize(">L")))[0])
 		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		self._intensity = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		self._intensity = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
 		
 		if mask[mskindex + self._mskindex] == "0":
 			a3dstr = A3D2String()
@@ -4784,7 +4827,7 @@ class A3D2AmbientLight:
 		print("id")
 		file.write(struct.pack("Q",self._id))
 		print("intensity")
-		file.write(struct.pack(">L",self._intensity))
+		file.write(struct.pack(">f",self._intensity))
 		print("name")
 		if self._name is not None:
 			self._optmask = self._optmask + str(0)
