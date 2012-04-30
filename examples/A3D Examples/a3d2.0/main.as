@@ -33,7 +33,7 @@ package {
 	
 	import flash.geom.Vector3D;
 	
-	[SWF(backgroundColor="#000000", frameRate="30", width="800", height="600")]
+	[SWF(backgroundColor="#000000", frameRate="60", width="800", height="600")]
 
 	public class main extends Sprite {
 		
@@ -46,8 +46,6 @@ package {
 		public function main() {
 			stage.align = StageAlign.TOP_LEFT;
 			stage.scaleMode = StageScaleMode.NO_SCALE;
-			
-			stage.addChild(new Output());
 			
 			camera = new Camera3D(1, 1000);
 			camera.view = new View(stage.stageWidth, stage.stageHeight, false, 0, 0, 4);
@@ -146,10 +144,9 @@ package {
 						bump.url = "../" + bump.url;
 						textures.push(bump);
 					}
-					//surface.material = new TextureMaterial(diffuse);
 					var sm:StandardMaterial = new StandardMaterial(diffuse, bump, specular, shininess, transparent);
 					sm.alphaThreshold = 1;
-					//sm.lightMap = ambient;
+					sm.lightMap = emission;
 					surface.material = sm;
 				}			
 			}
