@@ -1,8 +1,8 @@
 bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
-	'version': (1, 1, 5),
-	'blender': (2, 6, 2),
+	'version': (1, 1, 6),
+	'blender': (2, 6, 3),
 	'location': 'File > Import/Export;',
 	'description': 'Importer and exporter for Alternativa3D engine. Supports A3D and Actionscript"',
 	'warning': '',
@@ -3676,16 +3676,16 @@ class A3D2:
 			
 			# Fill the mesh with verts, edges, faces 
 			# from_pydata doesn't work correctly, it swaps vertices in some triangles 
-			#me.from_pydata(verts,[],faces)   # edges or faces should be [], or you ask for problems
+			me.from_pydata(verts,[],faces)   # edges or faces should be [], or you ask for problems
 			
-			me.vertices.add(len(verts))
-			me.faces.add(len(faces))
+			#me.vertices.add(len(verts))
+			#me.faces.add(len(faces))
 			
-			for i in range(len(verts)):
-				me.vertices[i].co=verts[i]
+			#for i in range(len(verts)):
+			#	me.vertices[i].co=verts[i]
 				
-			for i in range(len(faces)):
-				me.faces[i].vertices=faces[i]
+			#for i in range(len(faces)):
+			#	me.faces[i].vertices=faces[i]
 			
 			#select object
 			for object in bpy.data.objects:
@@ -3913,15 +3913,29 @@ class A3D2:
 			
 			if len(uvs) > 0:
 				#loop over all uv layers
-				uv_faces = me.uv_textures.active.data[:]
-				for fidx, uf in enumerate(uv_faces):
-					face = faces[fidx]
+				#uv_faces = me.uv_textures.active.data[:]
+				#for fidx, uf in enumerate(uv_faces):
+				#	face = faces[fidx]
+				#	v1, v2, v3 = face
+				#	if diffuseimg is not None:
+				#		uf.image = diffuseimg
+				#	uf.uv1 = uvs[v1]
+				#	uf.uv2 = uvs[v2]
+				#	uf.uv3 = uvs[v3]
+				uv_faces = me.uv_layers[0].data
+				fcc=0
+				for fc in range(len(uv_faces)):
+					if fcc >= len(uv_faces):
+						break
+					face = faces[fc]
 					v1, v2, v3 = face
-					if diffuseimg is not None:
-						uf.image = diffuseimg
-					uf.uv1 = uvs[v1]
-					uf.uv2 = uvs[v2]
-					uf.uv3 = uvs[v3]
+					#if diffuseimg is not None:
+					#	uv_faces[fcc].image = diffuseimg
+					uv_faces[fcc].uv = uvs[v1]
+					uv_faces[fcc+1].uv = uvs[v2]
+					uv_faces[fcc+2].uv = uvs[v3]
+					fcc = fcc + 3
+					
 			
 			#bpy.ops.object.editmode_toggle() 
 			#bpy.ops.uv.unwrap() 
