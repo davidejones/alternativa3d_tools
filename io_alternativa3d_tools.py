@@ -17,7 +17,7 @@ from bpy_extras.image_utils import load_image
 from bpy.props import *
 
 #==================================
-# Common Functions
+# Common Functions 
 #==================================
 def toRgb(RGBint):
 	Blue =  RGBint & 255

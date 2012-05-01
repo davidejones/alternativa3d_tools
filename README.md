@@ -54,9 +54,10 @@ Changelog
 - Export tangents for classes and a3d
 - Flat or Smooth normals exports
 - Fixed export documentclass to do something useful
-- Updated mesh menu with a3dclasses
+- Partially Updated mesh menu with a3dclasses
 - Updated class examples and added a3d examples
-- Fixed copying images when exporting
+- Import of version 1.0 (limited testing, appears to work)
+- Added debugplayers to show loaded a3d data
 
 ### 1.1.4
 - Added example exports for each version with built swf
