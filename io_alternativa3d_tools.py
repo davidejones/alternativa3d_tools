@@ -53,7 +53,7 @@ def ConvertQuadsToTris(obj):
 	bpy.ops.mesh.select_all(action='DESELECT')
 	bpy.ops.mesh.select_all(action='SELECT')
 	mesh = obj.data
-	for f in mesh.faces:
+	for f in mesh.polygons:
 		f.select = True	
 	bpy.ops.mesh.quads_convert_to_tris()
 	#Return to object mode
@@ -334,7 +334,7 @@ def asexport(file,Config,fp):
 
 def GetMeshVertexCount(Mesh):
     VertexCount = 0
-    for Face in Mesh.faces:
+    for Face in Mesh.polygons:
         VertexCount += len(Face.vertices)
     return VertexCount
 	
@@ -453,7 +453,7 @@ def setupMaterials(file,obj,Config):
 	Materials = mesh.materials
 	if Materials.keys():
 		MaterialIndexes = {}
-		for Face in mesh.faces:
+		for Face in mesh.polygons:
 			if Materials[Face.material_index] not in MaterialIndexes:
 				MaterialIndexes[Materials[Face.material_index]] = len(MaterialIndexes)
 		Materials = [Item[::-1] for Item in MaterialIndexes.items()]
@@ -615,7 +615,7 @@ def getCommonData(obj,flipUV=1):
 	if hasFaceUV:
 		for uv_index, uv_itself in enumerate(uvtex.data):
 			uvs = uv_itself.uv1, uv_itself.uv2, uv_itself.uv3, uv_itself.uv4
-			for vertex_index, vertex_itself in enumerate(mesh.faces[uv_index].vertices):
+			for vertex_index, vertex_itself in enumerate(mesh.polygons[uv_index].vertices):
 				vertex = mesh.vertices[vertex_itself]
 				vertices_list.append(vertex_itself)
 				vertices_co_list.append(vertex.co.xyz)
@@ -624,10 +624,10 @@ def getCommonData(obj,flipUV=1):
 				new_index += 1
 				uv_coord_list.append(uvs[vertex_index])
 				vs.append([vertices_co_list[-1][0],vertices_co_list[-1][1],vertices_co_list[-1][2]])
-				if mesh.faces[uv_index].use_smooth:
+				if mesh.polygons[uv_index].use_smooth:
 					nr.append([normals_list[-1][0],normals_list[-1][1],normals_list[-1][2]])
 				else:
-					nr.append(mesh.faces[uv_index].normal)
+					nr.append(mesh.polygons[uv_index].normal)
 				ins.append(vertices_index_list[-1])
 				if flipUV == 1:
 					uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
@@ -636,7 +636,7 @@ def getCommonData(obj,flipUV=1):
 				uvt.append(uv)
 	else:
 		# if there are no image textures, output the old way
-		for face in mesh.faces:
+		for face in mesh.polygons:
 			if len(face.vertices) > 0:
 				ins.append(face.vertices[0])
 				ins.append(face.vertices[1])
@@ -1118,7 +1118,7 @@ def collectSurfaces(mesh):
 	triangles = -1
 	lastmat = None
 	start,end,items,mts,mats = [],[],[],[],[]
-	for face in mesh.faces:
+	for face in mesh.polygons:
 		triangles = triangles + 1
 		if face.material_index <= len(Materials)-1:
 			srcmat = Materials[face.material_index]
@@ -1156,7 +1156,7 @@ def WriteClass78(file,obj,Config):
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 		
 	cn=-1
-	for face in mesh.faces:
+	for face in mesh.polygons:
 		cn +=1
 		file.write('\t\t\t\taddFace(Vector.<Vertex>([\n')
 		if len(face.vertices) > 0:
@@ -1216,7 +1216,7 @@ def WriteClass75(file,obj,Config):
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 	file.write("\t\t\tvar g:Geometry = new Geometry();\n\n")
 	
-	for face in mesh.faces:
+	for face in mesh.polygons:
 		file.write('\t\t\t\tg.addFace(Vector.<Vertex>([\n')
 		for i in range(len(face.vertices)):
 			hasFaceUV = len(mesh.uv_textures) > 0
@@ -1323,7 +1323,7 @@ def WriteClass5(file,obj,Config):
 	x=0
 	lastmat = None
 	items,mts,fcs,temp = [],[],[],[]
-	for face in mesh.faces:
+	for face in mesh.polygons:
 		if face.material_index <= len(Materials)-1:
 			srcmat = Materials[face.material_index]
 			if srcmat not in items:
