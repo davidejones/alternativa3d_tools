@@ -609,12 +609,17 @@ def getCommonData(obj,flipUV=1):
 	uvtex = mesh.uv_textures.active
 	has_orco = checkForOrco(obj)
 	
+	uvtex = mesh.uv_layers[0]
+	uv_layer = mesh.uv_layers[0]
+	
 	if has_orco:
 		print("HAS ORCO")
 	
 	if hasFaceUV:
-		for uv_index, uv_itself in enumerate(uvtex.data):
-			uvs = uv_itself.uv1, uv_itself.uv2, uv_itself.uv3, uv_itself.uv4
+
+		y=0
+		for uv_index in range(len(mesh.polygons)):
+			uvs = uv_layer.data[y].uv, uv_layer.data[y+1].uv, uv_layer.data[y+2].uv, uv_layer.data[uv_index+3].uv
 			for vertex_index, vertex_itself in enumerate(mesh.polygons[uv_index].vertices):
 				vertex = mesh.vertices[vertex_itself]
 				vertices_list.append(vertex_itself)
@@ -634,6 +639,7 @@ def getCommonData(obj,flipUV=1):
 				else:
 					uv = [uv_coord_list[-1][0], uv_coord_list[-1][1]]
 				uvt.append(uv)
+				y=y+1
 	else:
 		# if there are no image textures, output the old way
 		for face in mesh.polygons:
@@ -642,17 +648,6 @@ def getCommonData(obj,flipUV=1):
 				ins.append(face.vertices[1])
 				ins.append(face.vertices[2])
 				#nr.append([[face.normal[0],face.normal[1],face.normal[2]]])
-				for i in range(len(face.vertices)):
-					#if face.use_smooth:
-					#	v = mesh.vertices[face.vertices[i]]
-					#	nr.append([v.normal[0],v.normal[1],v.normal[2]])
-					#else:
-					#	nr.append(face.normal)
-					hasFaceUV = len(mesh.uv_textures) > 0
-					if hasFaceUV:
-						uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
-						uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
-						uvt.append(uv)
 		for v in mesh.vertices:
 			vs.append([v.co[0],v.co[1],v.co[2]])
 			nr.append([v.normal[0],v.normal[1],v.normal[2]])
