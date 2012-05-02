@@ -15,6 +15,7 @@ import bpy_extras.io_utils
 from bpy import ops
 from bpy_extras.image_utils import load_image
 from bpy.props import *
+from ctypes import *
 
 #==================================
 # Common Functions 
@@ -1562,7 +1563,7 @@ class A3DExporter(bpy.types.Operator):
 	A3DVersions.append(("3", "2.4", ""))
 	A3DVersions.append(("4", "2.0", ""))
 	A3DVersions.append(("5", "1.0", ""))
-	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D .A3D to export to", items=A3DVersions, default="4")
+	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D .A3D to export to", items=A3DVersions, default="1")
 	
 	ExportModes = []
 	ExportModes.append(("1", "Selected Objects", ""))
@@ -1588,7 +1589,13 @@ class A3DExporter(bpy.types.Operator):
 			file.close()
 			file = open(filePath, 'ab')
 			Config = A3DExporterSettings(A3DVersionSystem=self.A3DVersionSystem,ExportMode=self.ExportMode,CompressData=self.CompressData,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents)
-			a3dexport(file,Config)
+			
+			if self.A3DVersionSystem == "5":
+				#export v1
+				a3d1export(file,Config)
+			else:
+				#export v2
+				a3d2export(file,Config)
 			
 			file.close()
 		except Exception as e:
@@ -1599,7 +1606,7 @@ class A3DExporter(bpy.types.Operator):
 		context.window_manager.fileselect_add(self)
 		return {'RUNNING_MODAL'}
 
-def a3dexport(file,Config):
+def a3d2export(file,Config):
 	print('Export to Alternativa3d binary started...\n')
 			
 	if Config.ExportMode == 1:
@@ -2131,6 +2138,9 @@ def a3dexport(file,Config):
 	
 	print('Export Completed...\n')
 
+def a3d1export(file,Config):
+	print("Coming soon..")
+	
 #==================================
 # A3D IMPORTER
 #==================================
@@ -6301,17 +6311,55 @@ class A3D2VertexBuffer:
 		#vertexcount
 		file.write(struct.pack(">H",self._vertexCount))
 	
-	def packVertexBuffer(self,file):
+	def packVertexBuffer_newish(self,file):
 		basetable,shifttable = {},{}
+		fcomp = Float16Compressor()
 		for byte in self._byteBuffer:
+			print(fcomp.compress(byte))
 			f32 = int(byte)
 			#h = ((f32>>16)&0x8000)|((((f32&0x7f800000)-0x38000000)>>13)&0x7c00)|((f32>>13)&0x03ff)
 			basetable, shifttable = self.generatetables()
+			#print(basetable)
+			#print(shifttable)
 			h=basetable[(f32>>23)&0x1ff]+((f32&0x007fffff)>>shifttable[(f32>>23)&0x1ff])
 			print("float %f" % byte)
 			print(h)
+			print(struct.pack(">H",h))
 			file.write(struct.pack(">H",h))
 	
+	def packVertexBuffer(self,file):
+		F16_EXPONENT_BITS = 0x1F
+		F16_EXPONENT_SHIFT = 10
+		F16_EXPONENT_BIAS = 15
+		F16_MANTISSA_BITS = 0x3ff
+		F16_MANTISSA_SHIFT =  (23 - F16_EXPONENT_SHIFT)
+		F16_MAX_EXPONENT =  (F16_EXPONENT_BITS << F16_EXPONENT_SHIFT)
+
+		for float32 in self._byteBuffer:
+			a = struct.pack('>f',float32)
+			b = binascii.hexlify(a)
+
+			f32 = int(b,16)
+			f16 = 0
+			sign = (f32 >> 16) & 0x8000
+			exponent = ((f32 >> 23) & 0xff) - 127
+			mantissa = f32 & 0x007fffff
+			#m, e = math.frexp(param)
+				
+			if exponent == 128:
+				f16 = sign | F16_MAX_EXPONENT
+				if mantissa:
+					f16 |= (mantissa & F16_MANTISSA_BITS)
+			elif exponent > 15:
+				f16 = sign | F16_MAX_EXPONENT
+			elif exponent > -15:
+				exponent += F16_EXPONENT_BIAS
+				mantissa >>= F16_MANTISSA_SHIFT
+				f16 = sign | exponent << F16_EXPONENT_SHIFT | mantissa
+			else:
+				f16 = sign
+			file.write(struct.pack(">H",f16))
+			
 	def packVertexBuffer_OLD2(self,file):
 		#http://gamedev.stackexchange.com/questions/17326/conversion-of-a-number-from-single-precision-floating-point-representation-to-a
 		F16_EXPONENT_BITS = 0x1F
@@ -6523,13 +6571,7 @@ class A3D2VertexBuffer:
 			  shifttable[i|0x000]=13
 			  shifttable[i|0x100]=13
 		return basetable,shifttable
-	
-class VBits:
-	def __init__(self):
-		self.f = 0
-		self.si = 0x00000000
-		self.ui = 0x00000000
-		
+			
 class A3D2Layer:
 	def __init__(self,Config):
 		self._id = 0
@@ -6815,6 +6857,64 @@ class A3D2Matrix:
 		file.write(struct.pack('>f',self.j))
 		file.write(struct.pack('>f',self.k))
 		file.write(struct.pack('>f',self.l))
+
+class VBits:
+	def __init__(self):
+		#self.f = c_float(0)
+		#self.si = c_int(0x00000000)
+		#self.ui = c_uint(0x00000000)
+		self.f = c_float()
+		self.si = c_int()
+		self.ui = c_uint()
+
+class Float16Compressor:
+	def __init__(self):
+		self.shift = c_int(13)
+		self.shiftSign = c_int(16)
+
+		self.infN = c_int(0x7F800000) # flt32 infinity
+		self.maxN = c_int(0x477FE000) # max flt16 normal as a flt32
+		self.minN = c_int(0x38800000) # min flt16 normal as a flt32
+		self.signN = c_int(0x80000000) # flt32 sign bi
+
+		self.infC = c_int(self.infN.value >> self.shift.value)
+		self.nanN = c_int((self.infC.value + 1) << self.shift.value) # minimum flt16 nan as a flt32
+		self.maxC = c_int(self.maxN.value >> self.shift.value)
+		self.minC = c_int(self.minN.value >> self.shift.value)
+		self.signC = c_int(self.signN.value >> self.shiftSign.value) # flt16 sign bit
+
+		self.mulN = c_int(0x52000000) # (1 << 23) / minN
+		self.mulC = c_int(0x33800000) # minN / (1 << (23 - shift))
+
+		self.subC = c_int(0x003FF) # max flt32 subnormal down shifted
+		self.norC = c_int(0x00400) # min flt32 normal down shifted
+
+		self.maxD = c_int(self.infC.value - self.maxC.value - 1)
+		self.minD = c_int(self.minC.value - self.subC.value - 1)
+		
+	def compress(self,float32):
+		print("compress")
+		
+		v = VBits()
+		s = VBits()
+
+		v.f = c_float(float(float32))
+		sign = c_uint(v.si.value & self.signN.value)
+		v.si.value ^= sign.value
+		sign.value >>= self.shiftSign.value
+		s.si.value = self.mulN.value
+		s.si.value = c_int(int(s.f.value * v.f.value)).value
+		v.si.value ^= (s.si.value ^ v.si.value) & -(self.minN.value > v.si.value)
+		v.si.value ^= (self.infN.value ^ v.si.value) & -((self.infN.value > v.si.value) & (v.si.value > self.maxN.value))
+		v.si.value ^= (self.nanN.value ^ v.si.value) & -((self.nanN.value > v.si.value) & (v.si.value > self.infN.value))
+		v.ui.value >>= self.shift.value
+		v.si.value ^= ((v.si.value - self.maxD.value) ^ v.si.value) & -(v.si.value > self.maxC.value)
+		v.si.value ^= ((v.si.value - self.minD.value) ^ v.si.value) & -(v.si.value > self.subC.value)
+		return v.ui.value | sign.value
+		
+	def decompress(self,float16):
+		print("decompress")
+
 		
 #==================================
 # Custom Meshes
