@@ -2139,7 +2139,89 @@ def a3d2export(file,Config):
 	print('Export Completed...\n')
 
 def a3d1export(file,Config):
-	print("Coming soon..")
+	if Config.ExportMode == 1:
+		#get selected objects that are mesh
+		objs = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+		print('Export selection only...\n')
+	else:
+		#get all objects that are mesh
+		objs = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+		print('Export all meshes...\n')
+		
+	boxes = []
+	geometries = []
+	indexBuffers = []
+	vertexBuffers = []
+	images = []
+	maps = []
+	materials = []
+	objects = []
+	
+	if len(objs) > 0:
+		print("Exporting meshes...\n")
+		for obj in objs:
+			#convert to triangles
+			ConvertQuadsToTris(obj)
+		
+			#data
+			mesh = obj.data
+			
+			#get raw geometry data
+			vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+			#get surface data
+			start,end,mts,mats = collectSurfaces(mesh)
+					
+			#create mesh boundbox
+			a3dbox = A3DBox(Config)
+			a3dbox._box = bb
+			a3dbox._id = len(boxes)
+			boxes.append(a3dbox)
+			
+			#create indexbuffer
+			a3dibuf = A3DIndexBuffer(Config)
+			for x in range(len(ins)):
+				a3dibuf._byteBuffer.append(ins[x])
+			a3dibuf._indexCount = len(a3dibuf._byteBuffer)
+			indexBuffers.append(a3dibuf)
+			
+			#create vertexbuffer
+			a3dvbuf = A3DVertexBuffer(Config)
+			attar = []
+			if len(vs) > 0:
+				attar.append(0)
+			if (len(uvt) > 0) and (Config.ExportUV == 1):
+				attar.append(5)
+			if (len(nr) > 0) and (Config.ExportNormals == 1):
+				attar.append(1)
+			if (len(tan) > 0) and (Config.ExportTangents == 1):
+				attar.append(2)
+			a3dvbuf._attributes = attar
+			j=0
+			for v in vs:
+				if 0 in attar:
+					a3dvbuf._byteBuffer.append(v[0]) #vert1
+					a3dvbuf._byteBuffer.append(v[1]) #vert2
+					a3dvbuf._byteBuffer.append(v[2]) #vert3
+				if 5 in attar and (Config.ExportUV == 1):
+					a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
+					a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
+				if 1 in attar and (Config.ExportNormals == 1):
+					a3dvbuf._byteBuffer.append(nr[j][0]) #normal1
+					a3dvbuf._byteBuffer.append(nr[j][1]) #normal2
+					a3dvbuf._byteBuffer.append(nr[j][2]) #normal3
+				if 2 in attar and (Config.ExportTangents == 1):
+					a3dvbuf._byteBuffer.append(tan[j][0]) #tan1
+					a3dvbuf._byteBuffer.append(tan[j][1]) #tan2
+					a3dvbuf._byteBuffer.append(tan[j][2]) #tan3
+					a3dvbuf._byteBuffer.append(-1) #tan4 - static input handedness
+				j = j +1
+			a3dvbuf._vertexCount = int(len(vs)) #this works for cube
+			vertexBuffers.append(a3dvbuf)
+	
+	a3d = A3D(boxes,geometries,images,maps,materials,objects,Config)
+	a3d.write(file)
+	
+	print('Export Completed...\n')
 	
 #==================================
 # A3D IMPORTER
@@ -2494,8 +2576,8 @@ class A3D:
 				
 		return a3d2
 	
-	def render(self):
-		print("render")
+	def write(self,file):
+		print("write a3d")
 	
 	def read(self,file,mask):
 		print("reada3d")
@@ -3862,71 +3944,12 @@ class A3D2:
 						mtex.use_map_specular = True
 						mtex.uv_layer = uvname
 			
-			#reorder uvs to current face order
-			#newuvs = []
-			#for i in range(len(me.faces)):
-			#	for j in range(len(me.faces[i].vertices)):
-			#		ut = [ uvs[me.faces[i].vertices[j]][0] , uvs[me.faces[i].vertices[j]][1] ]
-			#		newuvs.append(ut)
-			
-			#i=0
-			#for u in uvlayer.data:
-			#	if diffuseimg is not None:
-			#		u.image = diffuseimg
-			#	u.uv[0][0] = newuvs[i][0]
-			#	u.uv[0][1] = newuvs[i][1]
-			#	i=i+1	
-			
-			#x=0
-			#each face
-			#for i in range(len(me.faces)):
-			#	#set image in uv window to diffuseimg
-			#	if diffuseimg is not None:
-			#		uvlayer.data[i].image = diffuseimg
-			#	#for each vert in face set uv vert
-			#	for j in range(len(me.faces[i].vertices)):
-			#		uvlayer.data[i].uv[j][0] = uvs[i][0]
-			#		uvlayer.data[i].uv[j][1] = uvs[i][1]
-			#		#uvlayer.data[i].uv[j][1] = 1.0 + uvlayer.data[i].uv[j][1] #flip back
-			#		x=x+1
-			
-			#print(uvs)
-			
-			#print final uvs
-			#for i in range(len(me.faces)):
-			#    for j in range(len(me.faces[i].vertices)):
-			#        uv = [me.uv_textures.active.data[i].uv[j][0], me.uv_textures.active.data[i].uv[j][1]]
-			#        print(me.uv_textures.active.data[i].uv1)
-			#        print(me.uv_textures.active.data[i].uv2)
-			#        print(me.uv_textures.active.data[i].uv3)
-
 			#set norms
 			if len(norms) > 0:
 				for i in range(len(norms)):
 					me.vertices[i].normal=norms[i]
 			
-			#set uvs
-			#for i in range(len(faces)):
-			#	if diffuseimg is not None:
-			#		uvlayer.data[i].image = diffuseimg
-			#	uvlayer.data[i].uv1=uvs[faces[i][0]]
-			#	uvlayer.data[i].uv2=uvs[faces[i][1]]
-			#	uvlayer.data[i].uv3=uvs[faces[i][2]]
-			#	print(uvlayer.data[i].uv1)
-			#	print(uvlayer.data[i].uv2)
-			#	print(uvlayer.data[i].uv3)
-			
 			if len(uvs) > 0:
-				#loop over all uv layers
-				#uv_faces = me.uv_textures.active.data[:]
-				#for fidx, uf in enumerate(uv_faces):
-				#	face = faces[fidx]
-				#	v1, v2, v3 = face
-				#	if diffuseimg is not None:
-				#		uf.image = diffuseimg
-				#	uf.uv1 = uvs[v1]
-				#	uf.uv2 = uvs[v2]
-				#	uf.uv3 = uvs[v3]
 				uv_faces = me.uv_layers[0].data
 				fcc=0
 				for fc in range(len(uv_faces)):
@@ -3935,16 +3958,12 @@ class A3D2:
 					face = faces[fc]
 					v1, v2, v3 = face
 					#if diffuseimg is not None:
-					#	uv_faces[fcc].image = diffuseimg
+						#me.uv_textures[fcc].image = diffuseimg
 					uv_faces[fcc].uv = uvs[v1]
 					uv_faces[fcc+1].uv = uvs[v2]
 					uv_faces[fcc+2].uv = uvs[v3]
 					fcc = fcc + 3
-					
-			
-			#bpy.ops.object.editmode_toggle() 
-			#bpy.ops.uv.unwrap() 
-			#bpy.ops.object.editmode_toggle() 
+
 			me.validate()
 			me.update(calc_edges=True) 		
 
@@ -4223,6 +4242,30 @@ class A3D2:
 			
 			#add uv
 			uvlayer = me.uv_textures.new()
+			
+			#set norms
+			if len(norms) > 0:
+				for i in range(len(norms)):
+					me.vertices[i].normal=norms[i]
+
+			#set uvs		
+			if len(uvs) > 0:
+				uv_faces = me.uv_layers[0].data
+				fcc=0
+				for fc in range(len(uv_faces)):
+					if fcc >= len(uv_faces):
+						break
+					face = faces[fc]
+					v1, v2, v3 = face
+					#if diffuseimg is not None:
+						#me.uv_textures[fcc].image = diffuseimg
+					uv_faces[fcc].uv = uvs[v1]
+					uv_faces[fcc+1].uv = uvs[v2]
+					uv_faces[fcc+2].uv = uvs[v3]
+					fcc = fcc + 3
+					
+			me.validate()
+			me.update(calc_edges=True) 		
 		
 	def read(self,file,mask,ver):
 		print("reada3d2")
@@ -6271,10 +6314,15 @@ class A3D2VertexBuffer:
 		
 		arr = A3D2Array()
 		arr.read(file)
-		if self.Config.A3DVersionSystem == 1:
+		if self.Config.A3DVersionSystem == "1":
 			#2.6
 			for a in range(int(arr.length/2)):
-				self._byteBuffer.append(struct.unpack(">H",file.read(struct.calcsize(">H")))[0])
+				#h = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
+				h = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
+				x = self.HalfToFloat(h)
+				str = struct.pack('I',x)
+				hf = struct.unpack('f',str)[0]
+				self._byteBuffer.append(hf)
 		else:
 			for a in range(int(arr.length/4)):
 				self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
@@ -6508,7 +6556,7 @@ class A3D2VertexBuffer:
 				return s | 0x7c00
 			return s | (e << 10) | (f >> 13)
 		
-	def HalfToFloat(h):
+	def HalfToFloat(self,h):
 		#http://forums.devshed.com/python-programming-11/converting-half-precision-floating-point-numbers-from-hexidecimal-to-decimal-576842.html
 		s = int((h >> 15) & 0x00000001)    # sign
 		e = int((h >> 10) & 0x0000001f)    # exponent
