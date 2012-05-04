@@ -16,6 +16,8 @@ from bpy import ops
 from bpy_extras.image_utils import load_image
 from bpy.props import *
 from ctypes import *
+import time
+from mathutils import Vector, Matrix
 
 #==================================
 # Common Functions 
@@ -250,7 +252,7 @@ class ASExporter(bpy.types.Operator):
 	CopyImgs = BoolProperty(name="Copy Images", description="Copy images to destination folder of export", default=True)
 	ByClass = BoolProperty(name="Use ByteArray Data (v8.27+)", description="Exports mesh data to compressed bytearray in as3", default=False)
 	
-	ExportAnim = BoolProperty(name="Animation", description="Animation", default=False)
+	#ExportAnim = BoolProperty(name="Animation", description="Animation", default=False)
 	ExportUV = BoolProperty(name="Include UVs", description="Normals", default=True)
 	ExportNormals = BoolProperty(name="Include Normals", description="Normals", default=True)
 	ExportTangents = BoolProperty(name="Include Tangents", description="Tangents", default=True)
@@ -264,13 +266,15 @@ class ASExporter(bpy.types.Operator):
 		if not filePath.lower().endswith('.as'):
 			filePath += '.as'
 		try:
+			time1 = time.clock()
 			print('Output file : %s' %filePath)
 			#file = open(filePath, 'wb')
 			file = open(filePath, 'w')
-			Config = ASExporterSettings(A3DVersionSystem=self.A3DVersionSystem,CompilerOption=self.CompilerOption,ExportMode=self.ExportMode, DocClass=self.DocClass,CopyImgs=self.CopyImgs,ByClass=self.ByClass,ExportAnim=self.ExportAnim,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents)
+			Config = ASExporterSettings(A3DVersionSystem=self.A3DVersionSystem,CompilerOption=self.CompilerOption,ExportMode=self.ExportMode, DocClass=self.DocClass,CopyImgs=self.CopyImgs,ByClass=self.ByClass,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents)
 			asexport(file,Config,fp)
 			
 			file.close()
+			print(".as export time: %.2f" % (time.clock() - time1))
 		except Exception as e:
 			print(e)
 			file.close()
@@ -609,15 +613,13 @@ def getCommonData(obj,flipUV=1):
 	new_index = 0
 	uvtex = mesh.uv_textures.active
 	has_orco = checkForOrco(obj)
-	
-	uvtex = mesh.uv_layers[0]
-	uv_layer = mesh.uv_layers[0]
-	
+		
 	if has_orco:
 		print("HAS ORCO")
-	
+		
 	if hasFaceUV:
-
+		uvtex = mesh.uv_layers[0]
+		uv_layer = mesh.uv_layers[0]
 		y=0
 		for uv_index in range(len(mesh.polygons)):
 			uvs = uv_layer.data[y].uv, uv_layer.data[y+1].uv, uv_layer.data[y+2].uv, uv_layer.data[uv_index+3].uv
@@ -1584,6 +1586,7 @@ class A3DExporter(bpy.types.Operator):
 		if not filePath.lower().endswith('.a3d'):
 			filePath += '.a3d'
 		try:
+			time1 = time.clock()
 			print('Output file : %s' %filePath)
 			file = open(filePath, 'wb')
 			file.close()
@@ -1598,6 +1601,7 @@ class A3DExporter(bpy.types.Operator):
 				a3d2export(file,Config)
 			
 			file.close()
+			print(".a3d export time: %.2f" % (time.clock() - time1))
 		except Exception as e:
 			print(e)
 			file.close()
@@ -1622,16 +1626,23 @@ def a3d2export(file,Config):
 	objs_arm = []
 	objs_lights = []
 	objs_cameras = []
+	objs_empties = []
+	objs_a3ditems = []
 	
 	for obj in objs:
-		if obj.type == 'MESH':
-			objs_mesh.append(obj)
-		if obj.type == 'ARMATURE':
-			objs_arm.append(obj)
-		if obj.type == 'LAMP':
-			objs_lights.append(obj)
-		if obj.type == 'CAMERA':
-			objs_cameras.append(obj)
+		if "a3dtype" in obj:
+			objs_a3ditems.append(obj)
+		else:
+			if obj.type == 'MESH':
+				objs_mesh.append(obj)
+			if obj.type == 'ARMATURE':
+				objs_arm.append(obj)
+			if obj.type == 'LAMP':
+				objs_lights.append(obj)
+			if obj.type == 'CAMERA':
+				objs_cameras.append(obj)
+			if obj.type == 'EMPTY':
+				objs_empties.append(obj)
 	
 	
 	ambientLights = []
@@ -1658,6 +1669,160 @@ def a3d2export(file,Config):
 	cameras = []
 	lods = []
 	
+	#a3d custom objs
+	if len(objs_a3ditems) > 0:
+		for obj in objs_a3ditems:
+			if obj["a3dtype"] == 'A3DSprite3D':
+				print('A3DSprite3D Found')
+				mesh = obj.data
+				start,end,mts,mats = collectSurfaces(mesh)
+				
+				#create material
+				#boundbox
+				a3dbox = A3D2Box(Config)
+				a3dbox._box = getBoundBox(obj)
+				a3dbox._id = len(boxes)
+				boxes.append(a3dbox)
+			
+				#name
+				a3dstr = A3D2String()
+				a3dstr.name = cleanupString(mesh.name)
+				
+				#create transform/matrix
+				a3dtrans = A3D2Transform(Config)
+				trns = getObjTransform(obj)
+				a3dtrans._matrix.a = trns[0]
+				a3dtrans._matrix.b = trns[1]
+				a3dtrans._matrix.c = trns[2]
+				a3dtrans._matrix.d = trns[3]
+				a3dtrans._matrix.e = trns[4]
+				a3dtrans._matrix.f = trns[5]
+				a3dtrans._matrix.g = trns[6]
+				a3dtrans._matrix.h = trns[7]
+				a3dtrans._matrix.i = trns[8]
+				a3dtrans._matrix.j = trns[9]
+				a3dtrans._matrix.k = trns[10]
+				a3dtrans._matrix.l = trns[11]
+								
+				for x in range(len(mts)):
+					difmap = int("ffffffff",16)
+					glossmap = int("ffffffff",16)
+					lighmap = int("ffffffff",16)
+					normmap = int("ffffffff",16)
+					opacmap = int("ffffffff",16)
+					specmap = int("ffffffff",16)
+					reflmap = int("ffffffff",16)
+					
+					for tex in mats[x].texture_slots:
+						if tex is not None:
+							name=tex.name.lower()
+							a3dstr = A3D2String()
+							a3dstr.name = os.path.basename(tex.texture.image.filepath)
+							a3dimg = A3D2Image(Config)
+							a3dimg._id = len(images)
+							a3dimg._url = a3dstr
+							images.append(a3dimg)
+							
+							a3dmap = A3D2Map(Config)
+							a3dmap._channel = 0
+							a3dmap._id = len(maps)
+							a3dmap._imageId = a3dimg._id
+							maps.append(a3dmap)
+							
+							if name == 'diffuse':
+								difmap = a3dmap._id
+							elif name == 'normal':
+								normmap = a3dmap._id
+							elif name == 'specular':
+								specmap = a3dmap._id
+							elif name == 'opacity':
+								opacmap = a3dmap._id
+							elif name == 'glossiness':
+								glossmap = a3dmap._id
+							elif name == 'light':
+								lighmap = a3dmap._id
+							elif name == 'reflection':
+								reflmap = a3dmap._id
+							else:
+								#just write as diffuse if no matches
+								difmap = a3dmap._id
+											
+				a3dmat = A3D2Material(Config)
+				a3dmat._diffuseMapId = difmap
+				a3dmat._glossinessMapId = glossmap
+				a3dmat._id = len(materials)
+				a3dmat._lightMapId = lighmap
+				a3dmat._normalMapId = normmap
+				a3dmat._opacityMapId = opacmap
+				a3dmat._reflectionCubeMapId = reflmap
+				a3dmat._specularMapId = specmap
+				materials.append(a3dmat)
+				
+				a3dsprite = A3D2Sprite(Config)
+				a3dsprite._alwaysOnTop = 1
+				a3dsprite._boundBoxId = a3dbox._id
+				a3dsprite._height = 500
+				a3dsprite._id = len(sprites)
+				a3dsprite._materialId = a3dmat._id
+				a3dsprite._name = a3dstr
+				a3dsprite._originX = 0
+				a3dsprite._originY = 0
+				#a3dsprite._parentId = None
+				a3dsprite._perspectiveScale = 0
+				a3dsprite._rotation = 0
+				#a3dsprite._transform = a3dtrans
+				a3dsprite._visible = 1
+				a3dsprite._width = 500
+				sprites.append(a3dsprite)
+				
+			elif obj["a3dtype"] == 'A3DLOD':
+				print('A3DLOD Found')
+				if Config.A3DVersionSystem <= 2:
+					
+					dummydistance = 300
+					distances = []
+					objects = []
+					for obj in obj.children:
+						me = obj.data
+						print(me.name)
+						#create mesh here and add id to the array						
+						#objects.append() #objids
+						distances.append(dummydistance)
+						dummydistance = dummydistance + 200
+						
+					a3dbox = A3D2Box(Config)
+					a3dbox._box = getBoundBox(obj)
+					a3dbox._id = len(boxes)
+					
+					a3dtrans = A3D2Transform(Config)
+					trns = getObjTransform(obj)
+					a3dtrans._matrix.a = trns[0]
+					a3dtrans._matrix.b = trns[1]
+					a3dtrans._matrix.c = trns[2]
+					a3dtrans._matrix.d = trns[3]
+					a3dtrans._matrix.e = trns[4]
+					a3dtrans._matrix.f = trns[5]
+					a3dtrans._matrix.g = trns[6]
+					a3dtrans._matrix.h = trns[7]
+					a3dtrans._matrix.i = trns[8]
+					a3dtrans._matrix.j = trns[9]
+					a3dtrans._matrix.k = trns[10]
+					a3dtrans._matrix.l = trns[11]
+					
+					a3dstr = A3D2String()
+					a3dstr.name = cleanupString(obj.name)
+				
+					a3dlod = A3D2LOD(Config)
+					a3dlod._boundBoxId = a3dbox
+					a3dlod._distances = distances
+					a3dlod._id = len(lods)
+					a3dlod._name = a3dstr
+					a3dlod._objects = objects
+					#a3dlod._parentId = None
+					a3dlod._transform = a3dtrans
+					a3dlod._visible = 1
+					lods.append(a3dlod)
+			
 	
 	if len(objs_lights) > 0:
 		print("Exporting lights...\n")
@@ -1827,12 +1992,35 @@ def a3d2export(file,Config):
 	if len(objs_mesh) > 0:
 		print("Exporting meshes...\n")
 		#loop over every mesh and populate data
+		linkeddata = {}
+		linkedmesh = False
 		for obj in objs_mesh:
 			#convert to triangles
 			ConvertQuadsToTris(obj)
 		
 			#data
 			mesh = obj.data
+			
+			if mesh.users > 1:
+				print('this has is used for other objs aka linked copy')
+				#linked mesh uses same name e.g "Cube"
+				if mesh.name in linkeddata:
+					#user already exists, retrieve ids
+					ibufid = linkeddata[mesh.name][0]
+					vbufids = linkeddata[mesh.name][1]
+					#set to true so we don't add buffers with data we don't need
+					linkedmesh=True
+				else:
+					#user doesn't exist yet
+					ibufid = len(indexBuffers)
+					vbufids = [len(vertexBuffers)]
+					#assign for other users
+					linkeddata[mesh.name] = [ibufid,vbufids]
+			else:
+				print("single user mesh")
+				linkedmesh=False
+				ibufid = len(indexBuffers)
+				vbufids = [len(vertexBuffers)]
 			
 			#get raw geometry data
 			vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
@@ -1846,12 +2034,13 @@ def a3d2export(file,Config):
 			boxes.append(a3dbox)
 			
 			#create indexbuffer
-			a3dibuf = A3D2IndexBuffer(Config)
-			for x in range(len(ins)):
-				a3dibuf._byteBuffer.append(ins[x])
-			a3dibuf._id = len(indexBuffers)
-			a3dibuf._indexCount = len(a3dibuf._byteBuffer)
-			indexBuffers.append(a3dibuf)
+			if linkedmesh == False:
+				a3dibuf = A3D2IndexBuffer(Config)
+				for x in range(len(ins)):
+					a3dibuf._byteBuffer.append(ins[x])
+				#a3dibuf._id = len(indexBuffers)
+				a3dibuf._indexCount = len(a3dibuf._byteBuffer)
+				indexBuffers.append(a3dibuf)
 			
 			#notes to self -taken from obj exporter
 			#for mtex in reversed(mat.texture_slots):
@@ -2000,12 +2189,14 @@ def a3d2export(file,Config):
 			a3dmesh = A3D2Mesh(Config)
 			#a3dmesh._boundBoxId = 0
 			a3dmesh._id = len(meshes)
-			a3dmesh._indexBufferId = a3dibuf._id
+			#a3dmesh._indexBufferId = a3dibuf._id
+			a3dmesh._indexBufferId = ibufid
 			a3dmesh._name = a3dstr
 			#a3dmesh._parentId = 0
 			a3dmesh._surfaces = mesh_surfaces
 			a3dmesh._transform = a3dtrans
-			a3dmesh._vertexBuffers = [len(vertexBuffers)] #vertex buffer ids
+			#a3dmesh._vertexBuffers = [len(vertexBuffers)] #vertex buffer ids
+			a3dmesh._vertexBuffers = vbufids #vertex buffer ids
 			a3dmesh._visible = 1
 			if obj.hide == True:
 				a3dmesh._visible = 0
@@ -2028,49 +2219,50 @@ def a3d2export(file,Config):
 				a3dobj._visible = 0
 			#objects.append(a3dobj)
 			
-			#create vertexbuffer
-			a3dvbuf = A3D2VertexBuffer(Config)
-			#POSITION = 0, NORMAL = 1, TANGENT4 = 2, JOINT = 3,TEXCOORD = 4
-			attar = []
-			if len(vs) > 0:
-				attar.append(0)
-			if (len(uvt) > 0) and (Config.ExportUV == 1):
-				attar.append(4)
-			if (len(nr) > 0) and (Config.ExportNormals == 1):
-				attar.append(1)
-			if (len(tan) > 0) and (Config.ExportTangents == 1):
-				attar.append(2)
-			#if len(jnt) > 0:
-			#	attar.append(3)
-			
-			a3dvbuf._attributes = attar
-			j=0
-			for v in vs:
-				if 0 in attar:
-					a3dvbuf._byteBuffer.append(v[0]) #vert1
-					a3dvbuf._byteBuffer.append(v[1]) #vert2
-					a3dvbuf._byteBuffer.append(v[2]) #vert3
-				if 4 in attar and (Config.ExportUV == 1):
-					a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
-					a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
-				if 1 in attar and (Config.ExportNormals == 1):
-					a3dvbuf._byteBuffer.append(nr[j][0]) #normal1
-					a3dvbuf._byteBuffer.append(nr[j][1]) #normal2
-					a3dvbuf._byteBuffer.append(nr[j][2]) #normal3
-				if 2 in attar and (Config.ExportTangents == 1):
-					a3dvbuf._byteBuffer.append(tan[j][0]) #tan1
-					a3dvbuf._byteBuffer.append(tan[j][1]) #tan2
-					a3dvbuf._byteBuffer.append(tan[j][2]) #tan3
-					a3dvbuf._byteBuffer.append(-1) #tan4 - static input handedness
-				j = j +1
-			a3dvbuf._id = len(vertexBuffers)
-			#a3dvbuf._vertexCount = int(len(ins))
-			#a3dvbuf._vertexCount = int(len(vs) * 3) 
-			a3dvbuf._vertexCount = int(len(vs)) #this works for cube
-			#a3dvbuf._vertexCount = int(len(ins)) 
-			#a3dvbuf._vertexCount = 24
-			vertexBuffers.append(a3dvbuf)
-			print("vs="+str(len(vs)))
+			if linkedmesh == False:
+				#create vertexbuffer
+				a3dvbuf = A3D2VertexBuffer(Config)
+				#POSITION = 0, NORMAL = 1, TANGENT4 = 2, JOINT = 3,TEXCOORD = 4
+				attar = []
+				if len(vs) > 0:
+					attar.append(0)
+				if (len(uvt) > 0) and (Config.ExportUV == 1):
+					attar.append(4)
+				if (len(nr) > 0) and (Config.ExportNormals == 1):
+					attar.append(1)
+				if (len(tan) > 0) and (Config.ExportTangents == 1):
+					attar.append(2)
+				#if len(jnt) > 0:
+				#	attar.append(3)
+				
+				a3dvbuf._attributes = attar
+				j=0
+				for v in vs:
+					if 0 in attar:
+						a3dvbuf._byteBuffer.append(v[0]) #vert1
+						a3dvbuf._byteBuffer.append(v[1]) #vert2
+						a3dvbuf._byteBuffer.append(v[2]) #vert3
+					if 4 in attar and (Config.ExportUV == 1):
+						a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
+						a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
+					if 1 in attar and (Config.ExportNormals == 1):
+						a3dvbuf._byteBuffer.append(nr[j][0]) #normal1
+						a3dvbuf._byteBuffer.append(nr[j][1]) #normal2
+						a3dvbuf._byteBuffer.append(nr[j][2]) #normal3
+					if 2 in attar and (Config.ExportTangents == 1):
+						a3dvbuf._byteBuffer.append(tan[j][0]) #tan1
+						a3dvbuf._byteBuffer.append(tan[j][1]) #tan2
+						a3dvbuf._byteBuffer.append(tan[j][2]) #tan3
+						a3dvbuf._byteBuffer.append(-1) #tan4 - static input handedness
+					j = j +1
+				a3dvbuf._id = len(vertexBuffers)
+				#a3dvbuf._vertexCount = int(len(ins))
+				#a3dvbuf._vertexCount = int(len(vs) * 3) 
+				a3dvbuf._vertexCount = int(len(vs)) #this works for cube
+				#a3dvbuf._vertexCount = int(len(ins)) 
+				#a3dvbuf._vertexCount = 24
+				vertexBuffers.append(a3dvbuf)
+				print("vs="+str(len(vs)))
 		
 	if Config.A3DVersionSystem <= 3:
 		print("Exporting layers...\n")
@@ -2243,6 +2435,7 @@ class A3DImporter(bpy.types.Operator):
 	filepath= StringProperty(name="File Path", description="Filepath used for importing the A3D file", maxlen=1024, default="")
 
 	def execute(self, context):
+		time1 = time.clock()
 		# open a3d file
 		file = open(self.filepath,'rb')
 		file.seek(0)
@@ -2253,6 +2446,7 @@ class A3DImporter(bpy.types.Operator):
 		else:
 			loadA3d2(file,Config)
 		file.close()
+		print(".a3d import time: %.2f" % (time.clock() - time1))
 		return {'FINISHED'}
 	def invoke (self, context, event):
 		wm = context.window_manager
@@ -2578,6 +2772,104 @@ class A3D:
 	
 	def write(self,file):
 		print("write a3d")
+		
+		tfile = tempfile.TemporaryFile(mode ='w+b')
+		
+		if len(self.boxes) > 0:
+			#write
+			arr = A3D2Array()
+			arr.write(tfile,len(self.boxes))
+			self.nullmask = self.nullmask + str(0)
+			for cla in self.boxes:
+				cla.write(tfile)
+				self.nullmask = self.nullmask + cla._optmask
+		else:
+			self.nullmask = self.nullmask + str(1)
+			
+		if len(self.geometries) > 0:
+			arr = A3D2Array()
+			arr.write(tfile,len(self.geometries))
+			self.nullmask = self.nullmask + str(0)
+			for cla in self.geometries:
+				cla.write(tfile)
+				self.nullmask = self.nullmask + cla._optmask
+		else:
+			self.nullmask = self.nullmask + str(1)
+			
+		if len(self.images) > 0:
+			arr = A3D2Array()
+			arr.write(tfile,len(self.images))
+			self.nullmask = self.nullmask + str(0)
+			for cla in self.images:
+				cla.write(tfile)
+				self.nullmask = self.nullmask + cla._optmask
+		else:
+			self.nullmask = self.nullmask + str(1)
+			
+		if len(self.maps) > 0:
+			arr = A3D2Array()
+			arr.write(tfile,len(self.maps))
+			self.nullmask = self.nullmask + str(0)
+			for cla in self.maps:
+				cla.write(tfile)
+				self.nullmask = self.nullmask + cla._optmask
+		else:
+			self.nullmask = self.nullmask + str(1)
+			
+		if len(self.materials) > 0:
+			arr = A3D2Array()
+			arr.write(tfile,len(self.materials))
+			self.nullmask = self.nullmask + str(0)
+			for cla in self.materials:
+				cla.write(tfile)
+				self.nullmask = self.nullmask + cla._optmask
+		else:
+			self.nullmask = self.nullmask + str(1)
+			
+		if len(self.objects) > 0:
+			arr = A3D2Array()
+			arr.write(tfile,len(self.objects))
+			self.nullmask = self.nullmask + str(0)
+			for cla in self.objects:
+				cla.write(tfile)
+				self.nullmask = self.nullmask + cla._optmask
+		else:
+			self.nullmask = self.nullmask + str(1)
+						
+		
+		tfile2 = tempfile.TemporaryFile(mode ='w+b')
+		
+		print("nullmask = "+self.nullmask)
+		
+		#nullmask
+		null = A3D2Null(self.Config)
+		null._mask = self.nullmask
+		null.write(tfile2)
+		
+		#version
+		ver = A3DVersion(self.Config)
+		ver.baseversion = 1
+		ver.pointversion = 0
+		ver.write(tfile2)
+		
+		#a3d
+		tfile.seek(0)
+		data = tfile.read()
+		tfile2.write(data)
+		tfile.close()
+
+		#write package length
+		a3dpack = A3D2Package(self.Config)
+		a3dpack._length = tfile2.tell()
+		a3dpack._packed = 0
+		a3dpack.write(file)
+
+		# uncompressed
+		tfile2.seek(0)
+		data = tfile2.read()
+		file.write(data)
+		tfile2.close()
+		
 	
 	def read(self,file,mask):
 		print("reada3d")
@@ -2657,13 +2949,14 @@ class A3DBox:
 	def __init__(self,Config):
 		self._box = []
 		self._id = 0
-
+		self._optmask = ""
 		self.Config = Config
 		self._mskindex = 0
 	
 	def reset(self):
 		self._box = []
 		self._id = 0
+		self._optmask = ""
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
@@ -2683,12 +2976,14 @@ class A3DBox:
 		print("id="+str(self._id))
 		
 	def write(self,file):
-		print("write boundbox\n")
+		print("write boundbox\n")		
+		self._optmask = self._optmask + str(0)
 		arr = A3D2Array()
 		arr.write(file,len(self._box))
 		for x in range(len(self._box)):
 			file.write(struct.pack('>f',self._box[x]))
-		#write id
+		
+		self._optmask = self._optmask + str(0)
 		file.write(struct.pack('>L',self._id))	
 
 class A3DGeometry:
@@ -2696,7 +2991,7 @@ class A3DGeometry:
 		self._id = 0
 		self._indexBuffer = 0
 		self._vertexBuffers = []
-
+		self._optmask = ""
 		self.Config = Config
 		self._mskindex = 0
 	
@@ -2704,6 +2999,7 @@ class A3DGeometry:
 		self._id = 0
 		self._indexBuffer = 0
 		self._vertexBuffers = []
+		self._optmask = ""
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
@@ -2730,18 +3026,26 @@ class A3DGeometry:
 					
 	def write(self,file):
 		print("write A3DGeometry")
+		self._optmask = self._optmask + str(0)
+		file.write(struct.pack('>L',self._id))
+		
+		self._indexBuffer.write()
+		
+		for vbuf in self._vertexBuffers:
+			vbuf.write()
 
 class A3DImage:
 	def __init__(self,Config):
 		self._id = 0
 		self._url = 0
-
+		self._optmask = ""
 		self.Config = Config
 		self._mskindex = 0
 	
 	def reset(self):
 		self._id = 0
 		self._url = 0
+		self._optmask = ""
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
@@ -2762,6 +3066,10 @@ class A3DImage:
 		
 	def write(self,file):
 		print("write A3DImage")
+		file.write(struct.pack('>L',self._id))
+		
+		self._optmask = self._optmask + str(0)
+		self._url.write(file)
 		
 class A3DMap:
 	def __init__(self,Config):
@@ -2772,7 +3080,7 @@ class A3DMap:
 		self._uScale = 0
 		self._vOffset = 0
 		self._vScale = 0
-
+		self._optmask = ""
 		self.Config = Config
 		self._mskindex = 0
 	
@@ -2784,6 +3092,7 @@ class A3DMap:
 		self._uScale = 0
 		self._vOffset = 0
 		self._vScale = 0
+		self._optmask = ""
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
@@ -2827,6 +3136,18 @@ class A3DMap:
 		
 	def write(self,file):
 		print("write A3DMap")
+		self._optmask = self._optmask + str(0)
+		file.write(struct.pack(">H",self._channel))
+		self._optmask = self._optmask + str(0)
+		file.write(struct.pack(">L",self._id))
+		self._optmask = self._optmask + str(0)
+		file.write(struct.pack(">L",self._imageId))
+		self._optmask = self._optmask + str(0)
+		file.write(struct.pack(">f",self._uOffset))
+		self._optmask = self._optmask + str(0)
+		file.write(struct.pack(">f",self._vOffset))
+		self._optmask = self._optmask + str(0)
+		file.write(struct.pack(">f",self._vScale))
 		
 class A3DMaterial:
 	def __init__(self,Config):
@@ -2837,7 +3158,7 @@ class A3DMaterial:
 		self._normalMapId = None
 		self._opacityMapId = None
 		self._specularMapId = None
-
+		self._optmask = ""
 		self.Config = Config
 		self._mskindex = 0
 	
@@ -2849,6 +3170,7 @@ class A3DMaterial:
 		self._normalMapId = None
 		self._opacityMapId = None
 		self._specularMapId = None
+		self._optmask = ""
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
@@ -2891,6 +3213,39 @@ class A3DMaterial:
 		
 	def write(self,file):
 		print("write A3dMaterial")
+		if self._diffuseMapId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._diffuseMapId))
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._glossinessMapId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._glossinessMapId))
+		else:
+			self._optmask = self._optmask + str(1)
+		
+		file.write(struct.pack(">L",self._id))
+		
+		if self._lightMapId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._lightMapId))
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._normalMapId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._normalMapId))
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._opacityMapId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._opacityMapId))
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._specularMapId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._specularMapId))
+		else:
+			self._optmask = self._optmask + str(1)
 
 class A3DObject:
 	def __init__(self,Config):
@@ -2902,7 +3257,7 @@ class A3DObject:
 		self._surfaces = []
 		self._transformation = 0
 		self._visible = 0
-
+		self._optmask = ""
 		self.Config = Config
 		self._mskindex = 0
 	
@@ -2915,6 +3270,7 @@ class A3DObject:
 		self._surfaces = []
 		self._transformation = 0
 		self._visible = 0
+		self._optmask = ""
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
@@ -2968,18 +3324,55 @@ class A3DObject:
 		
 	def write(self,file):
 		print("write A3DObject")
+		#bbid, id, indexbufid
+		if self._boundBoxId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._boundBoxId))
+		else:
+			self._optmask = self._optmask + str(1)
+		
+		if self._geometryId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._geometryId))
+		else:
+			self._optmask = self._optmask + str(1)
+		
+		self._optmask = self._optmask + str(0)
+		file.write(struct.pack(">L",self._id))
+		
+		if self._name is not None:
+			self._optmask = self._optmask + str(0)
+			self._name.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+			
+		if self._parentId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack("Q",self._parentId))
+		else:
+			self._optmask = self._optmask + str(1)
+			
+		if self._transform is not None:
+			self._optmask = self._optmask + str(0)
+			self._transform.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+			
+		#visible
+		file.write(struct.pack("B",self._visible))
 
 class A3DIndexBuffer:
 	def __init__(self,Config):
 		self._byteBuffer = []
 		self._indexCount = 0
-		
+		self._optmask = ""
 		self.Config = Config
 		self._mskindex = 0
 	
 	def reset(self):
 		self._byteBuffer = []
 		self._indexCount = 0
+		self._optmask = ""
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
@@ -2999,13 +3392,24 @@ class A3DIndexBuffer:
 		
 	def write(self,file):
 		print("write A3DIndexBuffer")
+		self._optmask = self._optmask + str(0)
+		arr = A3D2Array()
+		# multiply by 2 because its length of bytes and we are using 2 bytes
+		vbuflen = int(len(self._byteBuffer) * 2)
+		arr.write(file,vbuflen) 
+		for x in range(len(self._byteBuffer)):
+			file.write(struct.pack('<H',self._byteBuffer[x]))
+
+		#write indexcount
+		self._optmask = self._optmask + str(0)
+		file.write(struct.pack('>L',self._indexCount))
 		
 class A3DVertexBuffer:
 	def __init__(self,Config):
 		self._attributes = []
 		self._byteBuffer = []
 		self._vertexCount = 0
-		
+		self._optmask = ""
 		self.Config = Config
 		self._mskindex = 0
 	
@@ -3013,6 +3417,7 @@ class A3DVertexBuffer:
 		self._attributes = []
 		self._byteBuffer = []
 		self._vertexCount = 0
+		self._optmask = ""
 		self._mskindex = 0
 
 	def read(self,file,mask,mskindex):
@@ -3041,6 +3446,21 @@ class A3DVertexBuffer:
 		
 	def write(self,file):
 		print("write A3DVertexBuffer")
+		self._optmask = self._optmask + str(0)
+		arr = A3D2Array()
+		arr.write(file,len(self._attributes))
+		for x in range(len(self._attributes)):
+			file.write(struct.pack("B",self._attributes[x]))
+		
+		self._optmask = self._optmask + str(0)
+		arr = A3D2Array()
+		bybufsize = int(len(self._byteBuffer)*4)
+		arr.write(file,bybufsize) 
+		for byte in self._byteBuffer:
+			file.write(struct.pack("<f",byte))
+		
+		self._optmask = self._optmask + str(0)
+		file.write(struct.pack(">H",self._vertexCount))
 		
 class A3DSurface:
 	def __init__(self,Config):
@@ -3389,20 +3809,26 @@ class A3D2Null:
 			file.write(struct.pack("B",byte3))
 		elif bits > 21 and bits <= 29:
 			#if is 24 bits (fits exacty into 3 bytes) then place left to right
-			if bits == 24:
-				#place bits left to right
-				data = x >> (bits - 5) #19 shr
-				byte1 = int(data + 96) #96 = 01100000
-				byte2 = int( x >> ((bits-5)-8) & 255 )
-				byte3 = int( x >> ((bits-5)-16) & 255 )
-				byte4 = int( x << 5 & 255 )
-			else:
-				#place bits right to left
-				byte1 = int( (x >> 24) & 255 )
-				byte1 = byte1 + 96 #01100000 
-				byte2 = int( (x >> 16) & 255 )
-				byte3 = int( (x >> 8) & 255 )
-				byte4 = int( x & 255 )
+			#if bits == 24:
+			#	#place bits left to right
+			#	data = x >> (bits - 5) #19 shr
+			#	byte1 = int(data + 96) #96 = 01100000
+			#	byte2 = int( x >> ((bits-5)-8) & 255 )
+			#	byte3 = int( x >> ((bits-5)-16) & 255 )
+			#	byte4 = int( x << 5 & 255 )
+			#else:
+			#	#place bits right to left
+			#	byte1 = int( (x >> 24) & 255 )
+			#	byte1 = byte1 + 96 #01100000 
+			#	byte2 = int( (x >> 16) & 255 )
+			#	byte3 = int( (x >> 8) & 255 )
+			#	byte4 = int( x & 255 )
+			
+			data = x >> (bits - 5) #19 shr
+			byte1 = int(data + 96) #96 = 01100000
+			byte2 = int( x >> ((bits-5)-8) & 255 )
+			byte3 = int( x >> ((bits-5)-16) & 255 )
+			byte4 = int( x << 5 & 255 )
 			
 			print("byte1="+str(byte1))
 			print("byte2="+str(byte2))
@@ -3718,16 +4144,16 @@ class A3D2:
 							i = i + 1
 							tans.append((a,b,c,d))
 						if att == 3:
+							ai = vbuf._byteBuffer[i]
 							i = i + 1
-							a = vbuf._byteBuffer[i]
+							aw = vbuf._byteBuffer[i]
 							i = i + 1
-							b = vbuf._byteBuffer[i]
+							bi = vbuf._byteBuffer[i]
 							i = i + 1
-							c = vbuf._byteBuffer[i]
+							bw = vbuf._byteBuffer[i]
 							i = i + 1
-							d = vbuf._byteBuffer[i]
-							i = i + 1
-							joints.append((a, b, c, d))
+							#jointA.index, jointA.weight, jointB.index, jointB.weight
+							joints.append((ai, aw, bi, bw))
 						if att == 4:
 							uv1 = vbuf._byteBuffer[i]
 							i = i + 1
@@ -3976,9 +4402,9 @@ class A3D2:
 			tans = []
 			joints = []
 			
-			ar = bpy.data.armatures.new("armature")
-			ob = bpy.data.objects.new("armature", ar)
-			bpy.context.scene.objects.link(ob)
+			#ar = bpy.data.armatures.new("armature")
+			#ob = bpy.data.objects.new("armature", ar)
+			#bpy.context.scene.objects.link(ob)
 			
 			#context.scene.objects.active = ar
 			#bpy.ops.object.mode_set(mode='EDIT')
@@ -3987,6 +4413,20 @@ class A3D2:
 			#bo.head = head
 			#bo.tail = tail
 			#bo.parent = parent_bone
+			
+			#Create Rigging
+			boneTable1 = [
+				('Base', None, (1,0,0)),
+				('Mid', 'Base', (1,0,0)),
+				('Tip', 'Mid', (0,0,1))
+			]
+			
+			#get bones into table
+			#myboneTable = []
+			
+			#origin = mathutils.Vector((0,0,0))
+			#bent = createRig('Bent', origin, myboneTable)
+			
 		
 			#index buff
 			ibuf = ibuffers[skin._indexBufferId]
@@ -4022,7 +4462,8 @@ class A3D2:
 				flcount = int(len(vbuf._byteBuffer))
 				points = int(flcount/numflts)
 				i = 0
-				for att in vbuf._attributes:
+				for p in range(points):
+					for att in vbuf._attributes:
 						if att == 0:
 							x = vbuf._byteBuffer[i]
 							i = i + 1
@@ -4050,16 +4491,16 @@ class A3D2:
 							i = i + 1
 							tans.append((a,b,c,d))
 						if att == 3:
+							ai = vbuf._byteBuffer[i]
 							i = i + 1
-							a = vbuf._byteBuffer[i]
+							aw = vbuf._byteBuffer[i]
 							i = i + 1
-							b = vbuf._byteBuffer[i]
+							bi = vbuf._byteBuffer[i]
 							i = i + 1
-							c = vbuf._byteBuffer[i]
+							bw = vbuf._byteBuffer[i]
 							i = i + 1
-							d = vbuf._byteBuffer[i]
-							i = i + 1
-							joints.append((a, b, c, d))
+							#jointA.index, jointA.weight, jointB.index, jointB.weight
+							joints.append((ai, aw, bi, bw))
 						if att == 4:
 							uv1 = vbuf._byteBuffer[i]
 							i = i + 1
@@ -4067,7 +4508,7 @@ class A3D2:
 							uv2 = 1.0 - uv2
 							i = i + 1
 							uvs.append([uv1,uv2])
-			
+
 			#print(verts)
 			#print(faces)
 			#print(uvs)
@@ -4349,257 +4790,48 @@ class A3D2:
 			else:
 				mskindex = mskindex + 1
 			findex = findex + 1
-		
+	
+	def writeClass(self,file,listclass):
+		if len(listclass) > 0:
+			arr = A3D2Array()
+			arr.write(file,len(listclass))
+			#add class as option
+			self.nullmask = self.nullmask + str(0)
+			for cla in listclass:
+				cla.write(file)
+				self.nullmask = self.nullmask + cla._optmask
+		else:
+			self.nullmask = self.nullmask + str(1)
+			
 	def write(self,file):
 		print("write a3d2\n")
 		
 		tfile = tempfile.TemporaryFile(mode ='w+b')
-				
-		if len(self.ambientLights) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.ambientLights))
-			#add class as option
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.ambientLights:
-				cla.write(tfile)
-				#add class properties as options
-				#self.nullmask = self.nullmask + amd.readOptions()
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-
-		if len(self.animationClips) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.animationClips))
-			#add class as option
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.animationClips:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.animationTracks) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.animationTracks))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.animationTracks:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.boxes) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.boxes))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.boxes:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.cubeMaps) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.cubeMaps))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.cubeMaps:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.decals) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.decals))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.decals:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.directionalLights) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.directionalLights))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.directionalLights:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.images) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.images))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.images:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.indexBuffers) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.indexBuffers))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.indexBuffers:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.joints) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.joints))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.joints:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.maps) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.maps))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.maps:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.materials) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.materials))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.materials:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.meshes) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.meshes))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.meshes:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.objects) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.objects))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.objects:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.omniLights) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.omniLights))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.omniLights:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.spotLights) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.spotLights))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.spotLights:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.sprites) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.sprites))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.sprites:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.skins) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.skins))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.skins:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-			
-		if len(self.vertexBuffers) > 0:
-			#write
-			arr = A3D2Array()
-			arr.write(tfile,len(self.vertexBuffers))
-			self.nullmask = self.nullmask + str(0)
-			for cla in self.vertexBuffers:
-				cla.write(tfile)
-				self.nullmask = self.nullmask + cla._optmask
-		else:
-			self.nullmask = self.nullmask + str(1)
-					
+		
+		self.writeClass(tfile,self.ambientLights)	
+		self.writeClass(tfile,self.animationClips)	
+		self.writeClass(tfile,self.animationTracks)	
+		self.writeClass(tfile,self.boxes)	
+		self.writeClass(tfile,self.cubeMaps)	
+		self.writeClass(tfile,self.decals)	
+		self.writeClass(tfile,self.directionalLights)	
+		self.writeClass(tfile,self.images)	
+		self.writeClass(tfile,self.indexBuffers)	
+		self.writeClass(tfile,self.joints)	
+		self.writeClass(tfile,self.maps)	
+		self.writeClass(tfile,self.materials)	
+		self.writeClass(tfile,self.meshes)	
+		self.writeClass(tfile,self.objects)	
+		self.writeClass(tfile,self.omniLights)
+		self.writeClass(tfile,self.skins)		
+		self.writeClass(tfile,self.spotLights)	
+		self.writeClass(tfile,self.sprites)	
+		self.writeClass(tfile,self.vertexBuffers)	
 		if self.Config.A3DVersionSystem <= 3:
-			if len(self.layers) > 0:
-				arr = A3D2Array()
-				arr.write(tfile,len(self.layers))
-				self.nullmask = self.nullmask + str(0)
-				for cla in self.layers:
-					cla.write(tfile)
-					self.nullmask = self.nullmask + cla._optmask
-			else:
-				self.nullmask = self.nullmask + str(1)
-		
+			self.writeClass(tfile,self.layers)
 		if self.Config.A3DVersionSystem <= 2:
-			if len(self.cameras) > 0:
-				arr = A3D2Array()
-				arr.write(tfile,len(self.cameras))
-				self.nullmask = self.nullmask + str(0)
-				for cla in self.cameras:
-					cla.write(tfile)
-					self.nullmask = self.nullmask + cla._optmask
-			else:
-				self.nullmask = self.nullmask + str(1)
-			
-			if len(self.lods) > 0:
-				arr = A3D2Array()
-				arr.write(tfile,len(self.lods))
-				self.nullmask = self.nullmask + str(0)
-				for cla in self.lods:
-					cla.write(tfile)
-					self.nullmask = self.nullmask + cla._optmask
-			else:
-				self.nullmask = self.nullmask + str(1)
-		
+			self.writeClass(tfile,self.cameras)
+			self.writeClass(tfile,self.lods)
 		
 		tfile2 = tempfile.TemporaryFile(mode ='w+b')
 		
@@ -4665,6 +4897,36 @@ class A3D2:
 			data = tfile2.read()
 			file.write(data)
 		tfile2.close()
+
+def createRig(name, origin, boneTable):
+    # Create armature and object
+    bpy.ops.object.add(
+        type='ARMATURE', 
+        enter_editmode=True,
+        location=origin)
+    ob = bpy.context.object
+    ob.show_x_ray = True
+    ob.name = name
+    amt = ob.data
+    amt.name = name+'Amt'
+    amt.show_axes = True
+ 
+    # Create bones
+    bpy.ops.object.mode_set(mode='EDIT')
+    for (bname, pname, vector) in boneTable:        
+        bone = amt.edit_bones.new(bname)
+        if pname:
+            parent = amt.edit_bones[pname]
+            bone.parent = parent
+            bone.head = parent.tail
+            bone.use_connect = False
+            (trans, rot, scale) = parent.matrix.decompose()
+        else:
+            bone.head = (0,0,0)
+            rot = Matrix.Translation((0,0,0))	# identity matrix
+        bone.tail = rot * Vector(vector) + bone.head
+    bpy.ops.object.mode_set(mode='OBJECT')
+    return ob
 		
 class A3D2Array:
 	def __init__(self):
@@ -5491,6 +5753,7 @@ class A3D2Map:
 		self._channel = 0
 		self._id = 0
 		self._imageId = 0
+		self._optmask = ""
 		self._mskindex = 0
 		
 	def readOptions(self):
@@ -5538,6 +5801,7 @@ class A3D2Material:
 		self._opacityMapId = None
 		self._reflectionCubeMapId = None
 		self._specularMapId = None
+		self._optmask = ""
 		self._mskindex = 0
 		
 	def readOptions(self):
@@ -5581,7 +5845,7 @@ class A3D2Material:
 		if mask[mskindex + self._mskindex] == "0":
 			self._specularMapId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
 		self._mskindex = self._mskindex + 1
-			
+		
 	
 	#def read(self,file,mask,mskindex):
 	#	print("read A3D2Material")
@@ -6053,9 +6317,9 @@ class A3D2Sprite:
 	def __init__(self,Config):
 		self._alwaysOnTop = 1
 		self._boundBoxId = None
-		self._height = 0
+		self._height = 100
 		self._id = 0
-		self._materialId = 0
+		self._materialId = None
 		self._name = None
 		self._originX = 0
 		self._originY = 0
@@ -6064,7 +6328,7 @@ class A3D2Sprite:
 		self._rotation = 0
 		self._transform = None
 		self._visible = 1
-		self._width = 0
+		self._width = 100
 		
 		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
 		self._optmask = ""
@@ -6074,9 +6338,9 @@ class A3D2Sprite:
 	def reset(self):
 		self._alwaysOnTop = 1
 		self._boundBoxId = None
-		self._height = 0
+		self._height = 100
 		self._id = 0
-		self._materialId = 0
+		self._materialId = None
 		self._name = None
 		self._originX = 0
 		self._originY = 0
@@ -6085,7 +6349,8 @@ class A3D2Sprite:
 		self._rotation = 0
 		self._transform = None
 		self._visible = 1
-		self._width = 0
+		self._width = 100
+		self._optmask = ""
 		self._mskindex = 0
 		
 	def readOptions(self):
@@ -6100,9 +6365,53 @@ class A3D2Sprite:
 	def read(self,file,mask,mskindex):
 		print("read A3D2Sprite")
 		self._mskindex = 1
+		self._alwaysOnTop = struct.unpack("B", file.read(struct.calcsize("B")))[0]
 		
 	def write(self,file):
-		print("write")
+		file.write(struct.pack("B",self._alwaysOnTop))
+		
+		if self._boundBoxId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._boundBoxId))
+		else:
+			self._optmask = self._optmask + str(1)
+		
+		file.write(struct.pack(">f",self._height))
+		file.write(struct.pack("Q",self._id))
+		
+		if self._materialId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._materialId))
+		else:
+			self._optmask = self._optmask + str(1)
+		
+		if self._name is not None:
+			self._optmask = self._optmask + str(0)
+			self._name.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+
+		file.write(struct.pack(">f",self._originX))
+		file.write(struct.pack(">f",self._originY))
+			
+		if self._parentId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack("Q",self._parentId))
+		else:
+			self._optmask = self._optmask + str(1)
+			
+		file.write(struct.pack("B",self._perspectiveScale))
+		file.write(struct.pack(">f",self._rotation))
+		
+		#transform
+		if self._transform is not None:
+			self._optmask = self._optmask + str(0)
+			self._transform.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+			
+		file.write(struct.pack("B",self._visible))
+		file.write(struct.pack(">f",self._width))
 
 class A3D2Skin:
 	def __init__(self,Config):
@@ -7055,6 +7364,16 @@ class AddSprite3D(bpy.types.Operator):
 		# Fill the mesh with verts, edges, faces 
 		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
 		me.update(calc_edges=True)    # Update mesh with new data	
+
+		#add material and texture
+		mat = bpy.data.materials.new("SpriteMaterial")
+		me.materials.append(mat)
+		texture = bpy.data.textures.new("diffuse", type='IMAGE')
+		mtex = mat.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+
 		return {'FINISHED'}
 				
 class AddSkybox(bpy.types.Operator):
@@ -7064,8 +7383,9 @@ class AddSkybox(bpy.types.Operator):
 		
 	def execute(self, context):
 		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
-		coords=[ (1, 1, -1), (1, -1, -1), (-1, -0.9999998, -1), (-0.9999997, 1, -1), (1, 0.9999995, 1), (0.9999994, -1.000001, 1), (-1, -0.9999997, 1), (-1, 1, 1) ]
-		faces=[ (0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (4, 0, 3, 7) ]
+		coords=[(1.000000,1.000000,-1.000000),(1.000000,-1.000000,-1.000000),(-1.000000,-1.000000,-1.000000),(-1.000000,1.000000,-1.000000),(1.000000,1.000000,1.000000),(0.999999,-1.000001,1.000000),(-1.000000,-1.000000,1.000000),(-1.000000,1.000000,1.000000)]
+		faces=[(0,3,2,1),(4,5,6,7),(0,1,5,4),(1,2,6,5),(2,3,7,6),(4,7,3,0)]
+		uvs=[(0.003059,0.000000),(1.000000,0.003059),(0.996942,1.000000),(0.000000,0.996941),(0.000000,0.003058),(0.996942,0.000000),(1.000000,0.996942),(0.003058,1.000000),(0.003058,0.000000),(1.000000,0.003059),(0.996942,1.000000),(0.000000,0.996942),(0.000000,0.003058),(0.996942,0.000000),(1.000000,0.996942),(0.003059,1.000000),(0.000000,0.003058),(0.996942,0.000000),(1.000000,0.996942),(0.003058,1.000000),(1.000000,0.996941),(0.003058,1.000000),(0.000000,0.003058),(0.996941,0.000000)]
 		
 		# create a new mesh  
 		me = bpy.data.meshes.new("A3DSkybox") 
@@ -7089,13 +7409,142 @@ class AddSkybox(bpy.types.Operator):
 		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
 		me.update(calc_edges=True)    # Update mesh with new data	
 		
+		#set uvs
+		if len(uvs) > 0:
+			uvlayer = me.uv_textures.new()
+			uv_faces = me.uv_layers[0].data
+			x=0
+			for vert in uv_faces:
+				vert.uv = uvs[x]
+				x=x+1
+		
 		# flip the normals as we want it inside the cube not outside
 		bpy.ops.object.mode_set(mode = 'EDIT')
 		bpy.ops.mesh.select_all(action='SELECT')
 		bpy.ops.mesh.flip_normals()
 		bpy.ops.mesh.select_all(action='DESELECT')
 		bpy.ops.object.mode_set(mode = 'OBJECT')
-		bpy.ops.object.select_all(action='DESELECT')
+		#bpy.ops.object.select_all(action='DESELECT')
+		
+		#add materials for each face
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[0].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		#Assign a material to the last slot 
+		matbottom = bpy.data.materials.new("Bottom")
+		ob.material_slots[ob.material_slots.__len__() - 1].material = matbottom
+		#slot.material = matbottom
+		#me.materials.append(matbottom)
+		#new texture
+		texture = bpy.data.textures.new("Bottom", type='IMAGE')
+		mtex = matbottom.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+		
+		
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[1].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		mattop = bpy.data.materials.new("Top")
+		ob.material_slots[ob.material_slots.__len__() - 1].material = mattop
+		#me.materials.append(mattop)
+		texture = bpy.data.textures.new("Top", type='IMAGE')
+		mtex = mattop.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[2].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		matback = bpy.data.materials.new("Back")
+		ob.material_slots[ob.material_slots.__len__() - 1].material =  matback
+		#me.materials.append(matback)
+		texture = bpy.data.textures.new("Back", type='IMAGE')
+		mtex = matback.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[3].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		matleft = bpy.data.materials.new("Left")
+		ob.material_slots[ob.material_slots.__len__() - 1].material = matleft
+		#me.materials.append(matleft)
+		texture = bpy.data.textures.new("Left", type='IMAGE')
+		mtex = matleft.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+		
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[4].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		matfront = bpy.data.materials.new("Front")
+		ob.material_slots[ob.material_slots.__len__() - 1].material = matfront
+		#me.materials.append(matfront)
+		texture = bpy.data.textures.new("Front", type='IMAGE')
+		mtex = matfront.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[5].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		matright = bpy.data.materials.new("Right")
+		ob.material_slots[ob.material_slots.__len__() - 1].material = matright
+		#me.materials.append(matright)
+		texture = bpy.data.textures.new("Right", type='IMAGE')
+		mtex = matright.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+		
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.mesh.select_all(action='SELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		
+		#add texture to each material
+		#set mapping to uv coords
 		
 		return {'FINISHED'}
 
@@ -7186,8 +7635,8 @@ class AddPlane(bpy.types.Operator):
 		
 	def execute(self, context):
 		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
-		coords=[ (1, 1, 0), (1, -1, 0), (-1, -0.9999998, 0), (-0.9999997, 1, 0) ]
-		faces=[ (0, 3, 2, 1) ]
+		coords=[ (1, 0, 1), (-1, 0, 1), (1, 0, -1), (-1, 0, -1) ]
+		faces=[ (2,1,3,4) ]
 		
 		# create a new mesh  
 		me = bpy.data.meshes.new("A3DPlane") 
@@ -7218,31 +7667,20 @@ class AddLOD(bpy.types.Operator):
 	bl_options = {'REGISTER', 'UNDO'}
 		
 	def execute(self, context):
-		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
-		coords=[ (1, 1, 0), (1, -1, 0), (-1, -0.9999998, 0), (-0.9999997, 1, 0) ]
-		faces=[ (0, 3, 2, 1) ]
+		bpy.ops.object.add(type='EMPTY')
+		empty = bpy.context.object
 		
-		# create a new mesh  
-		me = bpy.data.meshes.new("A3DLod") 
-		
-		# create an object with that mesh
-		ob = bpy.data.objects.new("A3DLod", me)  
+		empty.name = "A3DLOD"	
+
+		#set draw type
+		empty.empty_draw_type = 'CUBE'
+
+		# give custom property type
+		empty["a3dtype"] = "A3DLOD"
 		
 		# position object at 3d-cursor
-		ob.location = bpy.context.scene.cursor_location   
-		
-		#rotate 90 degrees so plane is upright
-		ob.rotation_euler = (1.57079633,0,1) 
-		
-		# Link object to scene
-		bpy.context.scene.objects.link(ob)  
-		
-		# give custom property type
-		ob["a3dtype"] = "A3DLod"
-
-		# Fill the mesh with verts, edges, faces 
-		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
-		me.update(calc_edges=True)    # Update mesh with new data	
+		empty.location = bpy.context.scene.cursor_location   
+				
 		return {'FINISHED'}		
 		
 class AddBox(bpy.types.Operator):
@@ -7290,12 +7728,12 @@ class A3d_submenu(bpy.types.Menu):
 		layout = self.layout
 		layout.operator_context = 'INVOKE_REGION_WIN'
 		layout.operator("a3dobj.a3d_logo", text="A3D Logo", icon='MESH_TORUS')
-		layout.operator("a3dobj.a3d_plane", text="Plane", icon='MESH_PLANE')
-		layout.operator("a3dobj.a3d_box", text="Box", icon='MESH_CUBE')
+		#layout.operator("a3dobj.a3d_plane", text="Plane", icon='MESH_PLANE')
+		#layout.operator("a3dobj.a3d_box", text="Box", icon='MESH_CUBE')
 		layout.operator("a3dobj.a3d_sprite3d", text="Sprite3D", icon='MESH_PLANE')
-		layout.operator("a3dobj.a3d_skybox", text="Skybox", icon='MESH_CUBE')
-		layout.operator("a3dobj.a3d_occluder", text="Occluder", icon='MESH_CUBE')
-		layout.operator("a3dobj.a3d_lod", text="LOD", icon='MESH_CUBE')
+		#layout.operator("a3dobj.a3d_skybox", text="Skybox", icon='MESH_CUBE')
+		#layout.operator("a3dobj.a3d_occluder", text="Occluder", icon='MESH_CUBE')
+		#layout.operator("a3dobj.a3d_lod", text="LOD", icon='MESH_CUBE')
 		layout.separator()
 		layout.operator("a3dobj.a3d_ambientlight", text="AmbientLight", icon='OUTLINER_OB_LAMP')
 		layout.operator("a3dobj.a3d_directionallight", text="DirectionalLight", icon='OUTLINER_OB_LAMP')
