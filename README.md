@@ -13,22 +13,10 @@ This python script can be installed as an addon to blender. Once installed it wi
 
 ##Functionality
 
-- Create alternativa3d objects in blender and enable for export (Work in progress)
-- Create Document Class (Work in progress)
-- Import/Export .A3D files (Work in progress)
-- Export 3d models to flash alternativa3d actionscript classes (Export fillmaterials or textures)
-  For the following alternativa3d versions
-	-5.6.0
-	-7.5.1
-	-7.6.0
-	-7.7.0
-	-7.8.0
-	-8.5.0
-	-8.8.0
-	-8.12.0
-	-8.17.0
-	-8.27.0
+- Import/Export .A3D files
+- Export 3d models to flash alternativa3d actionscript classes
 - Export data to compressed bytearray variable within class in version 8.27.0+
+- Create Document Classes
 
 Installation Notes
 ------------------
@@ -43,6 +31,20 @@ Installation Notes
 
 Changelog
 ---------
+
+### 1.1.6
+- Updated min version of blender to be 2.63
+- Fixed api changes relating to bmesh
+- Fixed vertexbuffer compression export to a3d version 2.6
+- Fixed vertexbuffer decompression import a3d 2.6
+- Set version a3d 2.6 as default export now its working
+- linked copies of meshes export properly, reducing filesize by removing unused buffers
+- Removed all menu meshes except Sprite until better support
+- Fixed importing of mesh from skin
+- condensed code and removed redundant code
+- Added compatibility to still work with non bmesh version releases of blender
+- Add option to export parent object for meshes, parent object contains pivot transform
+- Redone nullmask encoding based on alternativa
 
 ### 1.1.5
 - Updated min version of blender to be 2.62

@@ -1,4 +1,4 @@
-bl_info = {
+﻿bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
 	'version': (1, 1, 6),
@@ -10,18 +10,22 @@ bl_info = {
 	'tracker_url': 'http://davidejones.com',
 	'category': 'Import-Export'}
 
-import math, os, time, bpy, random, mathutils, re, ctypes, struct, binascii, zlib, tempfile, re, operator
-import bpy_extras.io_utils
-from bpy import ops
+import bpy, os, time, struct, binascii, zlib, tempfile, re
+from mathutils import Vector, Matrix
+from bpy_extras.io_utils import path_reference_copy
 from bpy_extras.image_utils import load_image
 from bpy.props import *
-from ctypes import *
-import time
-from mathutils import Vector, Matrix
 
 #==================================
 # Common Functions 
 #==================================
+
+def checkBMesh():
+	a,b,c = bpy.app.version
+	return (int(b) >= 63)
+
+def rshift(val, n): return (val % 0x100000000) >> n
+
 def toRgb(RGBint):
 	Blue =  RGBint & 255
 	Green = (RGBint >> 8) & 255
@@ -56,153 +60,21 @@ def ConvertQuadsToTris(obj):
 	bpy.ops.mesh.select_all(action='DESELECT')
 	bpy.ops.mesh.select_all(action='SELECT')
 	mesh = obj.data
-	for f in mesh.polygons:
+	if checkBMesh() == True:
+		mefdata = mesh.polygons
+	else:
+		mefdata = mesh.faces
+	for f in mefdata:
 		f.select = True	
 	bpy.ops.mesh.quads_convert_to_tris()
 	#Return to object mode
 	bpy.ops.object.mode_set(mode="EDIT", toggle = False)
 	bpy.ops.object.mode_set(mode="OBJECT", toggle = True)
-
-def NumberOfSetBits(i):
-	i = i - ((i >> 1) & 0x55555555)
-	i = (i & 0x33333333) + ((i >> 2) & 0x33333333)
-	return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24
-	
-def invertNormals(lst):
-	newlst = []
-	for x in range(len(lst)):
-		tmp = []
-		for y in range(len(lst[x])):
-			if lst[x][y] < 0:
-				invertValue(lst[x][y])
-			else:
-				invertValue(lst[x][y])
-			newlst.append(tmp)
-	return newlst
-
-def invertValue(val):
-	if val < 0:
-		return abs(val)
-	else:
-		return -abs(val)
-
-def checkForOrco(obj):
-	has_orco = False
-	for mat_slot in [m for m in obj.material_slots if m.material is not None]:
-		for tex in [t for t in mat_slot.material.texture_slots if (t and t.texture and t.use)]:
-			if tex.texture_coords == 'ORCO':
-				has_orco = True
-				break  # break tex loop
-		if has_orco:
-			break  # break mat_slot loop
-	return has_orco
 	
 #==================================
-# Incomplete Functions - custom obj shit i made
-#==================================
-def WriteSkyBox(file,obj,Config):
-
-	mesh = obj.data;
-
-	if Config.A3DVersionSystem == 1:
-		# version 5.6.0
-		# do nothing
-		print()
-	elif Config.A3DVersionSystem == 2:
-		# version 7.5.1
-		# do nothing
-		print()
-	elif Config.A3DVersionSystem == 3:
-		# version 7.6.0
-		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
-		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 4:
-		# version 7.7.0
-		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
-		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 5:
-		# version 7.8.0
-		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
-		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 6:
-		# version 8.5.0
-		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
-		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
-		# version 8.8.0
-		file.write("\t\t\tvar sbox:SkyBox = new SkyBox();\n")
-		file.write('\t\t\tsbox.x = %f; sbox.y = %f; sbox.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	else:
-		print("version not found")
-
-def WriteOccluder(file,obj,Config):
-	if Config.A3DVersionSystem == 1:
-		# version 5.6.0
-		# do nothing
-		print()
-	elif Config.A3DVersionSystem == 2:
-		# version 7.5.1
-		# do nothing
-		print()
-	elif Config.A3DVersionSystem == 3:
-		# version 7.6.0
-		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
-		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 4:
-		# version 7.7.0
-		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
-		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 5:
-		# version 7.8.0
-		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
-		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 6:
-		# version 8.5.0
-		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
-		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
-		# version 8.8.0
-		file.write("\t\t\tvar occ:Occluder = new Occluder();\n")
-		file.write('\t\t\tocc.x = %f; occ.y = %f; occ.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	else:
-		print("version not found")
-
-def WriteSprite3d(file,obj,Config):
-	if Config.A3DVersionSystem == 1:
-		# version 5.6.0
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 2:
-		# version 7.5.1
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 3:
-		# version 7.6.0
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 4:
-		# version 7.7.0
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 5:
-		# version 7.8.0
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif Config.A3DVersionSystem == 6:
-		# version 8.5.0
-		file.write("\t\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-		file.write('\t\t\tsp3d.x = %f; sp3d.y = %f; sp3d.z = %f;\n' % (obj.location[0],obj.location[1],obj.location[2]) )
-	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10):
-		# version 8.8.0
-		file.write("\t\tvar sp3d:Sprite3D = new Sprite3D();\n")
-	else:
-		print("version not found")
-	
-#==================================
-# EXPORTER - Actionscript (.as)
+# AS EXPORTER
 #==================================
 
-# Exporter (.as) settings container
 class ASExporterSettings:
 	def __init__(self,A3DVersionSystem=1,CompilerOption=1,ExportMode=1,DocClass=False,CopyImgs=True,ByClass=False,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1):
 		self.A3DVersionSystem = int(A3DVersionSystem)
@@ -216,14 +88,11 @@ class ASExporterSettings:
 		self.ExportNormals = int(ExportNormals)
 		self.ExportTangents = int(ExportTangents)
 
-# Exporter (.as) class thats called from menu
 class ASExporter(bpy.types.Operator):
 	bl_idname = "ops.asexporter"
 	bl_label = "Export to AS (Alternativa)"
 	bl_description = "Export to AS (Alternativa)"
 	
-	#export options
-	#alternativa3d versions
 	A3DVersions = []
 	A3DVersions.append(("1", "5.6.0", ""))
 	A3DVersions.append(("2", "7.5.0", ""))
@@ -237,17 +106,17 @@ class ASExporter(bpy.types.Operator):
 	A3DVersions.append(("10", "8.17.0", ""))
 	A3DVersions.append(("11", "8.27.0", ""))
 	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D to export to", items=A3DVersions, default="11")
-	#flash or flex?
+
 	Compilers = []
 	Compilers.append(("1", "Flex", ""))
 	Compilers.append(("2", "Flash", ""))
 	CompilerOption = EnumProperty(name="Use With", description="Select the compiler you will be using", items=Compilers, default="1")
-	#export selection
+
 	ExportModes = []
 	ExportModes.append(("1", "Selected Objects", ""))
 	ExportModes.append(("2", "All Objects", ""))
 	ExportMode = EnumProperty(name="Export", description="Select which objects to export", items=ExportModes, default="1")
-	#export document class?
+
 	DocClass = BoolProperty(name="Create Document Class", description="Create document class that makes use of exported data", default=False)
 	CopyImgs = BoolProperty(name="Copy Images", description="Copy images to destination folder of export", default=True)
 	ByClass = BoolProperty(name="Use ByteArray Data (v8.27+)", description="Exports mesh data to compressed bytearray in as3", default=False)
@@ -256,7 +125,6 @@ class ASExporter(bpy.types.Operator):
 	ExportUV = BoolProperty(name="Include UVs", description="Normals", default=True)
 	ExportNormals = BoolProperty(name="Include Normals", description="Normals", default=True)
 	ExportTangents = BoolProperty(name="Include Tangents", description="Tangents", default=True)
-	
 	
 	filepath = bpy.props.StringProperty()
 
@@ -268,10 +136,9 @@ class ASExporter(bpy.types.Operator):
 		try:
 			time1 = time.clock()
 			print('Output file : %s' %filePath)
-			#file = open(filePath, 'wb')
 			file = open(filePath, 'w')
 			Config = ASExporterSettings(A3DVersionSystem=self.A3DVersionSystem,CompilerOption=self.CompilerOption,ExportMode=self.ExportMode, DocClass=self.DocClass,CopyImgs=self.CopyImgs,ByClass=self.ByClass,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents)
-			asexport(file,Config,fp)
+			ASExport(file,Config,fp)
 			
 			file.close()
 			print(".as export time: %.2f" % (time.clock() - time1))
@@ -282,12 +149,10 @@ class ASExporter(bpy.types.Operator):
 	def invoke (self, context, event):		
 		context.window_manager.fileselect_add(self)
 		return {'RUNNING_MODAL'}
-
-# Exporter (.as) function		
-def asexport(file,Config,fp):
+		
+def ASExport(file,Config,fp):
 	print('Export to Alternativa3d Class started...\n')
 	
-	#write as3 package header
 	WritePackageHeader(file,Config)
 		
 	if Config.ExportMode == 1:
@@ -299,7 +164,6 @@ def asexport(file,Config,fp):
 		objs = [obj for obj in bpy.data.objects if obj.type == 'MESH']
 		print('Export all meshes...\n')
 	
-	#write each mesh class
 	aobjs = []
 	for obj in objs:
 	
@@ -323,25 +187,16 @@ def asexport(file,Config,fp):
 			else:
 				print("No Alternativa Version\n")
 		
-		#Copy images
 		if Config.CopyImgs:
 			print("copy images...\n")
 			copyImages(obj,fp)
 
-	#close off package
 	WritePackageEnd(file)
 	
-	#Create document class
 	if Config.DocClass:
 		WriteDocuClass(file,objs,aobjs,Config,fp)
 	
 	print('Export Completed...\n')
-
-def GetMeshVertexCount(Mesh):
-    VertexCount = 0
-    for Face in Mesh.polygons:
-        VertexCount += len(Face.vertices)
-    return VertexCount
 	
 def WritePackageHeader(file,Config):
 	file.write("//Alternativa3D Class Export For Blender 2.62 and above\n")
@@ -446,52 +301,46 @@ def WritePackageEnd(file):
 	file.write("}")
 	
 def setupMaterials(file,obj,Config):
-	#read the materials from the mesh and output them accordingly
 	mesh = obj.data
 	verts = mesh.vertices
 	mati = {}
-	
-	#mesh.materials
-	#mesh.vertex_colors
-	#MeshFace.material_index
-	
+
 	Materials = mesh.materials
 	if Materials.keys():
 		MaterialIndexes = {}
-		for Face in mesh.polygons:
-			if Materials[Face.material_index] not in MaterialIndexes:
-				MaterialIndexes[Materials[Face.material_index]] = len(MaterialIndexes)
+		if checkBMesh() == True:
+			for Face in mesh.polygons:
+				if Materials[Face.material_index] not in MaterialIndexes:
+					MaterialIndexes[Materials[Face.material_index]] = len(MaterialIndexes)
+		else:
+			for Face in mesh.faces:
+				if Materials[Face.material_index] not in MaterialIndexes:
+					MaterialIndexes[Materials[Face.material_index]] = len(MaterialIndexes)
+
 		Materials = [Item[::-1] for Item in MaterialIndexes.items()]
 		Materials.sort()
 		x=0
 		for Material in Materials:
-			#mati[x] = "material"+str(x)
 			mati[x] = cleanupString(str(Material[1].name))
-			#mati[Material.name] = "material"+str(x)
-			#WriteMaterial(file,"material"+str(x),Config, Material[1])
 			WriteMaterial(file,mati[x],Config, Material[1])
 			x += 1
 	return mati
 			
 def WriteMaterial(file,id,Config,Material=None):
 	if Material:
-		#print(Material.name)
 		nme = cleanupString(str(Material.name))
 		
 		Texture = GetMaterialTexture(Material)
 		if Texture:
-			#print(Texture)
 			# if version 5.6.0
 			if Config.A3DVersionSystem == 1:
 				#if flex
 				if Config.CompilerOption == 1:
 					file.write('\t\t[Embed(source="'+str(Texture)+'")] private static const bmp'+str(nme)+':Class;\n')
-					#file.write('\t\tprivate static const '+str(id)+':Texture = new Texture(new bmp'+str(nme)+'().bitmapData, "'+str(nme)+'");\n\n')
 					file.write('\t\tprivate static const '+str(id)+':TextureMaterial = new TextureMaterial(new Texture(new bmp'+str(nme)+'().bitmapData, "'+str(nme)+'"));\n\n')
 				else:
 					file.write("\t\t//"+str(Texture)+"\n")
 					file.write("\t\tprivate var bmp"+str(nme)+":Bitmap = new Bitmap(new bd"+str(nme)+"(0,0));\n")
-					#file.write('\t\tprivate var '+str(id)+':Texture = new Texture(bmp'+str(nme)+'.bitmapData, "'+str(nme)+'");\n\n')
 					file.write('\t\tprivate var '+str(id)+':TextureMaterial = new TextureMaterial(new Texture(new bmp'+str(nme)+'().bitmapData, "'+str(nme)+'"));\n\n')
 			#if version 7.5.0, 7.5.1, 7.6.0, 7.7.0, 7.8.0
 			elif (Config.A3DVersionSystem == 2) or (Config.A3DVersionSystem == 3) or (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5) or (Config.A3DVersionSystem == 6):
@@ -550,7 +399,7 @@ def copyImages(obj,filepath):
 			if "image" in tex:
 				img = tex.image
 				rel = bpy_extras.io_utils.path_reference(img.filepath, source_dir, dest_dir, 'COPY', "", copy_set)
-	bpy_extras.io_utils.path_reference_copy(copy_set)
+	path_reference_copy(copy_set)
 
 def writeByteArrayValues(file,verts,uvt,indices):
 	file.write("\t\t\tvalues= new <uint>[")
@@ -573,11 +422,9 @@ def writeByteArrayValues(file,verts,uvt,indices):
 	tfile.write(struct.pack("<H", len(indices)))
 	for i in indices:
 		tfile.write(struct.pack("<I", i))
-	
-	#rewind	
+		
 	tfile.seek(0)
 	
-	#compress
 	indata = tfile.read()
 	outdata = zlib.compress(indata)
 	tfile.close()
@@ -612,10 +459,6 @@ def getCommonData(obj,flipUV=1):
 	uv_coord_list = []
 	new_index = 0
 	uvtex = mesh.uv_textures.active
-	has_orco = checkForOrco(obj)
-		
-	if has_orco:
-		print("HAS ORCO")
 		
 	if hasFaceUV:
 		uvtex = mesh.uv_layers[0]
@@ -655,20 +498,83 @@ def getCommonData(obj,flipUV=1):
 			vs.append([v.co[0],v.co[1],v.co[2]])
 			nr.append([v.normal[0],v.normal[1],v.normal[2]])
 
-	#if we have uv's and normals then calculate tangents
 	if (len(uvt) > 0) and (len(nr) > 0):
 		tan = calculateTangents(ins,vs,uv_coord_list,nr)		
 	
-	#get bound box
 	bb = getBoundBox(obj)
-			
-	#get transform	
-	#trns=[obj.location[0],obj.rotation_euler[0],obj.scale[0],obj.location[1],obj.rotation_euler[1],obj.scale[1],obj.location[2],obj.rotation_euler[2],obj.scale[2],obj.dimensions[0],obj.dimensions[1],obj.dimensions[2]]
-		
 	trns = getObjTransform(obj)
-		
 	return vs,uvt,ins,nr,tan,bb,trns
 
+def getCommonDataNoBmesh(obj,flipUV=1):
+	mesh = obj.data
+	verts = mesh.vertices
+	Materials = mesh.materials
+	hasFaceUV = len(mesh.uv_textures) > 0
+	vs,uvt,ins,nr,tan,bb,trns = [],[],[],[],[],[],[]
+	vertices_list = []
+	vertices_co_list = []
+	vertices_index_list = []
+	normals_list = []
+	uv_coord_list = []
+	new_index = 0
+	uvtex = mesh.uv_textures.active
+
+	if hasFaceUV:
+		for uv_index, uv_itself in enumerate(uvtex.data):
+			uvs = uv_itself.uv1, uv_itself.uv2, uv_itself.uv3, uv_itself.uv4
+			for vertex_index, vertex_itself in enumerate(mesh.faces[uv_index].vertices):
+				vertex = mesh.vertices[vertex_itself]
+				vertices_list.append(vertex_itself)
+				vertices_co_list.append(vertex.co.xyz)
+				normals_list.append(vertex.normal.xyz)
+				vertices_index_list.append(new_index)
+				new_index += 1
+				uv_coord_list.append(uvs[vertex_index])
+				vs.append([vertices_co_list[-1][0],vertices_co_list[-1][1],vertices_co_list[-1][2]])
+				if mesh.faces[uv_index].use_smooth:
+					nr.append([normals_list[-1][0],normals_list[-1][1],normals_list[-1][2]])
+				else:
+					nr.append(mesh.faces[uv_index].normal)
+				ins.append(vertices_index_list[-1])
+				if flipUV == 1:
+					uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
+				else:
+					uv = [uv_coord_list[-1][0], uv_coord_list[-1][1]]
+				uvt.append(uv)
+	else:
+		# if there are no image textures, output the old way
+		for face in mesh.faces:
+			if len(face.vertices) > 0:
+				ins.append(face.vertices[0])
+				ins.append(face.vertices[1])
+				ins.append(face.vertices[2])
+				#nr.append([[face.normal[0],face.normal[1],face.normal[2]]])
+				for i in range(len(face.vertices)):
+					#if face.use_smooth:
+					#	v = mesh.vertices[face.vertices[i]]
+					#	nr.append([v.normal[0],v.normal[1],v.normal[2]])
+					#else:
+					#	nr.append(face.normal)
+					hasFaceUV = len(mesh.uv_textures) > 0
+					if hasFaceUV:
+						uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
+						uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
+						uvt.append(uv)
+		for v in mesh.vertices:
+			vs.append([v.co[0],v.co[1],v.co[2]])
+			nr.append([v.normal[0],v.normal[1],v.normal[2]])
+
+	#if we have uv's and normals then calculate tangents
+	if (len(uvt) > 0) and (len(nr) > 0):
+		tan = calculateTangents(ins,vs,uv_coord_list,nr)		
+
+	#get bound box
+	bb = getBoundBox(obj)
+
+	trns = getObjTransform(obj)
+
+	return vs,uvt,ins,nr,tan,bb,trns
+	
 def getObjTransform(obj):
 	trns = []
 	c=0
@@ -684,98 +590,20 @@ def getObjTransform(obj):
 		c=c+1	
 	return trns
 	
-def calculateNormals(ins,verts):
-	# based on alternativas code here
-	# https://github.com/AlternativaPlatform/Alternativa3D/blob/master/src/alternativa/engine3d/resources/Geometry.as
-	normals = []
-	x=0
-	numIndices = len(ins)
-	
-	#print("numIndices="+str(numIndices))
-	#print("verts="+str(len(verts)))
-	
-	for i in range(numIndices):
-	
-		if i >= numIndices/3:
-			break
-			
-		vertIndexA = ins[x]
-		vertIndexB = ins[x + 1]
-		vertIndexC = ins[x + 2]
-		
-		#vertex1
-		ax = verts[x][0]
-		ay = verts[x][1]
-		az = verts[x][2]
-
-		#vertex2
-		bx = verts[x + 1][0]
-		by = verts[x + 1][1]
-		bz = verts[x + 1][2]
-
-		#vertex3
-		cx = verts[x + 2][0]
-		cy = verts[x + 2][1]
-		cz = verts[x + 2][2]
-
-		#v2-v1
-		abx = bx - ax
-		aby = by - ay
-		abz = bz - az
-
-		#v3-v1
-		acx = cx - ax
-		acy = cy - ay
-		acz = cz - az
-		
-		normalX = acz*aby - acy*abz
-		normalY = acx*abz - acz*abx
-		normalZ = acy*abx - acx*aby
-		
-		normalLen = math.sqrt(normalX*normalX + normalY*normalY + normalZ*normalZ)
-		
-		if (normalLen > 0):
-			normalX /= normalLen
-			normalY /= normalLen
-			normalZ /= normalLen
-		else:
-			print("degenerated triangle")
-			print(i/3)
-		
-		# v1 normal
-		if vertIndexA in normals:
-			normal = normals[vertIndexA]
-			normal.x += normalX
-			normal.y += normalY
-			normal.z += normalZ
-		else:
-			normals.append(mathutils.Vector((normalX, normalY, normalZ)))
-
-		# v2 normal
-		if vertIndexB in normals:
-			normal = normals[vertIndexB]
-			normal.x += normalX
-			normal.y += normalY
-			normal.z += normalZ
-		else:
-			normals.append(mathutils.Vector((normalX, normalY, normalZ)))
-
-		# v3 normal
-		if vertIndexC in normals:
-			normal = normals[vertIndexC]
-			normal.x += normalX
-			normal.y += normalY
-			normal.z += normalZ
-		else:
-			normals.append(mathutils.Vector((normalX, normalY, normalZ)))
-		
-		x = x + 3
-		
-	#normalize
-	for nor in normals:
-		nor.normalize()
-		
-	return normals
+def getObjWorldTransform(obj):
+	trns = []
+	c=0
+	j=0
+	for x in obj.matrix_world:
+		j=0
+		for y in x:
+			if j == 3 and c != 3:
+				trns.append(obj.location[c])
+			else:
+				trns.append(y)
+			j=j+1
+		c=c+1	
+	return trns
 	
 def calculateTangents(ins,verts,uvs,nrms):
 	# based on alternativas code here
@@ -867,7 +695,7 @@ def calculateTangents(ins,verts,uvs,nrms):
 			#doesn't exist
 			#print("va doesn't exist")
 			#tangents[vertIndexA] 
-			tangents.append(mathutils.Vector((tangentX - anx*(anx*tangentX + any*tangentY + anz*tangentZ),tangentY - any*(anx*tangentX + any*tangentY + anz*tangentZ),tangentZ - anz*(anx*tangentX + any*tangentY + anz*tangentZ))))
+			tangents.append(Vector((tangentX - anx*(anx*tangentX + any*tangentY + anz*tangentZ),tangentY - any*(anx*tangentX + any*tangentY + anz*tangentZ),tangentZ - anz*(anx*tangentX + any*tangentY + anz*tangentZ))))
 			
 		if vertIndexB in tangents:
 			#exists
@@ -880,7 +708,7 @@ def calculateTangents(ins,verts,uvs,nrms):
 			#doesn't exist
 			#print("vb doesn't exist")
 			#tangents[vertIndexB] 
-			tangents.append(mathutils.Vector((tangentX - bnx*(bnx*tangentX + bny*tangentY + bnz*tangentZ),tangentY - bny*(bnx*tangentX + bny*tangentY + bnz*tangentZ),tangentZ - bnz*(bnx*tangentX + bny*tangentY + bnz*tangentZ))))
+			tangents.append(Vector((tangentX - bnx*(bnx*tangentX + bny*tangentY + bnz*tangentZ),tangentY - bny*(bnx*tangentX + bny*tangentY + bnz*tangentZ),tangentZ - bnz*(bnx*tangentX + bny*tangentY + bnz*tangentZ))))
 			
 		if vertIndexC in tangents:
 			#exists
@@ -893,7 +721,7 @@ def calculateTangents(ins,verts,uvs,nrms):
 			#doesn't exist
 			#print("vc doesn't exist")
 			#tangents[vertIndexC] 
-			tangents.append(mathutils.Vector((tangentX - cnx*(cnx*tangentX + cny*tangentY + cnz*tangentZ),tangentY - cny*(cnx*tangentX + cny*tangentY + cnz*tangentZ),tangentZ - cnz*(cnx*tangentX + cny*tangentY + cnz*tangentZ))))
+			tangents.append(Vector((tangentX - cnx*(cnx*tangentX + cny*tangentY + cnz*tangentZ),tangentY - cny*(cnx*tangentX + cny*tangentY + cnz*tangentZ),tangentZ - cnz*(cnx*tangentX + cny*tangentY + cnz*tangentZ))))
 		
 		
 		#Calculate handedness
@@ -907,8 +735,6 @@ def calculateTangents(ins,verts,uvs,nrms):
 	return tangents
 		
 def getBoundBox(obj):
-	#https://github.com/subcomandante/Blender-2.5-Exporter/commit/12e463d2e9f95001cc0e9c39524ffdad686b23c5
-	#http://projects.blender.org/tracker/?func=detail&atid=498&aid=30864&group_id=9
 	v = [list(bb) for bb in obj.bound_box]
 	bmin = min(v)
 	bmax = max(v)
@@ -918,13 +744,6 @@ def getBoundBox(obj):
 	maxx = min(bmax[0] * obj.scale.x, 1e10)
 	maxy = min(bmax[1] * obj.scale.y, 1e10)
 	maxz = min(bmax[2] * obj.scale.z, 1e10)
-	#vec = [j for v in mesh.vertices for j in v.co]
-	#paramsSetFloat("minX", max(min(vec[0::3]), -1e10))
-	#paramsSetFloat("minY", max(min(vec[1::3]), -1e10))
-	#paramsSetFloat("minZ", max(min(vec[2::3]), -1e10))
-	#paramsSetFloat("maxX", min(max(vec[0::3]), 1e10))
-	#paramsSetFloat("maxY", min(max(vec[1::3]), 1e10))
-	#paramsSetFloat("maxZ", min(max(vec[2::3]), 1e10))
 	return [minx,miny,minz,maxx,maxy,maxz]
 
 def writeTransform(file,obj,Config):
@@ -953,7 +772,6 @@ def WriteClass8270(file,obj,Config):
 	
 	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
 	
-	#setup materials
 	mati = setupMaterials(file,obj,Config)
 	
 	#if bytearray
@@ -961,7 +779,6 @@ def WriteClass8270(file,obj,Config):
 		file.write("\t\tprivate var values:Vector.<uint>;\n")
 		file.write("\t\tprivate var bytedata:ByteArray = new ByteArray();\n")
 	
-	#write attributes/geom
 	file.write("\t\tprivate var attributes:Array;\n\n")
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 	file.write("\t\t\tattributes = new Array();\n")
@@ -981,33 +798,30 @@ def WriteClass8270(file,obj,Config):
 	file.write("\t\t\tvar g:Geometry = new Geometry();\n")
 	file.write("\t\t\tg.addVertexStream(attributes);\n")
 	
-	#get data
-	vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+	if checkBMesh() == True:
+		vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+	else:
+		vs,uvt,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
 			
 	file.write("\t\t\tg.numVertices = "+str(len(vs))+";\n\n")
 	
 	if Config.ByClass == 0:
-		#write vertices
 		if len(vs) > 0:
 			file.write("\t\t\tvar vertices:Array = [\n")
 			for v in vs:
-				#file.write("\t\t\t\t%.6f, %.6f, %.6f,\n" % (v[0],v[1],v[2]))
 				file.write("\t\t\t\t%.6g, %.6g, %.6g,\n" % (v[0],v[1],v[2]))
 			file.write("\t\t\t];\n")
 		else:
 			file.write("\t\t\tvar vertices:Array = new Array();\n")
 		
-		#write uv coords
 		if (len(uvt) > 0) and (Config.ExportUV == 1):
 			file.write("\t\t\tvar uvt:Array = [\n")
 			for u in uvt:
-				#file.write("\t\t\t\t"+str(u[0])+","+str(u[1]+","))
 				file.write("\t\t\t\t%.4g,%.4g,\n" % (u[0],u[1]))
 			file.write("\t\t\t];\n")
 		else:
 			file.write("\t\t\tvar uvt:Array = new Array();\n")
 		
-		#write indices
 		if len(ins) > 0:
 			file.write("\t\t\tvar ind:Array = [\n")
 			x=0
@@ -1023,17 +837,14 @@ def WriteClass8270(file,obj,Config):
 		else:
 			file.write("\t\t\tvar ind:Array = new Array();\n")
 		
-		#write normals
 		if (len(nr) > 0) and (Config.ExportNormals == 1):
 			file.write("\t\t\tvar normals:Array = [\n")
 			for n in nr:
-				#file.write("\t\t\t\t%.6f, %.6f, %.6f,\n" % (n[0],n[1],n[2]))
 				file.write("\t\t\t\t%.6g, %.6g, %.6g,\n" % (n[0],n[1],n[2]))
 			file.write("\t\t\t];\n")
 		else:
 			file.write("\t\t\tvar normals:Array = new Array();\n")
 			
-		#write tangents
 		if (len(tan) > 0) and (Config.ExportTangents == 1):
 			file.write("\t\t\tvar tangent:Array = [\n")
 			for t in tan:
@@ -1042,7 +853,6 @@ def WriteClass8270(file,obj,Config):
 		else:
 			file.write("\t\t\tvar tangent:Array = new Array();\n\n")
 		
-		#set attributes
 		file.write("\t\t\tg.setAttributeValues(VertexAttributes.POSITION, Vector.<Number>(vertices));\n")
 		if (len(uvt) > 0) and (Config.ExportUV == 1):
 			file.write("\t\t\tg.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")
@@ -1059,7 +869,6 @@ def WriteClass8270(file,obj,Config):
 		else:
 			file.write("\t\t\t//g.setAttributeValues(VertexAttributes.TANGENT4, Vector.<Number>(tangent));\n")
 		
-		#set geometry
 		file.write("\t\t\tg.indices =  Vector.<uint>(ind);\n\n")
 		if Config.A3DVersionSystem == 11:
 			file.write("\t\t\t//g.calculateNormals();\n")
@@ -1091,32 +900,31 @@ def WriteClass8270(file,obj,Config):
 		file.write("\t\t\tg.calculateTangents(0);\n")
 		file.write("\t\t\tthis.geometry = g;\n")
 
-	
 	start,end,mts,mats = collectSurfaces(mesh)
 	
-	#set surfaces
 	if len(mts) > 0:
 		for x in range(len(mts)):
 			file.write("\t\t\tthis.addSurface("+mts[x]+", "+str(start[x])+", "+str(end[x])+");\n")
 	else:
 		file.write("\t\t\t//this.addSurface(new FillMaterial(0xFF0000), 0, "+str(len(ins))+");\n")
 	
-	#finishup
 	file.write("\t\t\tthis.calculateBoundBox();\n")
-	
 	writeTransform(file,obj,Config)
-	
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 
 def collectSurfaces(mesh):
-	#collect surface data, indexbegin/numtriangles etc
 	Materials = mesh.materials
 	c=0
 	triangles = -1
 	lastmat = None
 	start,end,items,mts,mats = [],[],[],[],[]
-	for face in mesh.polygons:
+	if checkBMesh() == True:
+		mefdata = mesh.polygons
+	else:
+		mefdata = mesh.faces
+	
+	for face in mefdata:
 		triangles = triangles + 1
 		if face.material_index <= len(Materials)-1:
 			srcmat = Materials[face.material_index]
@@ -1148,13 +956,16 @@ def WriteClass78(file,obj,Config):
 	verts = mesh.vertices
 	Materials = mesh.materials
 	
-	#setup materials
 	mati = setupMaterials(file,obj,Config)
-	
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 		
+	if checkBMesh() == True:
+		mefdata = mesh.polygons
+	else:
+		mefdata = mesh.faces
+		
 	cn=-1
-	for face in mesh.polygons:
+	for face in mefdata:
 		cn +=1
 		file.write('\t\t\t\taddFace(Vector.<Vertex>([\n')
 		if len(face.vertices) > 0:
@@ -1162,12 +973,11 @@ def WriteClass78(file,obj,Config):
 				hasFaceUV = len(mesh.uv_textures) > 0
 				if (hasFaceUV) and (Config.ExportUV == 1):
 					uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
-					uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
+					uv[1] = 1.0 - uv[1]
 					file.write('\t\t\t\t\taddVertex(%f, %f, %f, %f, %f),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z, uv[0], uv[1]) )
 				else:
 					file.write('\t\t\t\t\taddVertex(%f, %f, %f, 0, 0),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z) )
 		if hasFaceUV:
-			#file.write('\t\t\t\t]),'+uvimagevarrefs[face.index]+');\n\n')
 			if mati[face.material_index]:
 				file.write('\t\t\t\t]),'+mati[face.material_index]+');\n\n')
 			else:
@@ -1185,7 +995,6 @@ def WriteClass78(file,obj,Config):
 			else:
 				file.write('\t\t\t\t]),new FillMaterial(0xFF0000));\n\n')
 
-	#calculations
 	if Config.A3DVersionSystem == 4:
 		#7.6.0
 		file.write("\t\tcalculateNormals();\n")
@@ -1197,7 +1006,6 @@ def WriteClass78(file,obj,Config):
 		file.write("\t\t\tcalculateBounds();\n")
 		
 	writeTransform(file,obj,Config)
-	
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 	
@@ -1208,19 +1016,22 @@ def WriteClass75(file,obj,Config):
 	verts = mesh.vertices
 	Materials = mesh.materials
 	
-	#setup materials
 	mati = setupMaterials(file,obj,Config)
-	
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 	file.write("\t\t\tvar g:Geometry = new Geometry();\n\n")
 	
-	for face in mesh.polygons:
+	if checkBMesh() == True:
+		mefdata = mesh.polygons
+	else:
+		mefdata = mesh.faces
+		
+	for face in mefdata:
 		file.write('\t\t\t\tg.addFace(Vector.<Vertex>([\n')
 		for i in range(len(face.vertices)):
 			hasFaceUV = len(mesh.uv_textures) > 0
 			if (hasFaceUV) and (Config.ExportUV == 1):
 				uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
-				uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
+				uv[1] = 1.0 - uv[1]
 				file.write('\t\t\t\t\tg.addVertex(%f, %f, %f, %f, %f),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z, uv[0], uv[1]) )
 			else:
 				file.write('\t\t\t\t\tg.addVertex(%f, %f, %f, 0, 0),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z) )
@@ -1245,9 +1056,7 @@ def WriteClass75(file,obj,Config):
 	file.write("\t\t\t//g.weldVertices();\n")
 	file.write("\t\t\t//g.weldFaces();\n")
 	file.write("\t\t\tgeometry = g;\n\n")
-	
 	writeTransform(file,obj,Config)
-	
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 	
@@ -1258,16 +1067,15 @@ def WriteClass5(file,obj,Config):
 	verts = mesh.vertices
 	Materials = mesh.materials
 	hasFaceUV = len(mesh.uv_textures) > 0
-	
-	#setup materials
-	mati = setupMaterials(file,obj,Config)
-	
-	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
-	
-	#get data
-	vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj,False)
 
-	#write vertices
+	mati = setupMaterials(file,obj,Config)
+	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
+
+	if checkBMesh() == True:
+		vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj,False)
+	else:
+		vs,uvt,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj,False)
+
 	if len(vs) > 0:
 		count = 0
 		for v in vs:
@@ -1275,7 +1083,6 @@ def WriteClass5(file,obj,Config):
 			count += 1
 		file.write('\n')
 		
-	#write faces
 	if len(ins) > 0:
 		count = 0
 		file.write('\t\t\tcreateFace([')
@@ -1296,14 +1103,12 @@ def WriteClass5(file,obj,Config):
 			
 	facecount = j
 	
-	#write face/uvs
 	if (len(uvt) > 0) and (Config.ExportUV == 1):
 		count = 0
 		file.write('\t\t\tsetUVsToFace(')
 		x=0
 		j=0
 		for u in uvt:
-			#file.write('new Point(%.4g,%.4g), ' % (u[0],u[1]))
 			file.write('new Point(%f,%f), ' % (u[0],u[1]))
 			if x==2:
 				x=0
@@ -1316,12 +1121,14 @@ def WriteClass5(file,obj,Config):
 			count += 1
 		file.write('\n')
 		
-			
-	#write surfaces
 	x=0
 	lastmat = None
 	items,mts,fcs,temp = [],[],[],[]
-	for face in mesh.polygons:
+	if checkBMesh() == True:
+		mefdata = mesh.polygons
+	else:
+		mefdata = mesh.faces
+	for face in mefdata:
 		if face.material_index <= len(Materials)-1:
 			srcmat = Materials[face.material_index]
 			if srcmat not in items:
@@ -1356,32 +1163,16 @@ def WriteClass5(file,obj,Config):
 		file.write('], "'+mts[x]+'");\n')
 		file.write('\t\t\tsetMaterialToSurface('+mts[x]+', "'+mts[x]+'");\n')
 		
-		
-	#for x in range(len(mati)):
-	#	file.write('\t\t\tcreateSurface([')
-	#	for i in range(facecount):
-	#		file.write("%i" % i)
-	#		if i != facecount-1:
-	#			file.write(",")
-	#	file.write('], "'+mati[x]+'");\n')
-	#	file.write('\t\t\tsetMaterialToSurface('+mati[x]+', "'+mati[x]+'");\n')
-	
-	
 	writeTransform(file,obj,Config)
-	
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 
 def WriteDocuClass(ofile,objs,aobjs,Config,fp):
-
-	#docclass filename
-	#fp = os.path.splitext(fp)[0] + "main.as"
 	fp = os.path.dirname(fp) + os.sep + "main.as"
 	
 	if os.path.exists(fp) == True:
 		print("Docuclass "+fp+" Already exists")
 	else:
-		#create new file same location as other
 		if not fp.lower().endswith('.as'):
 			fp += '.as'
 		try:
@@ -1392,7 +1183,6 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 		WriteDocPackageHeader(file,Config)
 		file.write("\tpublic class main extends Sprite {\n\n")
 		
-		#variables
 		for i, obj in enumerate(objs):
 			file.write("\t\tprivate var obj"+str(i)+":"+cleanupString(obj.data.name)+";\n\n")
 		
@@ -1412,17 +1202,13 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 			file.write("\t\tprivate var camera:Camera3D;\n")
 			file.write("\t\tprivate var view:View;\n\n")
 			file.write("\t\tprivate var controller:CameraController;\n\n")
-			
 			file.write("\t\tpublic function main() {\n\n")
-			
 			file.write("\t\t\tstage.align = StageAlign.TOP_LEFT;\n")
 			file.write("\t\t\tstage.scaleMode = StageScaleMode.NO_SCALE;\n\n")
-			
 			file.write('\t\t\tcamera = new Camera3D("camera");\n')
 			file.write("\t\t\tcamera.fov = MathUtils.DEG1*100;\n")
 			file.write("\t\t\tcamera.x = 10;\n")
 			file.write("\t\t\trootContainer.addChild(camera);\n\n")
-			
 			file.write('\t\t\tcontroller = new CameraController(stage);\n')
 			file.write('\t\t\tcontroller.camera = camera;\n')
 			file.write('\t\t\tcontroller.lookAt(new Point3D(0,0,0));\n\n')
@@ -1436,17 +1222,14 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 			file.write("\t\t\taddChild(view);\n")
 			file.write("\t\t\tview.interactive = true;\n")
 			file.write("\t\t\tFPS.init(this);\n\n")
-			
 			file.write("\t\t\taddEventListener(Event.ENTER_FRAME, onEnterFrame);\n")
 			file.write("\t\t\tstage.addEventListener(Event.RESIZE, onResize);\n")
 			file.write("\t\t\tonResize();\n")
 			file.write("\t\t}\n\n")
-			
 			file.write("\t\tprivate function onEnterFrame(e:Event=null):void {\n")
 			file.write("\t\t\tscene.calculate();\n")
 			file.write("\t\t\tcontroller.processInput();\n")
 			file.write("\t\t}\n\n")
-			
 			file.write("\t\tprivate function onResize(e:Event=null):void {\n")
 			file.write("\t\t\tview.width = stage.stageWidth;\n")
 			file.write("\t\t\tview.height = stage.stageHeight;\n")
@@ -1457,19 +1240,15 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 			file.write("\t\tprivate var rootContainer:Object3DContainer = new Object3DContainer();\n")
 			file.write("\t\tprivate var camera:Camera3D;\n")
 			file.write("\t\tprivate var controller:SimpleObjectController;\n\n")
-			
 			file.write("\t\tpublic function main() {\n\n")
-			
 			file.write("\t\t\tstage.align = StageAlign.TOP_LEFT;\n")
 			file.write("\t\t\tstage.scaleMode = StageScaleMode.NO_SCALE;\n\n")
-			
 			file.write("\t\t\tcamera = new Camera3D();\n")
 			file.write("\t\t\tcamera.view = new View(stage.stageWidth, stage.stageHeight);\n")
 			file.write("\t\t\taddChild(camera.view);\n")
 			file.write("\t\t\taddChild(camera.diagram);\n")
 			file.write("\t\t\tcamera.x = 10;\n")
 			file.write("\t\t\trootContainer.addChild(camera);\n\n")
-			
 			file.write("\t\t\tcontroller = new SimpleObjectController(stage,camera,100);\n")
 			file.write("\t\t\tcontroller.lookAt(new Vector3D(0,0,0));\n\n")
 			
@@ -1480,7 +1259,6 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 			
 			file.write("\t\t\tstage.addEventListener(Event.ENTER_FRAME, onEnterFrame);\n")
 			file.write("\t\t}\n\n")
-			
 			file.write("\t\tprivate function onEnterFrame(e:Event):void {\n")
 			file.write("\t\t\tcamera.view.width = stage.stageWidth;\n")
 			file.write("\t\t\tcamera.view.height = stage.stageHeight;\n")		
@@ -1492,19 +1270,15 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 			file.write("\t\tprivate var camera:Camera3D;\n")
 			file.write("\t\tprivate var stage3D:Stage3D;\n")
 			file.write("\t\tprivate var controller:SimpleObjectController;\n\n")
-			
 			file.write("\t\tpublic function main() {\n\n")
-			
 			file.write("\t\t\tstage.align = StageAlign.TOP_LEFT;\n")
 			file.write("\t\t\tstage.scaleMode = StageScaleMode.NO_SCALE;\n\n")
-			
 			file.write("\t\t\tcamera = new Camera3D(0.1, 10000);\n")
 			file.write("\t\t\tcamera.view = new View(stage.stageWidth, stage.stageHeight);\n")
 			file.write("\t\t\taddChild(camera.view);\n")
 			file.write("\t\t\taddChild(camera.diagram);\n")
 			file.write("\t\t\tcamera.x = 10;\n")
-			file.write("\t\t\trootContainer.addChild(camera);\n\n")	
-
+			file.write("\t\t\trootContainer.addChild(camera);\n\n")
 			file.write("\t\t\tcontroller = new SimpleObjectController(stage,camera,100);\n")
 			file.write("\t\t\tcontroller.lookAt(new Vector3D(0,0,0));\n\n")
 			
@@ -1516,16 +1290,13 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 			file.write("\t\t\tstage3D = stage.stage3Ds[0];\n")
 			file.write("\t\t\tstage3D.addEventListener(Event.CONTEXT3D_CREATE, onContextCreate);\n")
 			file.write("\t\t\tstage3D.requestContext3D();\n\n")
-			
 			file.write("\t\t}\n\n")
-			
 			file.write("\t\tprivate function onContextCreate(e:Event):void {\n")
 			file.write("\t\t\tfor each (var resource:Resource in rootContainer.getResources(true)) {\n")
 			file.write("\t\t\t\tresource.upload(stage3D.context3D);\n")
 			file.write("\t\t\t}\n")
 			file.write("\t\t\tstage.addEventListener(Event.ENTER_FRAME, onEnterFrame);\n")
 			file.write("\t\t}\n\n")
-			
 			file.write("\t\tprivate function onEnterFrame(e:Event):void {\n")
 			file.write("\t\t\tcamera.view.width = stage.stageWidth;\n")
 			file.write("\t\t\tcamera.view.height = stage.stageHeight;\n")		
@@ -1536,16 +1307,14 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 		
 		file.write("\t}\n")
 		WritePackageEnd(file)
-		
 		file.close()
-
+	
 #==================================
 # A3D EXPORTER
 #==================================
 
-#Container for the exporter settings
 class A3DExporterSettings:
-	def __init__(self,A3DVersionSystem=4,ExportMode=1,CompressData=1,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1):
+	def __init__(self,A3DVersionSystem=4,ExportMode=1,CompressData=1,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1,ExportParentObj=0):
 		self.A3DVersionSystem = int(A3DVersionSystem)
 		self.ExportMode = int(ExportMode)
 		self.CompressData = int(CompressData)
@@ -1553,7 +1322,8 @@ class A3DExporterSettings:
 		self.ExportUV = int(ExportUV)
 		self.ExportNormals = int(ExportNormals)
 		self.ExportTangents = int(ExportTangents)
-		
+		self.ExportParentObj = int(ExportParentObj)
+
 class A3DExporter(bpy.types.Operator):
 	bl_idname = "ops.a3dexporter"
 	bl_label = "Export to A3D (Alternativa)"
@@ -1564,7 +1334,7 @@ class A3DExporter(bpy.types.Operator):
 	A3DVersions.append(("2", "2.5", ""))
 	A3DVersions.append(("3", "2.4", ""))
 	A3DVersions.append(("4", "2.0", ""))
-	A3DVersions.append(("5", "1.0", ""))
+	#A3DVersions.append(("5", "1.0", ""))
 	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D .A3D to export to", items=A3DVersions, default="1")
 	
 	ExportModes = []
@@ -1578,6 +1348,7 @@ class A3DExporter(bpy.types.Operator):
 	ExportUV = BoolProperty(name="Include UVs", description="Normals", default=True)
 	ExportNormals = BoolProperty(name="Include Normals", description="Normals", default=True)
 	ExportTangents = BoolProperty(name="Include Tangents", description="Tangents", default=True)
+	ExportParentObj = BoolProperty(name="Include Pivot Objects", description="Export meshes with parent objects which contain pivot transformation data", default=False)
 	
 	filepath = bpy.props.StringProperty()
 
@@ -1591,14 +1362,12 @@ class A3DExporter(bpy.types.Operator):
 			file = open(filePath, 'wb')
 			file.close()
 			file = open(filePath, 'ab')
-			Config = A3DExporterSettings(A3DVersionSystem=self.A3DVersionSystem,ExportMode=self.ExportMode,CompressData=self.CompressData,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents)
+			Config = A3DExporterSettings(A3DVersionSystem=self.A3DVersionSystem,ExportMode=self.ExportMode,CompressData=self.CompressData,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents,ExportParentObj=self.ExportParentObj)
 			
 			if self.A3DVersionSystem == "5":
-				#export v1
-				a3d1export(file,Config)
+				A3DExport1(file,Config)
 			else:
-				#export v2
-				a3d2export(file,Config)
+				A3DExport2(file,Config)
 			
 			file.close()
 			print(".a3d export time: %.2f" % (time.clock() - time1))
@@ -1610,7 +1379,160 @@ class A3DExporter(bpy.types.Operator):
 		context.window_manager.fileselect_add(self)
 		return {'RUNNING_MODAL'}
 
-def a3d2export(file,Config):
+def A3DExport1(file,Config):
+	if Config.ExportMode == 1:
+		#get selected objects that are mesh
+		objs = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
+		print('Export selection only...\n')
+	else:
+		#get all objects that are mesh
+		objs = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+		print('Export all meshes...\n')
+		
+	boxes = []
+	geometries = []
+	indexBuffers = []
+	vertexBuffers = []
+	images = []
+	maps = []
+	materials = []
+	objects = []
+	
+	if len(objs) > 0:
+		print("Exporting meshes...\n")
+		for obj in objs:
+			#convert to triangles
+			ConvertQuadsToTris(obj)
+		
+			#data
+			mesh = obj.data
+			
+			#get raw geometry data
+			if checkBMesh() == True:
+				vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+			else:
+				vs,uvt,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+			#get surface data
+			start,end,mts,mats = collectSurfaces(mesh)
+					
+			#create mesh boundbox
+			a3dbox = A3DBox(Config)
+			a3dbox._box = bb
+			a3dbox._id = len(boxes)
+			boxes.append(a3dbox)
+			
+			#create indexbuffer
+			a3dibuf = A3DIndexBuffer(Config)
+			for x in range(len(ins)):
+				a3dibuf._byteBuffer.append(ins[x])
+			a3dibuf._indexCount = len(a3dibuf._byteBuffer)
+			indexBuffers.append(a3dibuf)
+			
+			#create vertexbuffer
+			vbuffers = []
+			a3dvbuf = A3DVertexBuffer(Config)
+			attar = []
+			if len(vs) > 0:
+				attar.append(0)
+			if (len(uvt) > 0) and (Config.ExportUV == 1):
+				attar.append(5)
+			if (len(nr) > 0) and (Config.ExportNormals == 1):
+				attar.append(1)
+			if (len(tan) > 0) and (Config.ExportTangents == 1):
+				attar.append(2)
+			a3dvbuf._attributes = attar
+			j=0
+			for v in vs:
+				if 0 in attar:
+					a3dvbuf._byteBuffer.append(v[0]) #vert1
+					a3dvbuf._byteBuffer.append(v[1]) #vert2
+					a3dvbuf._byteBuffer.append(v[2]) #vert3
+				if 5 in attar and (Config.ExportUV == 1):
+					a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
+					a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
+				if 1 in attar and (Config.ExportNormals == 1):
+					a3dvbuf._byteBuffer.append(nr[j][0]) #normal1
+					a3dvbuf._byteBuffer.append(nr[j][1]) #normal2
+					a3dvbuf._byteBuffer.append(nr[j][2]) #normal3
+				if 2 in attar and (Config.ExportTangents == 1):
+					a3dvbuf._byteBuffer.append(tan[j][0]) #tan1
+					a3dvbuf._byteBuffer.append(tan[j][1]) #tan2
+					a3dvbuf._byteBuffer.append(tan[j][2]) #tan3
+					a3dvbuf._byteBuffer.append(-1) #tan4 - static input handedness
+				j = j +1
+			a3dvbuf._vertexCount = int(len(vs)) #this works for cube
+			vbuffers.append(a3dvbuf)
+			
+			#create geometry
+			a3dgeom = A3DGeometry(Config)
+			a3dgeom._id = len(geometries)
+			a3dgeom._indexBuffer = a3dibuf
+			a3dgeom._vertexBuffers = vbuffers
+			geometries.append(a3dgeom)
+			
+			#images
+			a3dimg = A3DImage(Config)
+			a3dimg._id = 0
+			a3dimg._url = 0
+			#images.append(a3dimg)
+			
+			#maps
+			a3dmap = A3DMap(Config)
+			a3dmap._channel = 0
+			a3dmap._id = 0
+			a3dmap._imageId = 0
+			a3dmap._uOffset = 0
+			a3dmap._uScale = 0
+			a3dmap._vOffset = 0
+			a3dmap._vScale = 0
+			#maps.append(a3dmap)
+			
+			#materials
+			a3dmat = A3DMaterial(Config)
+			a3dmat._diffuseMapId = None
+			a3dmat._glossinessMapId = None
+			a3dmat._id = 0
+			a3dmat._lightMapId = None
+			a3dmat._normalMapId = None
+			a3dmat._opacityMapId = None
+			a3dmat._specularMapId = None
+			#materials.append(a3dmat)
+			
+			#objects
+			a3dstr = A3DString()
+			a3dstr.name = "test"
+			
+			a3dtrans = A3DTransform(Config)
+			a3dtrans._matrix.a = trns[0]
+			a3dtrans._matrix.b = trns[1]
+			a3dtrans._matrix.c = trns[2]
+			a3dtrans._matrix.d = trns[3]
+			a3dtrans._matrix.e = trns[4]
+			a3dtrans._matrix.f = trns[5]
+			a3dtrans._matrix.g = trns[6]
+			a3dtrans._matrix.h = trns[7]
+			a3dtrans._matrix.i = trns[8]
+			a3dtrans._matrix.j = trns[9]
+			a3dtrans._matrix.k = trns[10]
+			a3dtrans._matrix.l = trns[11]
+			
+			a3dobj = A3DObject(Config)
+			a3dobj._boundBoxId = a3dbox._id
+			a3dobj._geometryId = a3dgeom._id
+			a3dobj._id = len(objects)
+			a3dobj._name = a3dstr
+			a3dobj._parentId = 0
+			a3dobj._surfaces = []
+			a3dobj._transformation = a3dtrans
+			a3dobj._visible = 1
+			objects.append(a3dobj)
+	
+	a3d = A3D(boxes,geometries,images,maps,materials,objects,Config)
+	a3d.write(file)
+	
+	print('Export Completed...\n')
+
+def A3DExport2(file,Config):
 	print('Export to Alternativa3d binary started...\n')
 			
 	if Config.ExportMode == 1:
@@ -1668,6 +1590,8 @@ def a3d2export(file,Config):
 	layers = []
 	cameras = []
 	lods = []
+	#for ids
+	mesh_objects = []
 	
 	#a3d custom objs
 	if len(objs_a3ditems) > 0:
@@ -1685,11 +1609,11 @@ def a3d2export(file,Config):
 				boxes.append(a3dbox)
 			
 				#name
-				a3dstr = A3D2String()
+				a3dstr = A3DString()
 				a3dstr.name = cleanupString(mesh.name)
 				
 				#create transform/matrix
-				a3dtrans = A3D2Transform(Config)
+				a3dtrans = A3DTransform(Config)
 				trns = getObjTransform(obj)
 				a3dtrans._matrix.a = trns[0]
 				a3dtrans._matrix.b = trns[1]
@@ -1714,38 +1638,43 @@ def a3d2export(file,Config):
 					reflmap = int("ffffffff",16)
 					
 					for tex in mats[x].texture_slots:
-						if tex is not None:
-							name=tex.name.lower()
-							a3dstr = A3D2String()
-							a3dstr.name = os.path.basename(tex.texture.image.filepath)
-							a3dimg = A3D2Image(Config)
-							a3dimg._id = len(images)
-							a3dimg._url = a3dstr
-							images.append(a3dimg)
-							
-							a3dmap = A3D2Map(Config)
-							a3dmap._channel = 0
-							a3dmap._id = len(maps)
-							a3dmap._imageId = a3dimg._id
-							maps.append(a3dmap)
-							
-							if name == 'diffuse':
-								difmap = a3dmap._id
-							elif name == 'normal':
-								normmap = a3dmap._id
-							elif name == 'specular':
-								specmap = a3dmap._id
-							elif name == 'opacity':
-								opacmap = a3dmap._id
-							elif name == 'glossiness':
-								glossmap = a3dmap._id
-							elif name == 'light':
-								lighmap = a3dmap._id
-							elif name == 'reflection':
-								reflmap = a3dmap._id
+						if (tex is not None) and (tex.texture.type == "IMAGE"):
+							if tex.texture.image is not None:
+								name=tex.name.lower()
+								a3dstr = A3DString()
+								a3dstr.name = os.path.basename(tex.texture.image.filepath)
+								a3dimg = A3D2Image(Config)
+								a3dimg._id = len(images)
+								a3dimg._url = a3dstr
+								images.append(a3dimg)
+								
+								a3dmap = A3D2Map(Config)
+								a3dmap._channel = 0
+								a3dmap._id = len(maps)
+								a3dmap._imageId = a3dimg._id
+								maps.append(a3dmap)
+								
+								if name == 'diffuse':
+									difmap = a3dmap._id
+								elif name == 'normal':
+									normmap = a3dmap._id
+								elif name == 'specular':
+									specmap = a3dmap._id
+								elif name == 'opacity':
+									opacmap = a3dmap._id
+								elif name == 'glossiness':
+									glossmap = a3dmap._id
+								elif name == 'light':
+									lighmap = a3dmap._id
+								elif name == 'reflection':
+									reflmap = a3dmap._id
+								else:
+									#just write as diffuse if no matches
+									difmap = a3dmap._id
 							else:
-								#just write as diffuse if no matches
-								difmap = a3dmap._id
+								print("A3DSprite is missing an image..")
+						else:
+							print("A3DSprite is missing an image..")
 											
 				a3dmat = A3D2Material(Config)
 				a3dmat._diffuseMapId = difmap
@@ -1759,18 +1688,18 @@ def a3d2export(file,Config):
 				materials.append(a3dmat)
 				
 				a3dsprite = A3D2Sprite(Config)
-				a3dsprite._alwaysOnTop = 1
+				a3dsprite._alwaysOnTop = 0
 				a3dsprite._boundBoxId = a3dbox._id
 				a3dsprite._height = 500
 				a3dsprite._id = len(sprites)
 				a3dsprite._materialId = a3dmat._id
 				a3dsprite._name = a3dstr
-				a3dsprite._originX = 0
-				a3dsprite._originY = 0
+				a3dsprite._originX = 0.5
+				a3dsprite._originY = 0.5
 				#a3dsprite._parentId = None
-				a3dsprite._perspectiveScale = 0
+				a3dsprite._perspectiveScale = 1
 				a3dsprite._rotation = 0
-				#a3dsprite._transform = a3dtrans
+				a3dsprite._transform = a3dtrans
 				a3dsprite._visible = 1
 				a3dsprite._width = 500
 				sprites.append(a3dsprite)
@@ -1794,7 +1723,7 @@ def a3d2export(file,Config):
 					a3dbox._box = getBoundBox(obj)
 					a3dbox._id = len(boxes)
 					
-					a3dtrans = A3D2Transform(Config)
+					a3dtrans = A3DTransform(Config)
 					trns = getObjTransform(obj)
 					a3dtrans._matrix.a = trns[0]
 					a3dtrans._matrix.b = trns[1]
@@ -1809,7 +1738,7 @@ def a3d2export(file,Config):
 					a3dtrans._matrix.k = trns[10]
 					a3dtrans._matrix.l = trns[11]
 					
-					a3dstr = A3D2String()
+					a3dstr = A3DString()
 					a3dstr.name = cleanupString(obj.name)
 				
 					a3dlod = A3D2LOD(Config)
@@ -1823,7 +1752,6 @@ def a3d2export(file,Config):
 					a3dlod._visible = 1
 					lods.append(a3dlod)
 			
-	
 	if len(objs_lights) > 0:
 		print("Exporting lights...\n")
 		#loop over every light
@@ -1831,11 +1759,11 @@ def a3d2export(file,Config):
 			light = obj.data
 			
 			#name
-			a3dstr = A3D2String()
+			a3dstr = A3DString()
 			a3dstr.name = cleanupString(light.name)
 			
 			#create transform/matrix
-			a3dtrans = A3D2Transform(Config)
+			a3dtrans = A3DTransform(Config)
 			trns = getObjTransform(obj)
 			a3dtrans._matrix.a = trns[0]
 			a3dtrans._matrix.b = trns[1]
@@ -1948,7 +1876,7 @@ def a3d2export(file,Config):
 			
 				bonedict[Bone] = len(joints)
 			
-				a3dstr = A3D2String()
+				a3dstr = A3DString()
 				a3dstr.name = Bone.name
 				
 				a3djnt = A3D2Joint(Config)
@@ -1961,7 +1889,7 @@ def a3d2export(file,Config):
 					jnt._parentId = bonedict[Bone.parent]
 					BoneMatrix = PoseBone.parent.matrix.inverted()
 				else:
-					BoneMatrix = mathutils.Matrix()
+					BoneMatrix = Matrix()
 				BoneMatrix *= PoseBone.matrix
 				
 				#a3djnt._transform = [BoneMatrix[0][0],BoneMatrix[0][1],BoneMatrix[0][2],BoneMatrix[1][0],BoneMatrix[1][1],BoneMatrix[1][2],BoneMatrix[2][0],BoneMatrix[2][1],BoneMatrix[2][2],BoneMatrix[3][0],BoneMatrix[3][1],BoneMatrix[3][2]]
@@ -1973,7 +1901,7 @@ def a3d2export(file,Config):
 			#print(arm.name)
 			#for b in bones:
 				
-			#	a3dstr = A3D2String()
+			#	a3dstr = A3DString()
 			#	a3dstr.name = b.name
 			
 			#	jnt = A3D2Joint(Config)
@@ -2023,9 +1951,43 @@ def a3d2export(file,Config):
 				vbufids = [len(vertexBuffers)]
 			
 			#get raw geometry data
-			vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+			if checkBMesh() == True:
+				vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+			else:
+				vs,uvt,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
 			#get surface data
 			start,end,mts,mats = collectSurfaces(mesh)
+			
+			#create parent object
+			if Config.ExportParentObj == 1:
+				a3dstr2 = A3DString()
+				a3dstr2.name = "obj_"+cleanupString(obj.data.name)
+				
+				#create transform/matrix
+				wtrns = getObjWorldTransform(obj)
+				a3dtrans = A3DTransform(Config)
+				a3dtrans._matrix.a = wtrns[0]
+				a3dtrans._matrix.b = wtrns[1]
+				a3dtrans._matrix.c = wtrns[2]
+				a3dtrans._matrix.d = wtrns[3]
+				a3dtrans._matrix.e = wtrns[4]
+				a3dtrans._matrix.f = wtrns[5]
+				a3dtrans._matrix.g = wtrns[6]
+				a3dtrans._matrix.h = wtrns[7]
+				a3dtrans._matrix.i = wtrns[8]
+				a3dtrans._matrix.j = wtrns[9]
+				a3dtrans._matrix.k = wtrns[10]
+				a3dtrans._matrix.l = wtrns[11]
+			
+				a3dobj = A3D2Object(Config)
+				#a3dobj._boundBoxId = 0
+				a3dobj._id = len(mesh_objects)
+				a3dobj._name = a3dstr2
+				#a3dobj._parentId = 0
+				a3dobj._transform = a3dtrans
+				a3dobj._visible = 1
+				objects.append(a3dobj)
+				mesh_objects.append(a3dobj)
 					
 			#create mesh boundbox
 			a3dbox = A3D2Box(Config)
@@ -2039,6 +2001,7 @@ def a3d2export(file,Config):
 				for x in range(len(ins)):
 					a3dibuf._byteBuffer.append(ins[x])
 				#a3dibuf._id = len(indexBuffers)
+				a3dibuf._id = ibufid
 				a3dibuf._indexCount = len(a3dibuf._byteBuffer)
 				indexBuffers.append(a3dibuf)
 			
@@ -2085,9 +2048,10 @@ def a3d2export(file,Config):
 					reflmap = int("ffffffff",16)
 					
 					for tex in mats[x].texture_slots:
-						if tex is not None:
+						if (tex is not None) and (tex.texture.type == "IMAGE"):
 							name=tex.name.lower()
-							a3dstr = A3D2String()
+							a3dstr = A3DString()
+							
 							a3dstr.name = os.path.basename(tex.texture.image.filepath)
 							a3dimg = A3D2Image(Config)
 							a3dimg._id = len(images)
@@ -2121,7 +2085,7 @@ def a3d2export(file,Config):
 					#matname = GetMaterialTexture(mats[x])
 					#if matname is not None:
 					#	#create images
-					#	a3dstr = A3D2String()
+					#	a3dstr = A3DString()
 					#	a3dstr.name = matname
 					#	a3dimg = A3D2Image(Config)
 					#	a3dimg._id = len(images)
@@ -2167,7 +2131,7 @@ def a3d2export(file,Config):
 				mesh_surfaces.append(a3dsurf)
 			
 			#create transform/matrix
-			a3dtrans = A3D2Transform(Config)
+			a3dtrans = A3DTransform(Config)
 			a3dtrans._matrix.a = trns[0]
 			a3dtrans._matrix.b = trns[1]
 			a3dtrans._matrix.c = trns[2]
@@ -2182,17 +2146,18 @@ def a3d2export(file,Config):
 			a3dtrans._matrix.l = trns[11]
 			
 			#name
-			a3dstr = A3D2String()
+			a3dstr = A3DString()
 			a3dstr.name = cleanupString(obj.data.name)
 			
 			#create mesh
 			a3dmesh = A3D2Mesh(Config)
-			#a3dmesh._boundBoxId = 0
-			a3dmesh._id = len(meshes)
+			a3dmesh._boundBoxId = a3dbox._id
+			a3dmesh._id = len(mesh_objects)
 			#a3dmesh._indexBufferId = a3dibuf._id
 			a3dmesh._indexBufferId = ibufid
 			a3dmesh._name = a3dstr
-			#a3dmesh._parentId = 0
+			if Config.ExportParentObj == 1:
+				a3dmesh._parentId = a3dobj._id
 			a3dmesh._surfaces = mesh_surfaces
 			a3dmesh._transform = a3dtrans
 			#a3dmesh._vertexBuffers = [len(vertexBuffers)] #vertex buffer ids
@@ -2203,21 +2168,7 @@ def a3d2export(file,Config):
 			else:
 				a3dmesh._visible = 1
 			meshes.append(a3dmesh)
-			
-			a3dstr2 = A3D2String()
-			a3dstr2.name = ""
-			
-			a3dobj = A3D2Object(Config)
-			a3dobj._boundBoxId = 0
-			a3dobj._id = len(objects)
-			a3dobj._name = a3dstr2
-			a3dobj._parentId = 0
-			a3dobj._transform = a3dtrans
-			if obj.hide == True:
-				a3dobj._visible = 1
-			else:
-				a3dobj._visible = 0
-			#objects.append(a3dobj)
+			mesh_objects.append(a3dmesh)
 			
 			if linkedmesh == False:
 				#create vertexbuffer
@@ -2274,11 +2225,11 @@ def a3d2export(file,Config):
 				camera = obj.data
 				
 				#name
-				a3dstr = A3D2String()
+				a3dstr = A3DString()
 				a3dstr.name = cleanupString(camera.name)
 				
 				#create transform/matrix
-				a3dtrans = A3D2Transform(Config)
+				a3dtrans = A3DTransform(Config)
 				trns = getObjTransform(obj)
 				a3dtrans._matrix.a = trns[0]
 				a3dtrans._matrix.b = trns[1]
@@ -2296,6 +2247,7 @@ def a3d2export(file,Config):
 				a3dbox = A3D2Box(Config)
 				a3dbox._box = getBoundBox(obj)
 				a3dbox._id = len(boxes)
+				#boxes.append(a3dbox)
 				
 				camtype = False
 				if camera.type == "PERSP":
@@ -2319,7 +2271,7 @@ def a3d2export(file,Config):
 				else:
 					a3dcam._visible = 0
 				
-				cameras.append(a3dcam)
+				#cameras.append(a3dcam)
 		print("Exporting Lods...\n")
 				
 	# create a3d2 object from data
@@ -2330,189 +2282,79 @@ def a3d2export(file,Config):
 	
 	print('Export Completed...\n')
 
-def a3d1export(file,Config):
-	if Config.ExportMode == 1:
-		#get selected objects that are mesh
-		objs = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
-		print('Export selection only...\n')
-	else:
-		#get all objects that are mesh
-		objs = [obj for obj in bpy.data.objects if obj.type == 'MESH']
-		print('Export all meshes...\n')
-		
-	boxes = []
-	geometries = []
-	indexBuffers = []
-	vertexBuffers = []
-	images = []
-	maps = []
-	materials = []
-	objects = []
-	
-	if len(objs) > 0:
-		print("Exporting meshes...\n")
-		for obj in objs:
-			#convert to triangles
-			ConvertQuadsToTris(obj)
-		
-			#data
-			mesh = obj.data
-			
-			#get raw geometry data
-			vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
-			#get surface data
-			start,end,mts,mats = collectSurfaces(mesh)
-					
-			#create mesh boundbox
-			a3dbox = A3DBox(Config)
-			a3dbox._box = bb
-			a3dbox._id = len(boxes)
-			boxes.append(a3dbox)
-			
-			#create indexbuffer
-			a3dibuf = A3DIndexBuffer(Config)
-			for x in range(len(ins)):
-				a3dibuf._byteBuffer.append(ins[x])
-			a3dibuf._indexCount = len(a3dibuf._byteBuffer)
-			indexBuffers.append(a3dibuf)
-			
-			#create vertexbuffer
-			a3dvbuf = A3DVertexBuffer(Config)
-			attar = []
-			if len(vs) > 0:
-				attar.append(0)
-			if (len(uvt) > 0) and (Config.ExportUV == 1):
-				attar.append(5)
-			if (len(nr) > 0) and (Config.ExportNormals == 1):
-				attar.append(1)
-			if (len(tan) > 0) and (Config.ExportTangents == 1):
-				attar.append(2)
-			a3dvbuf._attributes = attar
-			j=0
-			for v in vs:
-				if 0 in attar:
-					a3dvbuf._byteBuffer.append(v[0]) #vert1
-					a3dvbuf._byteBuffer.append(v[1]) #vert2
-					a3dvbuf._byteBuffer.append(v[2]) #vert3
-				if 5 in attar and (Config.ExportUV == 1):
-					a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
-					a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
-				if 1 in attar and (Config.ExportNormals == 1):
-					a3dvbuf._byteBuffer.append(nr[j][0]) #normal1
-					a3dvbuf._byteBuffer.append(nr[j][1]) #normal2
-					a3dvbuf._byteBuffer.append(nr[j][2]) #normal3
-				if 2 in attar and (Config.ExportTangents == 1):
-					a3dvbuf._byteBuffer.append(tan[j][0]) #tan1
-					a3dvbuf._byteBuffer.append(tan[j][1]) #tan2
-					a3dvbuf._byteBuffer.append(tan[j][2]) #tan3
-					a3dvbuf._byteBuffer.append(-1) #tan4 - static input handedness
-				j = j +1
-			a3dvbuf._vertexCount = int(len(vs)) #this works for cube
-			vertexBuffers.append(a3dvbuf)
-	
-	a3d = A3D(boxes,geometries,images,maps,materials,objects,Config)
-	a3d.write(file)
-	
-	print('Export Completed...\n')
-	
 #==================================
 # A3D IMPORTER
 #==================================
 
-#Container for the importer settings
 class A3DImporterSettings:
 	def __init__(self,FilePath="",ApplyTransforms=True):
 		self.FilePath = str(FilePath)
 		self.ApplyTransforms = int(ApplyTransforms)
-		
+
 class A3DImporter(bpy.types.Operator):
 	bl_idname = "ops.a3dimporter"
 	bl_label = "Import A3D (Alternativa)"
 	bl_description = "Import A3D (Alternativa)"
 	
 	ApplyTransforms = BoolProperty(name="Apply Transforms", description="Apply transforms to objects", default=True)
-	
 	filepath= StringProperty(name="File Path", description="Filepath used for importing the A3D file", maxlen=1024, default="")
 
 	def execute(self, context):
 		time1 = time.clock()
-		# open a3d file
 		file = open(self.filepath,'rb')
 		file.seek(0)
 		version = ord(file.read(1))
 		Config = A3DImporterSettings(FilePath=self.filepath,ApplyTransforms=self.ApplyTransforms)
 		if version == 0:
-			loadA3d1(file,Config)
+			A3DImport1(file,Config)
 		else:
-			loadA3d2(file,Config)
+			A3DImport2(file,Config)
 		file.close()
 		print(".a3d import time: %.2f" % (time.clock() - time1))
 		return {'FINISHED'}
 	def invoke (self, context, event):
 		wm = context.window_manager
 		wm.fileselect_add(self)
-		return {'RUNNING_MODAL'}	
-	
-def loadA3d1(file,Config):	
+		return {'RUNNING_MODAL'}
+
+def A3DImport1(file,Config):	
 	file.seek(4)
 	
-	# read null mask
 	a3dnull = A3D2Null(Config)
 	a3dnull.read(file)
+	
 	print(a3dnull._mask)
 	print(a3dnull._byte_list)
-	
 	print('A3D Version %i.%i' %(1,0))
 	
 	a3d = A3D(file)
 	a3d.setConfig(Config)
 	a3d.read(file,a3dnull._mask)
-	
 	file.close()
 	
 	a3d2 = a3d.convert1_2()
-	
 	a3d2.render()
-	
-	#after render unset data
 	a3dnull.reset()
 	a3d2.reset()
-	
 	return {'FINISHED'}
 
-def loadA3d2(file,Config):	
-	#rewind
+def A3DImport2(file,Config):	
 	file.seek(0)
-	
-	# read package length
+
 	a3dpackage = A3D2Package(Config)
 	a3dpackage.read(file)
 	
-	#set current position
 	curpos = file.tell()
 	
 	if a3dpackage._packed == 1:
-		#decompress into variable
 		data = file.read(a3dpackage._length)
 		data = zlib.decompress(data)
 		file.close()
-		
-		#file = open("C:/Users/David/Desktop/defaultModel_21-11-2011_13-47-51/model/box-extract.bin","wb")
-		#file = open("C:/www/a3dtesting/cone-extract.bin","wb")
-		#file.write(data)
-		#file.close()
-		
-		#file1 = open("tempextract.bin",'wb')
-		#file1.write(data)
-		#file1.close()
-		
-		#file = open("tempextract.bin",'rb')
-		#file.seek(curpos)
+
 		file = tempfile.TemporaryFile()
 		file.write(data)
 		file.seek(0)
 		
-	# read null mask
 	a3dnull = A3D2Null(Config)
 	a3dnull.read(file)
 	print(a3dnull._mask)
@@ -2522,8 +2364,6 @@ def loadA3d2(file,Config):
 	ver.read(file)
 	print('A3D Version %i.%i' %(ver.baseversion,ver.pointversion))
 	
-	#setup config version to match export
-	# set default to 2.0
 	Config.A3DVersionSystem = "4"
 	if ver.baseversion == 1:
 		#1.0
@@ -2542,35 +2382,284 @@ def loadA3d2(file,Config):
 			#2.5
 			Config.A3DVersionSystem="1"
 	
-	#read data
-	#a3d2 = A3D2([],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],Config)
 	a3d2 = A3D2()
 	a3d2.setConfig(Config)
-	#a3d2 = A3D2(file)
 	a3d2.read(file,a3dnull._mask,ver)
-	
 	file.close()
 	
-	#render loaded content to blender	
 	a3d2.render()
-	
-	#after render unset data
 	a3dpackage.reset()
 	a3dnull.reset()
 	ver.reset()
 	a3d2.reset()
-	
 	return {'FINISHED'}
 
 #==================================
 # A3D SHARED
 #==================================
 
-#notes to self
-#setting parents
-#obj.parent = None # to remove parent
-#obj.parent = obj # to set parent
-# also obj.children returns all childs (bpy.data.objects['Cone'],)
+class A3DVersion:
+	def __init__(self,Config):
+		self.baseversion = 2
+		self.pointversion = 0
+		self.Config = Config
+	def reset(self):
+		self.baseversion = 2
+		self.pointversion = 0
+	def read(self,file):
+		temp_data = file.read(struct.calcsize('H'))
+		self.baseversion = int(struct.unpack('>H', temp_data)[0]) 
+		temp_data = file.read(struct.calcsize('H'))
+		self.pointversion = int(struct.unpack('>H', temp_data)[0])
+	def write(self,file):
+		file.write(struct.pack('>H', self.baseversion))
+		file.write(struct.pack('>H', self.pointversion))
+
+class A3DArray:
+	def __init__(self):
+		self.length = 0
+	
+	def read(self,file):
+		numelements = 0
+		temp_data = ord(file.read(1))
+		temp_data = bin(temp_data)[2:].rjust(8, '0')
+		if temp_data[0] == '0':
+			numelements = temp_data[1:8]
+		elif temp_data[0] == '1':
+			if temp_data[0:2] == '10':
+				temp = ord(file.read(1))
+				temp = bin(temp)[2:].rjust(8, '0')
+				numelements = temp_data[2:8] + temp
+			elif temp_data[0:2] == '11':
+				temp = ord(file.read(1))
+				temp = bin(temp)[2:].rjust(8, '0')
+				temp1 = ord(file.read(1))
+				temp1 = bin(temp1)[2:].rjust(8, '0')
+				numelements = temp_data[2:8] + temp + temp1
+			else:
+				print('Error reading array')
+		else:
+			print('Error reading array')
+		self.length = int(numelements,2)
+		
+	def write(self,file,bylen):
+		bitnum = bylen.bit_length()
+		if bitnum <= 7:
+			file.write(struct.pack("B", bylen))
+		elif bitnum > 7 and bitnum <= 14:
+			byte1 = int((bylen >> 8) & 255)
+			byte1 = byte1 + 128 #add 10000000 bits
+			byte2 = int(bylen & 255)
+			file.write(struct.pack("B", byte1))
+			file.write(struct.pack("B", byte2))
+		elif bitnum > 14 and bitnum <= 22:
+			byte1 = int( (bylen >> 16) & 255 )
+			byte1 = byte1 + 192 #add 11000000 bits
+			byte2 = int( (bylen >> 8) & 255 )
+			byte3 = int(bylen & 255)
+			file.write(struct.pack("B", byte1))
+			file.write(struct.pack("B", byte2))
+			file.write(struct.pack("B", byte3))
+		else:
+			print("Array bytes too long!\n")
+
+class A3DString:
+	def __init__(self):
+		self.length = 0
+		self.name = ""
+	
+	def read(self,file):
+		numelements = 0
+		name = ''
+		temp_data = ord(file.read(1))
+		temp_data = bin(temp_data)[2:].rjust(8, '0')
+		if temp_data[0] == '0':
+			numelements = temp_data[1:8]
+		elif temp_data[0] == '1':
+			if temp_data[0:2] == '10':
+				temp = ord(file.read(1))
+				temp = bin(temp)[2:].rjust(8, '0')
+				numelements = temp_data[2:8] + temp
+			elif temp_data[0:2] == '11':
+				temp = ord(file.read(1))
+				temp = bin(temp)[2:].rjust(8, '0')
+				temp1 = ord(file.read(1))
+				temp1 = bin(temp1)[2:].rjust(8, '0')
+				numelements = temp_data[2:8] + temp + temp1
+			else:
+				print('Error reading string type 1')
+		else:
+			print('Error reading string')
+			
+		nlen = int(numelements,2)
+		self.length = nlen
+		for x in range(nlen):
+			name += chr(ord(file.read(1)))
+		self.name = name
+	
+	def write(self,file):
+		bylen = len(self.name)
+		ar = A3DArray()
+		ar.write(file,bylen)
+		self.writeName(file)
+	
+	def writeName(self,file):
+		file.write(struct.pack(str(len(self.name))+"s",self.name.encode("utf-8")))
+
+class A3DTransform:
+	def __init__(self,Config):
+		self._matrix = A3DMatrix()
+		self.Config = Config
+		self._mskindex = 0
+		
+	def reset(self):
+		self._matrix = A3DMatrix()
+		self._mskindex = 0
+		self._matrix.reset()
+		
+	def getMatrix(self):	
+		matrx = Matrix()
+		matrx[0][0], matrx[0][1], matrx[0][2], matrx[0][3] = self._matrix.a, self._matrix.b, self._matrix.c, self._matrix.d
+		matrx[1][0], matrx[1][1], matrx[1][2], matrx[1][3] = self._matrix.e, self._matrix.f, self._matrix.g, self._matrix.h
+		matrx[2][0], matrx[2][1], matrx[2][2], matrx[2][3] = self._matrix.i, self._matrix.j, self._matrix.k, self._matrix.l
+		return matrx
+		
+	def read(self,file):
+		self._matrix.read(file)
+		
+	def write(self,file):
+		self._matrix.write(file)
+		
+class A3DMatrix:
+	def __init__(self):
+		self.a = 0
+		self.b = 0
+		self.c = 0
+		self.d = 0
+		self.e = 0
+		self.f = 0
+		self.g = 0
+		self.h = 0
+		self.i = 0
+		self.j = 0
+		self.k = 0
+		self.l = 0
+		self._mskindex = 0
+	
+	def reset(self):
+		self.a = 0
+		self.b = 0
+		self.c = 0
+		self.d = 0
+		self.e = 0
+		self.f = 0
+		self.g = 0
+		self.h = 0
+		self.i = 0
+		self.j = 0
+		self.k = 0
+		self.l = 0
+		self._mskindex = 0
+		
+	def read(self,file):
+		temp = file.read(4)
+		self.a = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.b = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.c = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.d = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.e = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.f = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.g = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.h = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.i = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.j = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.k = struct.unpack('>f',temp)[0]
+		temp = file.read(4)
+		self.l = struct.unpack('>f',temp)[0]
+	
+	def write(self,file):
+		file.write(struct.pack('>f',self.a))
+		file.write(struct.pack('>f',self.b))
+		file.write(struct.pack('>f',self.c))
+		file.write(struct.pack('>f',self.d))
+		file.write(struct.pack('>f',self.e))
+		file.write(struct.pack('>f',self.f))
+		file.write(struct.pack('>f',self.g))
+		file.write(struct.pack('>f',self.h))
+		file.write(struct.pack('>f',self.i))
+		file.write(struct.pack('>f',self.j))
+		file.write(struct.pack('>f',self.k))
+		file.write(struct.pack('>f',self.l))
+		
+class Float16Compressor:
+	def __init__(self):
+		self.temp = 0
+		
+	def compress(self,float32):
+		F16_EXPONENT_BITS = 0x1F
+		F16_EXPONENT_SHIFT = 10
+		F16_EXPONENT_BIAS = 15
+		F16_MANTISSA_BITS = 0x3ff
+		F16_MANTISSA_SHIFT =  (23 - F16_EXPONENT_SHIFT)
+		F16_MAX_EXPONENT =  (F16_EXPONENT_BITS << F16_EXPONENT_SHIFT)
+
+		a = struct.pack('>f',float32)
+		b = binascii.hexlify(a)
+
+		f32 = int(b,16)
+		f16 = 0
+		sign = (f32 >> 16) & 0x8000
+		exponent = ((f32 >> 23) & 0xff) - 127
+		mantissa = f32 & 0x007fffff
+				
+		if exponent == 128:
+			f16 = sign | F16_MAX_EXPONENT
+			if mantissa:
+				f16 |= (mantissa & F16_MANTISSA_BITS)
+		elif exponent > 15:
+			f16 = sign | F16_MAX_EXPONENT
+		elif exponent > -15:
+			exponent += F16_EXPONENT_BIAS
+			mantissa >>= F16_MANTISSA_SHIFT
+			f16 = sign | exponent << F16_EXPONENT_SHIFT | mantissa
+		else:
+			f16 = sign
+		return f16
+		
+	def decompress(self,float16):
+		s = int((float16 >> 15) & 0x00000001)    # sign
+		e = int((float16 >> 10) & 0x0000001f)    # exponent
+		f = int(float16 & 0x000003ff)            # fraction
+
+		if e == 0:
+			if f == 0:
+				return int(s << 31)
+			else:
+				while not (f & 0x00000400):
+					f = f << 1
+					e -= 1
+				e += 1
+				f &= ~0x00000400
+				#print(s,e,f)
+		elif e == 31:
+			if f == 0:
+				return int((s << 31) | 0x7f800000)
+			else:
+				return int((s << 31) | 0x7f800000 | (f << 13))
+
+		e = e + (127 -15)
+		f = f << 13
+		return int((s << 31) | (e << 23) | f)
 
 #==================================
 # A3D1
@@ -2777,7 +2866,7 @@ class A3D:
 		
 		if len(self.boxes) > 0:
 			#write
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.write(tfile,len(self.boxes))
 			self.nullmask = self.nullmask + str(0)
 			for cla in self.boxes:
@@ -2787,7 +2876,7 @@ class A3D:
 			self.nullmask = self.nullmask + str(1)
 			
 		if len(self.geometries) > 0:
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.write(tfile,len(self.geometries))
 			self.nullmask = self.nullmask + str(0)
 			for cla in self.geometries:
@@ -2797,7 +2886,7 @@ class A3D:
 			self.nullmask = self.nullmask + str(1)
 			
 		if len(self.images) > 0:
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.write(tfile,len(self.images))
 			self.nullmask = self.nullmask + str(0)
 			for cla in self.images:
@@ -2807,7 +2896,7 @@ class A3D:
 			self.nullmask = self.nullmask + str(1)
 			
 		if len(self.maps) > 0:
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.write(tfile,len(self.maps))
 			self.nullmask = self.nullmask + str(0)
 			for cla in self.maps:
@@ -2817,7 +2906,7 @@ class A3D:
 			self.nullmask = self.nullmask + str(1)
 			
 		if len(self.materials) > 0:
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.write(tfile,len(self.materials))
 			self.nullmask = self.nullmask + str(0)
 			for cla in self.materials:
@@ -2827,7 +2916,7 @@ class A3D:
 			self.nullmask = self.nullmask + str(1)
 			
 		if len(self.objects) > 0:
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.write(tfile,len(self.objects))
 			self.nullmask = self.nullmask + str(0)
 			for cla in self.objects:
@@ -2869,8 +2958,7 @@ class A3D:
 		data = tfile2.read()
 		file.write(data)
 		tfile2.close()
-		
-	
+			
 	def read(self,file,mask):
 		print("reada3d")
 		
@@ -2933,7 +3021,7 @@ class A3D:
 			print("mask="+str(mask[:mskindex]))
 			if mask[mskindex] == "0":
 				#read array of classes
-				arr = A3D2Array()
+				arr = A3DArray()
 				arr.read(file)
 				mskindex = mskindex + 1
 				for a in range(arr.length):
@@ -2962,7 +3050,7 @@ class A3DBox:
 	def read(self,file,mask,mskindex):
 		print("read A3DBox - "+str(mask[mskindex]))
 		if mask[mskindex + self._mskindex] == "0":
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.read(file)
 			for a in range(arr.length):
 				self._box.append( struct.unpack(">f",file.read(struct.calcsize(">f")))[0] )
@@ -2978,7 +3066,7 @@ class A3DBox:
 	def write(self,file):
 		print("write boundbox\n")		
 		self._optmask = self._optmask + str(0)
-		arr = A3D2Array()
+		arr = A3DArray()
 		arr.write(file,len(self._box))
 		for x in range(len(self._box)):
 			file.write(struct.pack('>f',self._box[x]))
@@ -3015,7 +3103,7 @@ class A3DGeometry:
 			self._mskindex = self._mskindex + ibuf._mskindex
 		
 		if mask[mskindex + self._mskindex] == "0":
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.read(file)
 			for a in range(arr.length):
 				vbuf = A3DVertexBuffer(self.Config)
@@ -3029,10 +3117,10 @@ class A3DGeometry:
 		self._optmask = self._optmask + str(0)
 		file.write(struct.pack('>L',self._id))
 		
-		self._indexBuffer.write()
+		self._indexBuffer.write(file)
 		
 		for vbuf in self._vertexBuffers:
-			vbuf.write()
+			vbuf.write(file)
 
 class A3DImage:
 	def __init__(self,Config):
@@ -3056,7 +3144,7 @@ class A3DImage:
 		#self._mskindex = self._mskindex + 1
 		
 		if mask[mskindex + self._mskindex] == "0":
-			a3dstr = A3D2String()
+			a3dstr = A3DString()
 			a3dstr.read(file)
 			self._url = a3dstr.name
 		self._mskindex = self._mskindex + 1
@@ -3256,7 +3344,7 @@ class A3DObject:
 		self._parentId = 0
 		self._surfaces = []
 		self._transformation = 0
-		self._visible = 0
+		self._visible = 1
 		self._optmask = ""
 		self.Config = Config
 		self._mskindex = 0
@@ -3269,7 +3357,7 @@ class A3DObject:
 		self._parentId = 0
 		self._surfaces = []
 		self._transformation = 0
-		self._visible = 0
+		self._visible = 1
 		self._optmask = ""
 		self._mskindex = 0
 
@@ -3288,7 +3376,7 @@ class A3DObject:
 		self._mskindex = self._mskindex + 1
 		
 		if mask[mskindex + self._mskindex] == "0":
-			a3dstr = A3D2String()
+			a3dstr = A3DString()
 			a3dstr.read(file)
 			self._name = a3dstr.name
 		self._mskindex = self._mskindex + 1
@@ -3298,7 +3386,7 @@ class A3DObject:
 		self._mskindex = self._mskindex + 1
 		
 		if mask[mskindex + self._mskindex] == "0":
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.read(file)
 			for a in range(arr.length):
 				a3dsurf = A3DSurface(self.Config)
@@ -3352,9 +3440,9 @@ class A3DObject:
 		else:
 			self._optmask = self._optmask + str(1)
 			
-		if self._transform is not None:
+		if self._transformation is not None:
 			self._optmask = self._optmask + str(0)
-			self._transform.write(file)
+			self._transformation.write(file)
 		else:
 			self._optmask = self._optmask + str(1)
 			
@@ -3378,7 +3466,7 @@ class A3DIndexBuffer:
 	def read(self,file,mask,mskindex):
 		print("read A3DIndexBuffer - "+str(mask[mskindex]))
 		if mask[mskindex + self._mskindex] == "0":
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.read(file)
 			for a in range(int(arr.length/2)):
 				self._byteBuffer.append( struct.unpack("<H",file.read(struct.calcsize("<H")))[0] )
@@ -3393,7 +3481,7 @@ class A3DIndexBuffer:
 	def write(self,file):
 		print("write A3DIndexBuffer")
 		self._optmask = self._optmask + str(0)
-		arr = A3D2Array()
+		arr = A3DArray()
 		# multiply by 2 because its length of bytes and we are using 2 bytes
 		vbuflen = int(len(self._byteBuffer) * 2)
 		arr.write(file,vbuflen) 
@@ -3424,7 +3512,7 @@ class A3DVertexBuffer:
 		print("read A3DVertexBuffer - "+str(mask[mskindex]))
 		
 		if mask[mskindex + self._mskindex] == "0":
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.read(file)
 			self._attributes = []
 			for a in range(arr.length):
@@ -3432,7 +3520,7 @@ class A3DVertexBuffer:
 		self._mskindex = self._mskindex + 1
 		
 		if mask[mskindex + self._mskindex] == "0":
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.read(file)
 			for a in range(int(arr.length/4)):
 				self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
@@ -3447,13 +3535,13 @@ class A3DVertexBuffer:
 	def write(self,file):
 		print("write A3DVertexBuffer")
 		self._optmask = self._optmask + str(0)
-		arr = A3D2Array()
+		arr = A3DArray()
 		arr.write(file,len(self._attributes))
 		for x in range(len(self._attributes)):
 			file.write(struct.pack("B",self._attributes[x]))
 		
 		self._optmask = self._optmask + str(0)
-		arr = A3D2Array()
+		arr = A3DArray()
 		bybufsize = int(len(self._byteBuffer)*4)
 		arr.write(file,bybufsize) 
 		for byte in self._byteBuffer:
@@ -3494,101 +3582,7 @@ class A3DSurface:
 		
 	def write(self,file):
 		print("write A3DSurface")
-
-class A3DTransform:
-	def __init__(self,Config):
-		self._matrix = A3DMatrix()
-		self.Config = Config
-		self._mskindex = 0
 		
-	def reset(self):
-		self._matrix = A3DMatrix()
-		self._mskindex = 0
-		self._matrix.reset()
-		
-	def getMatrix(self):	
-		matrx = mathutils.Matrix()
-		matrx[0][0], matrx[0][1], matrx[0][2], matrx[0][3] = self._matrix.a, self._matrix.b, self._matrix.c, self._matrix.d
-		matrx[1][0], matrx[1][1], matrx[1][2], matrx[1][3] = self._matrix.e, self._matrix.f, self._matrix.g, self._matrix.h
-		matrx[2][0], matrx[2][1], matrx[2][2], matrx[2][3] = self._matrix.i, self._matrix.j, self._matrix.k, self._matrix.l
-		return matrx
-		
-	def read(self,file):
-		self._matrix.read(file)
-		
-	def write(self,file):
-		self._matrix.write(file)
-		
-class A3DMatrix:
-	def __init__(self):
-		self.a = 0
-		self.b = 0
-		self.c = 0
-		self.d = 0
-		self.e = 0
-		self.f = 0
-		self.g = 0
-		self.h = 0
-		self.i = 0
-		self.j = 0
-		self.k = 0
-		self.l = 0
-		self._mskindex = 0
-	
-	def reset(self):
-		self.a = 0
-		self.b = 0
-		self.c = 0
-		self.d = 0
-		self.e = 0
-		self.f = 0
-		self.g = 0
-		self.h = 0
-		self.i = 0
-		self.j = 0
-		self.k = 0
-		self.l = 0
-		self._mskindex = 0
-		
-	def read(self,file):
-		temp = file.read(4)
-		self.a = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.b = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.c = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.d = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.e = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.f = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.g = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.h = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.i = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.j = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.k = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.l = struct.unpack('>f',temp)[0]
-	
-	def write(self,file):
-		file.write(struct.pack('>f',self.a))
-		file.write(struct.pack('>f',self.b))
-		file.write(struct.pack('>f',self.c))
-		file.write(struct.pack('>f',self.d))
-		file.write(struct.pack('>f',self.e))
-		file.write(struct.pack('>f',self.f))
-		file.write(struct.pack('>f',self.g))
-		file.write(struct.pack('>f',self.h))
-		file.write(struct.pack('>f',self.i))
-		file.write(struct.pack('>f',self.j))
-		file.write(struct.pack('>f',self.k))
-		file.write(struct.pack('>f',self.l))
 #==================================
 # A3D2
 #==================================
@@ -3604,16 +3598,9 @@ class A3D2Package:
 		self._length = 0
 		
 	def read(self,file):
-		#read first byte
 		temp_data = ord(file.read(1))
-		
-		#get byte as binary string
 		temp_data = bin(temp_data)[2:].rjust(8, '0')
 		
-		#remaining 6bits
-		#print(temp_data[2:7])
-		
-		#first bit
 		if temp_data[0] == '0':
 			temp = ord(file.read(1))
 			temp = bin(temp)[2:].rjust(8, '0')
@@ -3621,7 +3608,6 @@ class A3D2Package:
 			print('Package length %i bytes' % int(plen,2))
 			self._length = int(plen,2)
 			
-			#second bit
 			if temp_data[1] == '0':
 				self._packed = 0
 				print('Package not packed')
@@ -3632,7 +3618,6 @@ class A3D2Package:
 				print('Error reading package Z')
 				
 		elif temp_data[0] == '1':
-			#read 3 bytes
 			temp = ord(file.read(1))
 			temp = bin(temp)[2:].rjust(8, '0')
 			temp1 = ord(file.read(1))
@@ -3643,19 +3628,16 @@ class A3D2Package:
 			print('Package length of %i bytes' % int(plen,2))
 			
 			self._length = int(plen,2)
-			
-			# if first bit is one then its auto packed
 			self._packed = 1
 			print('Package is packed')
 		else:
 			print('Error reading package L')
 	
 	def write(self,file):
-		print(self._length)
+		#print(self._length)
 		bitnum = self._length.bit_length()
 		if self._length <= 16383:
 			#6bits + next 1 byte (14bits)
-			print("Package 1 byte required\n")
 			if self._packed == 1:
 				data = 16384 + self._length
 			else:
@@ -3663,9 +3645,6 @@ class A3D2Package:
 			file.write(struct.pack(">H", data))
 		elif bitnum > 6 and bitnum <= 31:
 			#7bits + next 3 bytes (31bits)
-			print("Package 3 byte required\n")
-			print("length="+str(self._length))
-			
 			byte1 = int((self._length >> 24) & 255)
 			byte1 = byte1 + 128
 			byte2 = int((self._length >> 16) & 255)
@@ -3689,13 +3668,10 @@ class A3D2Null:
 		self._mask = ""
 		
 	def read(self,file):	
-		#read first byte
 		temp_data = ord(file.read(1))
-		
-		#get byte as binary string
+
 		temp_data = bin(temp_data)[2:].rjust(8, '0')
-		
-		#first bit		
+	
 		if temp_data[0] == '0':
 			#short null
 			print('Short null-mask')
@@ -3705,16 +3681,13 @@ class A3D2Null:
 					nulldata = temp_data[3:8]
 					#print('Null mask %s' % str(nulldata))
 					print('(LL=00) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
-					#print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
 					self._mask = nulldata
 				elif temp_data[2] == '1':
 					#01
 					temp = ord(file.read(1))
 					temp = bin(temp)[2:].rjust(8, '0')
 					nulldata = temp_data[3:8] + temp
-					#print('Null mask %s' % str(nulldata))
 					print('(LL=01) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
-					#print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
 					self._mask = nulldata
 				else:
 					print('Error reading short Null...')
@@ -3726,9 +3699,7 @@ class A3D2Null:
 					temp1 = ord(file.read(1))
 					temp1 = bin(temp1)[2:].rjust(8, '0')
 					nulldata = temp_data[3:8] + temp + temp1
-					#print('Null mask %s' % str(nulldata))
 					print('(LL=10) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
-					#print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
 					self._mask = nulldata
 				elif temp_data[2] == '1':
 					#11
@@ -3739,24 +3710,17 @@ class A3D2Null:
 					temp2 = ord(file.read(1))
 					temp2 = bin(temp2)[2:].rjust(8, '0')
 					nulldata = temp_data[3:8] + temp + temp1 + temp2
-					print('Null mask %s' % str(nulldata))
 					print('(LL=11) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
-					#print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
 					self._mask = nulldata
 				else:
 					print('Error reading short Null...')
 			else:
 				print('Error reading short Null..')
 		else:
-			#long null
 			print('Long null-mask')
-			#read L
 			if temp_data[1] == '0':
 				nulldata = temp_data[2:8]
-				#print('Null mask %s' % str(nulldata))
 				print('(L=0) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
-				#print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
-				#read bytes
 				for x in range(int(nulldata,2)):
 					byt = file.read(1)
 					self._mask += '{0:08b}'.format(ord(byt))
@@ -3767,137 +3731,151 @@ class A3D2Null:
 				temp1 = ord(file.read(1))
 				temp1 = bin(temp1)[2:].rjust(8, '0')
 				nulldata = temp_data[2:8] + temp + temp1
-				#print('Null mask %s' % str(nulldata))
 				print('(L=1) Null mask length %i (%i bits)' % (int(nulldata,2), (int(nulldata,2)*8)))
-				#print('19 known classes meaning %i optional fields' % ( (int(nulldata,2)*8) - 19 ) )
-				#read bytes
 				for x in range(int(nulldata,2)):
 					byt = file.read(1)
 					self._mask += '{0:08b}'.format(ord(byt))
 					self._byte_list.append('%02X' % ord(byt))
 			else:
 				print('Error reading long Null..')
+		
+	def setBits(self):
+		bits = len(self._mask)
+		#temp3 = bits >> 3
+		#temp4 = 7 ^ bits & 7
+		
+		#fill bytelist
+		bytelist = []
+		rem = bits % 8
+		if rem == 0:
+			#if fits exactly in bytes
+			bytenum = int(bits/8)
+		else:
+			#if doesn't fit exactly round up
+			bytenum = int((bits+(8-rem))/8)
+		for x in range(bytenum):
+			bytelist.append(0)
+			
+		for x in range(len(self._mask)):	
+			#bits = len(bytelist)
+			
+			#get current byte
+			rem = x % 8
+			if rem == 0:
+				#if fits exactly in bytes
+				byteweareon = int(x/8)
+			else:
+				#if doesn't fit exactly round up
+				byteweareon = int((x+(8-rem))/8)
+			
+			#temp3 = byteweareon >> 3
+			#temp4 = 7 ^ byteweareon & 7
+			#print("byteweareon="+str(byteweareon))
+			bits = x
+			temp3 = bits >> 3
+			temp4 = 7 ^ bits & 7
+			#print("temp3="+str(temp3))
+					
+			if self._mask[x] == "1":
+				#bytelist.append(int(bytelist[temp3] | 1 << temp4))
+				bytelist[temp3] = int(bytelist[temp3] | 1 << temp4)
+			else:
+				#bytelist.append(int(bytelist[temp3] & (255 ^ 1 << temp4)))
+				bytelist[temp3] = int(bytelist[temp3] & (255 ^ 1 << temp4))
+		
+		#bytelist.append(
+		return bytelist
 	
 	def write(self,file):
-		print("nullmask")
-		x=int(self._mask,2)
-		#bits = x.bit_length()
-		#use len because if starts with zero bit_length doesn't work
+		bytelist = self.setBits()
+		print("bytelist")
+		print(bytelist)
 		bits = len(self._mask)
-		print(str(bits)+" bits")
-		print(str(x)+" int")
+		x=int(self._mask,2)
+		
+		INPLACE_MASK_FLAG = 128
+		MASK_LENGTH_2_BYTES_FLAG = 64
+		INPLACE_MASK_1_BYTES = 32
+		INPLACE_MASK_3_BYTES = 96
+		INPLACE_MASK_2_BYTES = 64
+		MASK_LENGTH_1_BYTE = 128
+		MASK_LEGTH_3_BYTE = 12582912
+		temp5 = 0
+		temp6 = 0
+		temp7 = 0
+		temp8 = 0
+		temp9 = 0
+		bits = len(self._mask)
+		temp3 = bytelist
+		
+		#print("bits="+str(bits))
+		
 		if bits <= 5:
-			print("5bits")
-			
+			print("<= 5")
+			byte1 = int(rshift(temp3[0] & 255,3))
+			print(byte1)
+			file.write(struct.pack("B",byte1))
 		elif bits > 5 and bits <= 13:
-			print("5bits + 1 byte")
-			
+			print("<= 13")
+			byte1 = int(rshift(temp3[0] & 255,3) + INPLACE_MASK_1_BYTES)
+			byte2 = int(rshift(temp3[1] & 255,3) + (temp3[0] << 5))
+			print(byte1)
+			print(byte2 & 255)
+			file.write(struct.pack("B",byte1))
+			file.write(struct.pack("B",byte2 & 255))
 		elif bits > 13 and bits <= 21:
-			print("5bits + 2 bytes")
-			#mask1 = int("01011111",2) #8bit mask
-			mask2 = int("000000001111111100000000",2) #24bit mask
-			mask3 = int("000000000000000011111111",2) #24bit mask
-			data = x >> 16 #get rid of bits except first 5 by shifting right 2 bytes
-			byte1 = int(data + 64) # 64 = 01000000
-			byte2 = int((x & mask2) >> 8)
-			byte3 = int((x & mask3))
-			print("byte1="+str(byte1))
-			print("byte2="+str(byte2))
-			print("byte3="+str(byte3))
+			print("<= 21")
+			for j in range(3):
+				if j not in temp3:
+					temp3.append(0)
+			byte1 = int(rshift(temp3[0] & 255,3) + INPLACE_MASK_2_BYTES)
+			byte2 = int(rshift(temp3[1] & 255,3) + (temp3[0] << 5))
+			byte3 = int(rshift(temp3[2] & 255,3) + (temp3[1] << 5))
+			print(byte1)
+			print(byte2 & 255)
+			print(byte3 & 255)
 			file.write(struct.pack("B",byte1))
-			file.write(struct.pack("B",byte2))
-			file.write(struct.pack("B",byte3))
+			file.write(struct.pack("B",byte2 & 255))
+			file.write(struct.pack("B",byte3 & 255))
 		elif bits > 21 and bits <= 29:
-			#if is 24 bits (fits exacty into 3 bytes) then place left to right
-			#if bits == 24:
-			#	#place bits left to right
-			#	data = x >> (bits - 5) #19 shr
-			#	byte1 = int(data + 96) #96 = 01100000
-			#	byte2 = int( x >> ((bits-5)-8) & 255 )
-			#	byte3 = int( x >> ((bits-5)-16) & 255 )
-			#	byte4 = int( x << 5 & 255 )
-			#else:
-			#	#place bits right to left
-			#	byte1 = int( (x >> 24) & 255 )
-			#	byte1 = byte1 + 96 #01100000 
-			#	byte2 = int( (x >> 16) & 255 )
-			#	byte3 = int( (x >> 8) & 255 )
-			#	byte4 = int( x & 255 )
-			
-			data = x >> (bits - 5) #19 shr
-			byte1 = int(data + 96) #96 = 01100000
-			byte2 = int( x >> ((bits-5)-8) & 255 )
-			byte3 = int( x >> ((bits-5)-16) & 255 )
-			byte4 = int( x << 5 & 255 )
-			
-			print("byte1="+str(byte1))
-			print("byte2="+str(byte2))
-			print("byte3="+str(byte3))
-			print("byte4="+str(byte4))		
+			print("<= 29")
+			for j in range(4):
+				if j not in temp3:
+					temp3.append(0)
+			byte1 = int(rshift(temp3[0] & 255,3) + INPLACE_MASK_3_BYTES)
+			byte2 = int(rshift(temp3[1] & 255,3) + (temp3[0] << 5))
+			byte3 = int(rshift(temp3[2] & 255,3) + (temp3[1] << 5))
+			byte4 = int(rshift(temp3[3] & 255,3) + (temp3[2] << 5))
+			print(byte1)
+			print(byte2 & 255)
+			print(byte3 & 255)
+			print(byte4 & 255)
 			file.write(struct.pack("B",byte1))
-			file.write(struct.pack("B",byte2))
-			file.write(struct.pack("B",byte3))
-			file.write(struct.pack("B",byte4))
-			print(struct.pack("B",byte1))
-			print(struct.pack("B",byte2))
-			print(struct.pack("B",byte3))
-			print(struct.pack("B",byte4))
-			print(bin(byte1), bin(byte2), bin(byte3), bin(byte4))
+			file.write(struct.pack("B",byte2 & 255))
+			file.write(struct.pack("B",byte3 & 255))
+			file.write(struct.pack("B",byte4 & 255))
 		else:
 			if bits <= 504:
-				print("long")
-				
-				rem = bits % 8
-				if rem == 0:
-					#if fits exactly in bytes
-					bytenum = int(bits/8)
-				else:
-					#if doesn't fit exactly round up
-					bytenum = int((bits+(8-rem))/8)
-								
-				#10000000 = 128
-				#byte1 = 4 + 128 #4bytes + mask
-				#print(byte1)
-				#file.write(struct.pack("B",byte1))				
-				#file.write(struct.pack(">L",x))
-				#file.write(struct.pack(">L",int('1110111101100000000001101111110',2)))				
-
-				tbits = int(bytenum * 8)
-				rbits = int(tbits - bits)
-				
-				lenbyte = int(bytenum + 128)
-				file.write(struct.pack("B",lenbyte))
-
-				#if fits exactly
-				if bits == bytenum*8:
-					for j in range(bytenum):
-						byte = int( ( x >> (tbits - (8 * (j+1))) ) & 255 )
-						file.write(struct.pack("B",byte))
-				else:
-					for j in range(bytenum):
-						shift = (tbits - (8 * (j+1)))-rbits
-						print("shift:"+str(shift))
-						#if last byte shift by remainder
-						if j == (bytenum-1):
-							byte = int( ( x << rbits ) & 255 )
-						else:
-							byte = int( ( x >> shift ) & 255 )
-						file.write(struct.pack("B",byte))
-						print(byte)
-					#bitstoshift = (8 * (bytenum-(j+1))-rbits)
-					#print(bitstoshift)
-					#if last byte
-					#if j == (bytenum-1):
-					#	byte = int( (x << rbits) & 255 )
-					#else:
-					#	byte = int( (x >> bitstoshift) & (255) )
-					#print(byte)
-					#file.write(struct.pack("B",byte))
+				print("<= 504")				
+				temp5 = len(temp3)
+				byte1 = int((temp5 & 255) + MASK_LENGTH_1_BYTE)
+				print(byte1)
+				file.write(struct.pack("B",byte1))
+				for y in range(len(temp3)):
+					file.write(struct.pack("B",temp3[y]))
 			else:
 				if bits <= 33554432:
+					#temp5 = len(temp3)
+					#temp7 = temp5 + MASK_LEGTH_3_BYTE
+					#temp6 = int((temp7 & 16711680) >> 16)
+					#temp8 = int((temp7 & 65280) >> 8)
+					#temp9 = int(temp7 & 255)
+					#file.write(struct.pack("B",temp6))
+					#file.write(struct.pack("B",temp8))
+					#file.write(struct.pack("B",temp9))
+					#for y in range(len(temp3)):
+					#	file.write(struct.pack("B",temp3[y]))
 					print("even longer")
-					#3 bytes space for length + nullmask
-
 					rem = bits % 8
 					if rem == 0:
 						#if fits exactly in bytes
@@ -3905,28 +3883,28 @@ class A3D2Null:
 					else:
 						#if doesn't fit exactly round up
 						bytenum = int((bits+(8-rem))/8)
-						
+
 					tbits = int(bytenum * 8)
 					rbits = int(tbits - bits)
-					
-					print("bytenum="+str(bytenum))
+
+					#print("bytenum="+str(bytenum))
 					lenbyte = int(bytenum + 12582912) #11000000 00000000 00000000
 					lenbits = lenbyte.bit_length()
-					
+
 					#place bits right to left
 					byte1 = int( (lenbyte >> 16) & 255 )
 					byte2 = int( (lenbyte >> 8) & 255 )
 					byte3 = int( lenbyte & 255 )
-					
+
 					print("byte1="+str(byte1))
 					print("byte2="+str(byte2))		
 					print("byte3="+str(byte3))		
 					file.write(struct.pack("B",byte1))
 					file.write(struct.pack("B",byte2))
 					file.write(struct.pack("B",byte3))
-					
+
 					#nullmask write now
-					
+
 					#if fits exactly
 					if bits == bytenum*8:
 						#left to right
@@ -3946,7 +3924,7 @@ class A3D2Null:
 							file.write(struct.pack("B",byte))
 				else:
 					print("NullMap overflow!")
-					
+		
 class A3D2:
 	def __init__(self,ambientLights=[],animationClips=[],animationTracks=[],boxes=[],cubeMaps=[],decals=[],directionalLights=[],images=[],indexBuffers=[],joints=[],maps=[],materials=[],meshes=[],objects=[],omniLights=[],spotLights=[],sprites=[],skins=[],vertexBuffers=[],layers=[],cameras=[],lods=[],Config=None):
 		self.ambientLights = ambientLights
@@ -4001,10 +3979,8 @@ class A3D2:
 		self.cameras = []
 		self.lods = []
 		self.nullmask = ""
-		#self.Config = None
-		
-	def render(self):	
-		#create indexes for access
+	
+	def render(self):
 		ibuffers = {}
 		for ib in self.indexBuffers:
 			ibuffers[ib._id] = ib
@@ -4024,689 +4000,18 @@ class A3D2:
 		images = {}
 		for img in self.images:
 			images[img._id] = img
-			
-		#render ambientlights
+		
 		for light in self.ambientLights:
-		
-			if light._name is not None:
-				nme = light._name
-			else:
-				nme = "Lamp"
-		
-			lamp = bpy.data.lamps.new(nme,"HEMI") 
-			ob = bpy.data.objects.new(nme, lamp)
-			
-			lamp.color = light._color
-			lamp.energy = light._intensity
-
-			if (light._transform is not None) and (self.Config.ApplyTransforms == True):
-				ob.matrix_local = light._transform.getMatrix()
-			else:
-				# position object at 3d-cursor
-				ob.location = bpy.context.scene.cursor_location
-			bpy.context.scene.objects.link(ob)
-			
-			if light._visible == False:
-				ob.hide = False
+			light.render()
 				
-		#render directionallights
 		for light in self.directionalLights:
-		
-			if light._name is not None:
-				nme = light._name
-			else:
-				nme = "Lamp"
-		
-			lamp = bpy.data.lamps.new(nme,"AREA") 
-			ob = bpy.data.objects.new(nme, lamp)
+			light.render()
 			
-			lamp.color = light._color
-			lamp.energy = light._intensity
-
-			if (light._transform is not None) and (self.Config.ApplyTransforms == True):
-				ob.matrix_local = light._transform.getMatrix()
-			else:
-				# position object at 3d-cursor
-				ob.location = bpy.context.scene.cursor_location
-			bpy.context.scene.objects.link(ob)
-			
-			if light._visible == False:
-				ob.hide = False
-		
-		#render meshes
 		for mesh in self.meshes:
-		
-			verts = []
-			faces = []
-			uvs = []
-			norms = []
-			tans = []
-			joints = []
-		
-			#index buff
-			ibuf = ibuffers[mesh._indexBufferId]
-			i=0
-			for x in range(int(len(ibuf._byteBuffer)/3)):
-				temp = (ibuf._byteBuffer[i],ibuf._byteBuffer[i+1],ibuf._byteBuffer[i+2])
-				faces.append(temp)
-				i=i+3
+			mesh.render(ibuffers,vbuffers,materials,maps,images)
 			
-			#vert buff
-			for v in mesh._vertexBuffers:
-				vbuf = vbuffers[v]
-				print("Attributes:"+str(vbuf._attributes))
-				numflts = 0
-				for att in vbuf._attributes:
-					if att == 0:
-						#position
-						numflts = numflts + 3
-					if att == 1:
-						#normal
-						numflts = numflts + 3
-					if att == 2:
-						#tangent
-						numflts = numflts + 4
-					if att == 3:
-						#joint
-						numflts = numflts + 4
-					if att == 4:
-						#uv
-						numflts = numflts + 2
-				flcount = int(len(vbuf._byteBuffer))
-				points = int(flcount/numflts)
-				i = 0
-				for p in range(points):
-					for att in vbuf._attributes:
-						if att == 0:
-							x = vbuf._byteBuffer[i]
-							i = i + 1
-							y = vbuf._byteBuffer[i]
-							i = i + 1
-							z = vbuf._byteBuffer[i]
-							i = i + 1
-							verts.append((x, y, z))
-						if att == 1:
-							x = vbuf._byteBuffer[i]
-							i = i + 1
-							y = vbuf._byteBuffer[i]
-							i = i + 1
-							z = vbuf._byteBuffer[i]
-							i = i + 1
-							norms.append((x, y, z))
-						if att == 2:
-							a = vbuf._byteBuffer[i]
-							i = i + 1
-							b = vbuf._byteBuffer[i]
-							i = i + 1
-							c = vbuf._byteBuffer[i]
-							i = i + 1
-							d = vbuf._byteBuffer[i]
-							i = i + 1
-							tans.append((a,b,c,d))
-						if att == 3:
-							ai = vbuf._byteBuffer[i]
-							i = i + 1
-							aw = vbuf._byteBuffer[i]
-							i = i + 1
-							bi = vbuf._byteBuffer[i]
-							i = i + 1
-							bw = vbuf._byteBuffer[i]
-							i = i + 1
-							#jointA.index, jointA.weight, jointB.index, jointB.weight
-							joints.append((ai, aw, bi, bw))
-						if att == 4:
-							uv1 = vbuf._byteBuffer[i]
-							i = i + 1
-							uv2 = vbuf._byteBuffer[i]
-							uv2 = 1.0 - uv2
-							i = i + 1
-							uvs.append([uv1,uv2])
-						
-			#print(verts)
-			#print(faces)
-			#print(uvs)
-			#print(mesh._name)
-			
-			if mesh._name is not None:
-				nme = mesh._name
-			else:
-				nme = "Mesh"
-			
-			# create a new mesh  
-			me = bpy.data.meshes.new(nme) 
-			
-			# create an object with that mesh
-			ob = bpy.data.objects.new(nme, me)  
-			
-			if (mesh._transform is not None) and (self.Config.ApplyTransforms == True):
-				ob.matrix_local = mesh._transform.getMatrix()
-			else:
-				# position object at 3d-cursor
-				ob.location = bpy.context.scene.cursor_location
-			
-			# Link object to scene
-			bpy.context.scene.objects.link(ob)  
-			
-			# Fill the mesh with verts, edges, faces 
-			# from_pydata doesn't work correctly, it swaps vertices in some triangles 
-			me.from_pydata(verts,[],faces)   # edges or faces should be [], or you ask for problems
-			
-			#me.vertices.add(len(verts))
-			#me.faces.add(len(faces))
-			
-			#for i in range(len(verts)):
-			#	me.vertices[i].co=verts[i]
-				
-			#for i in range(len(faces)):
-			#	me.faces[i].vertices=faces[i]
-			
-			#select object
-			for object in bpy.data.objects:
-				object.select = False
-			ob.select = True
-			bpy.context.scene.objects.active = ob
-			
-			#me.update(calc_edges=True)    # Update mesh with new data
-			
-			#add uv layer
-			uvname = "UV1"
-			uvlayer = me.uv_textures.new(uvname)
-			diffuseimg = None
-			
-			if mesh._visible == False:
-				ob.hide = True
-			
-			for surf in mesh._surfaces:
-				#surf._indexBegin
-				#surf._materialId
-				#surf._numTriangles
-				
-				if surf._materialId is not None:
-					#get material
-					mat = materials[surf._materialId]
-					
-					#new material
-					surf_mat = bpy.data.materials.new("Material")
-					me.materials.append(surf_mat)
-					
-					if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._diffuseMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("diffuse", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-						
-						#set diffuse img for uv window
-						diffuseimg = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
-						mtex.uv_layer = uvname
-						
-					if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._glossinessMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("glossiness", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.use_map_raymir = True
-						mtex.uv_layer = uvname
-						
-					if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._lightMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("light", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.use_map_ambient = True
-						mtex.uv_layer = uvname
-						
-					if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._normalMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("normal", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.use_map_normal = True
-						mtex.uv_layer = uvname
-						
-					if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._opacityMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("opacity", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.use_map_alpha = True
-						mtex.uv_layer = uvname
-						
-					if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._reflectionCubeMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("reflection", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.uv_layer = uvname
-						
-					if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._specularMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("specular", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.use_map_specular = True
-						mtex.uv_layer = uvname
-			
-			#set norms
-			if len(norms) > 0:
-				for i in range(len(norms)):
-					me.vertices[i].normal=norms[i]
-			
-			if len(uvs) > 0:
-				uv_faces = me.uv_layers[0].data
-				fcc=0
-				for fc in range(len(uv_faces)):
-					if fcc >= len(uv_faces):
-						break
-					face = faces[fc]
-					v1, v2, v3 = face
-					#if diffuseimg is not None:
-						#me.uv_textures[fcc].image = diffuseimg
-					uv_faces[fcc].uv = uvs[v1]
-					uv_faces[fcc+1].uv = uvs[v2]
-					uv_faces[fcc+2].uv = uvs[v3]
-					fcc = fcc + 3
-
-			me.validate()
-			me.update(calc_edges=True) 		
-
-		#render skins
-		for skin in self.skins:		
-			verts = []
-			faces = []
-			uvs = []
-			norms = []
-			tans = []
-			joints = []
-			
-			#ar = bpy.data.armatures.new("armature")
-			#ob = bpy.data.objects.new("armature", ar)
-			#bpy.context.scene.objects.link(ob)
-			
-			#context.scene.objects.active = ar
-			#bpy.ops.object.mode_set(mode='EDIT')
-			#add bone
-			#bo = ar.edit_bones.new("bone")
-			#bo.head = head
-			#bo.tail = tail
-			#bo.parent = parent_bone
-			
-			#Create Rigging
-			boneTable1 = [
-				('Base', None, (1,0,0)),
-				('Mid', 'Base', (1,0,0)),
-				('Tip', 'Mid', (0,0,1))
-			]
-			
-			#get bones into table
-			#myboneTable = []
-			
-			#origin = mathutils.Vector((0,0,0))
-			#bent = createRig('Bent', origin, myboneTable)
-			
-		
-			#index buff
-			ibuf = ibuffers[skin._indexBufferId]
-			i=0
-			for x in range(int(len(ibuf._byteBuffer)/3)):
-				temp = (ibuf._byteBuffer[i],ibuf._byteBuffer[i+1],ibuf._byteBuffer[i+2])
-				faces.append(temp)
-				i=i+3
-			
-			#vert buff
-			for v in skin._vertexBuffers:
-				vbuf = vbuffers[v]
-				#print(vbuf._byteBuffer)
-				#print(vbuf._id)
-				#print(vbuf._attributes)
-				numflts = 0
-				for att in vbuf._attributes:
-					if att == 0:
-						#position
-						numflts = numflts + 3
-					if att == 1:
-						#normal
-						numflts = numflts + 3
-					if att == 2:
-						#tangent
-						numflts = numflts + 4
-					if att == 3:
-						#joint
-						numflts = numflts + 4
-					if att == 4:
-						#uv
-						numflts = numflts + 2
-				flcount = int(len(vbuf._byteBuffer))
-				points = int(flcount/numflts)
-				i = 0
-				for p in range(points):
-					for att in vbuf._attributes:
-						if att == 0:
-							x = vbuf._byteBuffer[i]
-							i = i + 1
-							y = vbuf._byteBuffer[i]
-							i = i + 1
-							z = vbuf._byteBuffer[i]
-							i = i + 1
-							verts.append((x, y, z))
-						if att == 1:
-							x = vbuf._byteBuffer[i]
-							i = i + 1
-							y = vbuf._byteBuffer[i]
-							i = i + 1
-							z = vbuf._byteBuffer[i]
-							i = i + 1
-							norms.append((x, y, z))
-						if att == 2:
-							a = vbuf._byteBuffer[i]
-							i = i + 1
-							b = vbuf._byteBuffer[i]
-							i = i + 1
-							c = vbuf._byteBuffer[i]
-							i = i + 1
-							d = vbuf._byteBuffer[i]
-							i = i + 1
-							tans.append((a,b,c,d))
-						if att == 3:
-							ai = vbuf._byteBuffer[i]
-							i = i + 1
-							aw = vbuf._byteBuffer[i]
-							i = i + 1
-							bi = vbuf._byteBuffer[i]
-							i = i + 1
-							bw = vbuf._byteBuffer[i]
-							i = i + 1
-							#jointA.index, jointA.weight, jointB.index, jointB.weight
-							joints.append((ai, aw, bi, bw))
-						if att == 4:
-							uv1 = vbuf._byteBuffer[i]
-							i = i + 1
-							uv2 = vbuf._byteBuffer[i]
-							uv2 = 1.0 - uv2
-							i = i + 1
-							uvs.append([uv1,uv2])
-
-			#print(verts)
-			#print(faces)
-			#print(uvs)
-			#print(mesh._name)
-			
-			if skin._name is not None:
-				nme = skin._name
-			else:
-				nme = "Skin"
-			
-			# create a new mesh  
-			me = bpy.data.meshes.new(nme) 
-			
-			# create an object with that mesh
-			ob = bpy.data.objects.new(nme, me)  
-			
-			if (skin._transform is not None) and (self.Config.ApplyTransforms == True):
-				ob.matrix_local = skin._transform.getMatrix()
-			else:
-				# position object at 3d-cursor
-				ob.location = bpy.context.scene.cursor_location
-			
-			# Link object to scene
-			bpy.context.scene.objects.link(ob)  
-			
-			# Fill the mesh with verts, edges, faces 
-			me.from_pydata(verts,[],faces)   # edges or faces should be [], or you ask for problems
-			me.update(calc_edges=True)    # Update mesh with new data
-			
-			if skin._visible == False:
-				ob.hide = True
-			
-			for surf in skin._surfaces:
-				#surf._indexBegin
-				#surf._materialId
-				#surf._numTriangles
-				
-				if surf._materialId is not None:
-					#get material
-					mat = materials[surf._materialId]
-					
-					#new material
-					surf_mat = bpy.data.materials.new("Material")
-					me.materials.append(surf_mat)
-					
-					if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._diffuseMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("diffuse", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
-						
-					if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._glossinessMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("glossiness", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
-						
-					if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._lightMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("light", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
-						
-					if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._normalMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("normal", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.use_map_normal = True
-						
-					if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._opacityMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("opacity", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
-						
-					if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._reflectionCubeMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("reflectioncube", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
-						
-					if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
-						#get map
-						map = maps[mat._specularMapId]
-						#get img
-						img = images[map._imageId]
-						
-						#new image
-						texture = bpy.data.textures.new("specular", type='IMAGE')
-						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
-						texture.image = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
-			
-			#add uv
-			uvlayer = me.uv_textures.new()
-			
-			#set norms
-			if len(norms) > 0:
-				for i in range(len(norms)):
-					me.vertices[i].normal=norms[i]
-
-			#set uvs		
-			if len(uvs) > 0:
-				uv_faces = me.uv_layers[0].data
-				fcc=0
-				for fc in range(len(uv_faces)):
-					if fcc >= len(uv_faces):
-						break
-					face = faces[fc]
-					v1, v2, v3 = face
-					#if diffuseimg is not None:
-						#me.uv_textures[fcc].image = diffuseimg
-					uv_faces[fcc].uv = uvs[v1]
-					uv_faces[fcc+1].uv = uvs[v2]
-					uv_faces[fcc+2].uv = uvs[v3]
-					fcc = fcc + 3
-					
-			me.validate()
-			me.update(calc_edges=True) 		
+		for skin in self.skins:
+			skin.render(ibuffers,vbuffers,materials,maps,images)
 		
 	def read(self,file,mask,ver):
 		print("reada3d2")
@@ -4779,7 +4084,7 @@ class A3D2:
 			#print(mask[mskindex])
 			if mask[mskindex] == "0":
 				#read array of classes
-				arr = A3D2Array()
+				arr = A3DArray()
 				arr.read(file)
 				mskindex = mskindex + 1
 				for a in range(arr.length):
@@ -4793,7 +4098,7 @@ class A3D2:
 	
 	def writeClass(self,file,listclass):
 		if len(listclass) > 0:
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.write(file,len(listclass))
 			#add class as option
 			self.nullmask = self.nullmask + str(0)
@@ -4825,8 +4130,8 @@ class A3D2:
 		self.writeClass(tfile,self.omniLights)
 		self.writeClass(tfile,self.skins)		
 		self.writeClass(tfile,self.spotLights)	
-		self.writeClass(tfile,self.sprites)	
-		self.writeClass(tfile,self.vertexBuffers)	
+		self.writeClass(tfile,self.sprites)
+		self.writeClass(tfile,self.vertexBuffers)
 		if self.Config.A3DVersionSystem <= 3:
 			self.writeClass(tfile,self.layers)
 		if self.Config.A3DVersionSystem <= 2:
@@ -4898,179 +4203,8 @@ class A3D2:
 			file.write(data)
 		tfile2.close()
 
-def createRig(name, origin, boneTable):
-    # Create armature and object
-    bpy.ops.object.add(
-        type='ARMATURE', 
-        enter_editmode=True,
-        location=origin)
-    ob = bpy.context.object
-    ob.show_x_ray = True
-    ob.name = name
-    amt = ob.data
-    amt.name = name+'Amt'
-    amt.show_axes = True
- 
-    # Create bones
-    bpy.ops.object.mode_set(mode='EDIT')
-    for (bname, pname, vector) in boneTable:        
-        bone = amt.edit_bones.new(bname)
-        if pname:
-            parent = amt.edit_bones[pname]
-            bone.parent = parent
-            bone.head = parent.tail
-            bone.use_connect = False
-            (trans, rot, scale) = parent.matrix.decompose()
-        else:
-            bone.head = (0,0,0)
-            rot = Matrix.Translation((0,0,0))	# identity matrix
-        bone.tail = rot * Vector(vector) + bone.head
-    bpy.ops.object.mode_set(mode='OBJECT')
-    return ob
-		
-class A3D2Array:
-	def __init__(self):
-		self.length = 0
+# lighting	
 	
-	def read(self,file):
-		numelements = 0
-		temp_data = ord(file.read(1))
-		temp_data = bin(temp_data)[2:].rjust(8, '0')
-		if temp_data[0] == '0':
-			numelements = temp_data[1:8]
-		elif temp_data[0] == '1':
-			if temp_data[0:2] == '10':
-				temp = ord(file.read(1))
-				temp = bin(temp)[2:].rjust(8, '0')
-				numelements = temp_data[2:8] + temp
-			elif temp_data[0:2] == '11':
-				temp = ord(file.read(1))
-				temp = bin(temp)[2:].rjust(8, '0')
-				temp1 = ord(file.read(1))
-				temp1 = bin(temp1)[2:].rjust(8, '0')
-				numelements = temp_data[2:8] + temp + temp1
-			else:
-				print('Error reading array')
-		else:
-			print('Error reading array')
-		#print('Array Length %s' % numelements)
-		#print('Array Length %i' % int(numelements,2))
-		self.length = int(numelements,2)
-		
-	def write(self,file,bylen):
-		#bitnum = NumberOfSetBits(bylen)
-		bitnum = bylen.bit_length()
-		if bitnum <= 7:
-			print("Array 1 byte required\n")
-			file.write(struct.pack("B", bylen))
-		elif bitnum > 7 and bitnum <= 14:
-			print("Array 2 byte required\n")
-			print(bitnum) #8
-			print(bylen) #192
-			#if is 8 bits (fits exacty into 1 byte)
-			#if bitnum == 8:
-			#	#placed right to left
-			#	byte1 = int((bylen >> 8) & 255)
-			#	byte1 = byte1 + 128 #add 10000000 bits
-			#	byte2 = int(bylen & 255)
-			#else:
-			#	byte1 = int((bylen >> (bitnum - 6)) & 255)
-			#	byte1 = byte1 + 128 #add 10000000 bits
-			#	byte2 = int(bylen << (8 - (bitnum - 6)) & 255)
-			
-			byte1 = int((bylen >> 8) & 255)
-			byte1 = byte1 + 128 #add 10000000 bits
-			byte2 = int(bylen & 255)
-			print(byte1)
-			print(byte2)
-			file.write(struct.pack("B", byte1))
-			file.write(struct.pack("B", byte2))
-		elif bitnum > 14 and bitnum <= 22:
-			print("Array 3 byte required\n")
-			#if bitnum == 16:
-				#left to right
-			#	print("coming soon..")
-			#right to left
-			byte1 = int( (bylen >> 16) & 255 )
-			byte1 = byte1 + 192 #add 11000000 bits
-			byte2 = int( (bylen >> 8) & 255 )
-			byte3 = int(bylen & 255)
-			print(byte1)
-			print(byte2)
-			print(byte3)
-			file.write(struct.pack("B", byte1))
-			file.write(struct.pack("B", byte2))
-			file.write(struct.pack("B", byte3))
-		else:
-			print("Array bytes too long!\n")
-
-class A3D2String:
-	def __init__(self):
-		self.length = 0
-		self.name = ""
-	
-	def read(self,file):
-		numelements = 0
-		name = ''
-		temp_data = ord(file.read(1))
-		temp_data = bin(temp_data)[2:].rjust(8, '0')
-		if temp_data[0] == '0':
-			numelements = temp_data[1:8]
-		elif temp_data[0] == '1':
-			if temp_data[0:2] == '10':
-				temp = ord(file.read(1))
-				temp = bin(temp)[2:].rjust(8, '0')
-				numelements = temp_data[2:8] + temp
-			elif temp_data[0:2] == '11':
-				temp = ord(file.read(1))
-				temp = bin(temp)[2:].rjust(8, '0')
-				temp1 = ord(file.read(1))
-				temp1 = bin(temp1)[2:].rjust(8, '0')
-				numelements = temp_data[2:8] + temp + temp1
-			else:
-				print('Error reading string type 1')
-		else:
-			print('Error reading string')
-			
-		nlen = int(numelements,2)
-		self.length = nlen
-		for x in range(nlen):
-			name += chr(ord(file.read(1)))
-		self.name = name
-	
-	def write(self,file):
-		bylen = len(self.name)
-		if bylen > 0:
-			#bitnum = NumberOfSetBits(bylen)
-			bitnum = bylen.bit_length()
-			if bitnum <= 7:
-				print("String 1 byte required\n")
-				file.write(struct.pack("B", bylen))
-				self.writeName(file)
-			elif bitnum > 7 and bitnum <= 14:
-				print("String 2 byte required\n")
-				byte1 = int((bylen >> 8) & 255)
-				byte1 = byte1 + 128 #add 10000000 bits
-				byte2 = int(bylen & 255)
-				file.write(struct.pack("B", byte1))
-				file.write(struct.pack("B", byte2))
-				self.writeName(file)
-			elif bitnum > 14 and bitnum <= 22:
-				print("String 3 byte required\n")
-				byte1 = int( (bylen >> 16) & 255 )
-				byte1 = byte1 + 192 #add 11000000 bits
-				byte2 = int( (bylen >> 8) & 255 )
-				byte3 = int(bylen & 255)
-				file.write(struct.pack("B", byte1))
-				file.write(struct.pack("B", byte2))
-				file.write(struct.pack("B", byte3))
-				self.writeName(file)
-			else:
-				print("String bytes too long!\n")
-	
-	def writeName(self,file):
-		file.write(struct.pack(str(len(self.name))+"s",self.name.encode("utf-8")))
-
 class A3D2AmbientLight:
 	def __init__(self,Config):
 		self._boundBoxId = None
@@ -5098,15 +4232,6 @@ class A3D2AmbientLight:
 		self._visible = 1
 		self._mskindex = 0
 		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-		
 	def read(self,file,mask,mskindex):
 		print("read A3D2AmbientLight")
 		
@@ -5119,7 +4244,7 @@ class A3D2AmbientLight:
 		self._intensity = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
 		
 		if mask[mskindex + self._mskindex] == "0":
-			a3dstr = A3D2String()
+			a3dstr = A3DString()
 			a3dstr.read(file)
 			self._name = a3dstr.name
 		self._mskindex = self._mskindex + 1
@@ -5129,50 +4254,1352 @@ class A3D2AmbientLight:
 		self._mskindex = self._mskindex + 1
 		
 		if mask[mskindex + self._mskindex] == "0":
-			a3dtran = A3D2Transform(self.Config)
+			a3dtran = A3DTransform(self.Config)
+			a3dtran.read(file)
+			self._transform = a3dtran
+		self._mskindex = self._mskindex + 1
+		
+		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
+
+	def write(self,file):
+		if self._boundBoxId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._boundBoxId))
+		else:
+			self._optmask = self._optmask + str(1)
+		file.write(struct.pack("<L",self._color))
+		file.write(struct.pack("Q",self._id))
+		file.write(struct.pack(">f",self._intensity))
+		if self._name is not None:
+			self._optmask = self._optmask + str(0)
+			self._name.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._parentId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack("Q",self._parentId))
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._transform is not None:
+			self._optmask = self._optmask + str(0)
+			self._transform.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		file.write(struct.pack("B",self._visible))
+	
+	def render(self):
+		if self._name is not None:
+			nme = self._name
+		else:
+			nme = "Lamp"
+	
+		lamp = bpy.data.lamps.new(nme,"HEMI") 
+		ob = bpy.data.objects.new(nme, lamp)
+		
+		lamp.color = self._color
+		lamp.energy = self._intensity
+
+		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
+			ob.matrix_local = self._transform.getMatrix()
+		else:
+			ob.location = bpy.context.scene.cursor_location
+		bpy.context.scene.objects.link(ob)
+		
+		if self._visible == False:
+			ob.hide = False
+
+class A3D2DirectionalLight:
+	def __init__(self,Config):
+		self._boundBoxId = None
+		self._color = 0
+		self._id = 0
+		self._intensity = 0
+		self._name = None
+		self._parentId = None
+		self._transform = None
+		self._visible = 1
+		
+		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
+		self._optmask = ""
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._boundBoxId = None
+		self._color = 0
+		self._id = 0
+		self._intensity = 0
+		self._name = None
+		self._parentId = None
+		self._transform = None
+		self._visible = 1
+		self._mskindex = 0
+		
+	def read(self,file,mask,mskindex):
+		print("read A3D2DirectionalLight")
+		if mask[mskindex + self._mskindex] == "0":
+			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		self._color = toRgb(struct.unpack("I", file.read(struct.calcsize("I")))[0])
+		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
+		self._intensity = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
+		
+		if mask[mskindex + self._mskindex] == "0":
+			a3dstr = A3DString()
+			a3dstr.read(file)
+			self._name = a3dstr.name
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			a3dtran = A3DTransform(self.Config)
 			a3dtran.read(file)
 			self._transform = a3dtran
 		self._mskindex = self._mskindex + 1
 		
 		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
 		
-		
-		
 	def write(self,file):
-		print("bb")
 		if self._boundBoxId is not None:
 			self._optmask = self._optmask + str(0)
 			file.write(struct.pack(">L",self._boundBoxId))
 		else:
 			self._optmask = self._optmask + str(1)
-		print("color")
-		print(self._color)
-		file.write(struct.pack("<L",self._color))
-		print("id")
+		file.write(struct.pack("I",self._color))
 		file.write(struct.pack("Q",self._id))
-		print("intensity")
 		file.write(struct.pack(">f",self._intensity))
-		print("name")
 		if self._name is not None:
 			self._optmask = self._optmask + str(0)
 			self._name.write(file)
 		else:
 			self._optmask = self._optmask + str(1)
-		print("parentid")
 		if self._parentId is not None:
 			self._optmask = self._optmask + str(0)
 			file.write(struct.pack("Q",self._parentId))
 		else:
 			self._optmask = self._optmask + str(1)
-		print("transform")
 		if self._transform is not None:
 			self._optmask = self._optmask + str(0)
 			self._transform.write(file)
 		else:
 			self._optmask = self._optmask + str(1)
-		print("visible")
+		file.write(struct.pack("B",self._visible))
+	
+	def render(self):
+		if self._name is not None:
+			nme = self._name
+		else:
+			nme = "Lamp"
+	
+		lamp = bpy.data.lamps.new(nme,"HEMI") 
+		ob = bpy.data.objects.new(nme, lamp)
+		
+		lamp.color = self._color
+		lamp.energy = self._intensity
+
+		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
+			ob.matrix_local = self._transform.getMatrix()
+		else:
+			ob.location = bpy.context.scene.cursor_location
+		bpy.context.scene.objects.link(ob)
+		
+		if self._visible == False:
+			ob.hide = False
+
+class A3D2OmniLight:
+	def __init__(self,Config):
+		self._attenuationBegin = 0
+		self._attenuationEnd = 0
+		self._boundBoxId = None
+		self._color = 0
+		self._id = 0
+		self._intensity = 0
+		self._name = None
+		self._parentId = None
+		self._transform = None
+		self._visible = 1
+		
+		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
+		self._optmask = ""
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._attenuationBegin = 0
+		self._attenuationEnd = 0
+		self._boundBoxId = None
+		self._color = 0
+		self._id = 0
+		self._intensity = 0
+		self._name = None
+		self._parentId = None
+		self._transform = None
+		self._visible = 1
+		self._mskindex = 0
+		
+	def read(self,file,mask,mskindex):
+		print("read A3D2OmniLight")
+		self._mskindex = 1
+		
+	def write(self,file):
+		file.write(struct.pack('>f',self._attenuationBegin))
+		file.write(struct.pack('>f',self._attenuationEnd))
+		
+		if self._boundBoxId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._boundBoxId))
+		else:
+			self._optmask = self._optmask + str(1)
+
+		file.write(struct.pack("I",self._color))			
+		file.write(struct.pack("Q",self._id))
+		file.write(struct.pack(">f",self._intensity))
+		if self._name is not None:
+			self._optmask = self._optmask + str(0)
+			self._name.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._parentId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack("Q",self._parentId))
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._transform is not None:
+			self._optmask = self._optmask + str(0)
+			self._transform.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		file.write(struct.pack("B",self._visible))
+	
+	def render(self):
+		if self._name is not None:
+			nme = self._name
+		else:
+			nme = "Lamp"
+	
+		lamp = bpy.data.lamps.new(nme,"HEMI") 
+		ob = bpy.data.objects.new(nme, lamp)
+		
+		lamp.color = self._color
+		lamp.energy = self._intensity
+
+		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
+			ob.matrix_local = self._transform.getMatrix()
+		else:
+			ob.location = bpy.context.scene.cursor_location
+		bpy.context.scene.objects.link(ob)
+		
+		if self._visible == False:
+			ob.hide = False
+
+class A3D2SpotLight:
+	def __init__(self,Config):
+		self._attenuationBegin = 0
+		self._attenuationEnd = 0
+		self._boundBoxId = None
+		self._color = 0
+		self._falloff = None
+		self._hotspot = None
+		self._id = 0
+		self._intensity = 0
+		self._name = None
+		self._parentId = None
+		self._transform = None
+		self._visible = 1
+		
+		self._optionals = [self._boundBoxId,self._falloff,self._hotspot,self._name,self._parentId,self._transform]
+		self._optmask = ""
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._attenuationBegin = 0
+		self._attenuationEnd = 0
+		self._boundBoxId = None
+		self._color = 0
+		self._falloff = None
+		self._hotspot = None
+		self._id = 0
+		self._intensity = 0
+		self._name = None
+		self._parentId = None
+		self._transform = None
+		self._visible = 1
+		self._mskindex = 0
+		
+	def read(self,file,mask,mskindex):
+		print("read A3D2SpotLight")
+		self._attenuationBegin = struct.unpack('>f', file.read(struct.calcsize(">f")))[0]
+		self._attenuationEnd = struct.unpack('>f', file.read(struct.calcsize(">f")))[0]
+		
+		print(self._attenuationBegin)
+		print(self._attenuationEnd)
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		print(self._boundBoxId)
+		
+		self._color = struct.unpack("I",file.read(struct.calcsize("I")))[0]
+		print(self._color)
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._falloff = struct.unpack('>f', file.read(struct.calcsize(">f")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._hotspot = struct.unpack('>f', file.read(struct.calcsize(">f")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		self._id = struct.unpack("Q",file.read(struct.calcsize("Q")))[0]
+		self._intensity = struct.unpack(">f",file.read(struct.calcsize(">f")))[0]
+		
+		if mask[mskindex + self._mskindex] == "0":
+			a3dstr = A3DString()
+			a3dstr.read(file)
+			self._name = a3dstr.name
+		self._mskindex = self._mskindex + 1
+		
+		print(self._name)
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			a3dtran = A3DTransform(self.Config)
+			a3dtran.read(file)
+		self._mskindex = self._mskindex + 1
+		
+		file.write(struct.pack("B",self._visible))
+		
+	def write(self,file):
+		file.write(struct.pack('>f',self._attenuationBegin))
+		file.write(struct.pack('>f',self._attenuationEnd))
+		
+		if self._boundBoxId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._boundBoxId))
+		else:
+			self._optmask = self._optmask + str(1)
+
+		file.write(struct.pack("I",self._color))
+		
+		if self._falloff is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">f",self._falloff))
+		else:
+			self._optmask = self._optmask + str(1)
+			
+		if self._hotspot is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">f",self._hotspot))
+		else:
+			self._optmask = self._optmask + str(1)
+			
+		file.write(struct.pack("Q",self._id))
+		file.write(struct.pack(">f",self._intensity))
+		if self._name is not None:
+			self._optmask = self._optmask + str(0)
+			self._name.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._parentId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack("Q",self._parentId))
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._transform is not None:
+			self._optmask = self._optmask + str(0)
+			self._transform.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		file.write(struct.pack("B",self._visible))
+	
+	def render(self):
+		if self._name is not None:
+			nme = self._name
+		else:
+			nme = "Lamp"
+	
+		lamp = bpy.data.lamps.new(nme,"HEMI") 
+		ob = bpy.data.objects.new(nme, lamp)
+		
+		lamp.color = self._color
+		lamp.energy = self._intensity
+
+		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
+			ob.matrix_local = self._transform.getMatrix()
+		else:
+			ob.location = bpy.context.scene.cursor_location
+		bpy.context.scene.objects.link(ob)
+		
+		if self._visible == False:
+			ob.hide = False
+
+# 3d
+			
+class A3D2Mesh:
+	def __init__(self,Config):
+		self._boundBoxId = None
+		self._id = 0
+		self._indexBufferId = 0
+		self._name = None
+		self._parentId = None
+		self._surfaces = []
+		self._transform = None
+		self._vertexBuffers = [0]
+		self._visible = 1
+		
+		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
+		self._optmask = ""
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._boundBoxId = None
+		self._id = 0
+		self._indexBufferId = 0
+		self._name = None
+		self._parentId = None
+		self._surfaces = []
+		self._transform = None
+		self._vertexBuffers = [0]
+		self._visible = 1
+		self._optmask = ""
+		self._mskindex = 0
+				
+	def read(self,file,mask,mskindex):
+		print("read A3D2Mesh")
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
+		self._indexBufferId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+
+		if mask[mskindex + self._mskindex] == "0":
+			a3dstr = A3DString()
+			a3dstr.read(file)
+			self._name = a3dstr.name
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		#surfaces
+		arr = A3DArray()
+		arr.read(file)
+		for a in range(arr.length):
+			a3dsurf = A3D2Surface(self.Config)
+			self._surfaces.append(a3dsurf.read(file,mask,mskindex + self._mskindex))
+			self._mskindex = self._mskindex + a3dsurf._mskindex
+		
+		#transform
+		if mask[mskindex + self._mskindex] == "0":
+			a3dtran = A3DTransform(self.Config)
+			a3dtran.read(file)
+			self._transform = a3dtran
+		self._mskindex = self._mskindex + 1
+		
+		#buffer
+		arr = A3DArray()
+		arr.read(file)
+		self._vertexBuffers = []
+		for a in range(arr.length):
+			self._vertexBuffers.append(struct.unpack(">L", file.read(struct.calcsize(">L")))[0])
+		
+		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
+		
+	def write(self,file):
+		#print("write mesh\n")
+		#bbid, id, indexbufid
+		#print(self._boundBoxId)
+		if self._boundBoxId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._boundBoxId))
+		else:
+			self._optmask = self._optmask + str(1)
+			
+		file.write(struct.pack("Q",self._id))
+		file.write(struct.pack(">L",self._indexBufferId))
+		
+		#string
+		if self._name is not None:
+			self._optmask = self._optmask + str(0)
+			self._name.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		#parentid
+		if self._parentId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack("Q",self._parentId))
+		else:
+			self._optmask = self._optmask + str(1)
+		#surfaces
+		arr = A3DArray()
+		arr.write(file,len(self._surfaces))
+		for surf in self._surfaces:
+			surf.write(file)
+			self._optmask = self._optmask + surf._optmask
+		#transform
+		if self._transform is not None:
+			self._optmask = self._optmask + str(0)
+			self._transform.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		#vbuffers
+		arr = A3DArray()
+		arr.write(file,len(self._vertexBuffers))
+		for x in range(len(self._vertexBuffers)):
+			file.write(struct.pack(">L",self._vertexBuffers[x]))
+		#visible
+		file.write(struct.pack("B",self._visible))
+	
+	def render(self,ibuffers,vbuffers,materials,maps,images):
+		verts = []
+		faces = []
+		uvs = []
+		norms = []
+		tans = []
+		joints = []
+	
+		#index buff
+		ibuf = ibuffers[self._indexBufferId]
+		i=0
+		for x in range(int(len(ibuf._byteBuffer)/3)):
+			temp = (ibuf._byteBuffer[i],ibuf._byteBuffer[i+1],ibuf._byteBuffer[i+2])
+			faces.append(temp)
+			i=i+3
+		
+		#vert buff
+		for v in self._vertexBuffers:
+			vbuf = vbuffers[v]
+			print("Attributes:"+str(vbuf._attributes))
+			numflts = 0
+			for att in vbuf._attributes:
+				if att == 0:
+					#position
+					numflts = numflts + 3
+				if att == 1:
+					#normal
+					numflts = numflts + 3
+				if att == 2:
+					#tangent
+					numflts = numflts + 4
+				if att == 3:
+					#joint
+					numflts = numflts + 4
+				if att == 4:
+					#uv
+					numflts = numflts + 2
+			flcount = int(len(vbuf._byteBuffer))
+			points = int(flcount/numflts)
+			i = 0
+			for p in range(points):
+				for att in vbuf._attributes:
+					if att == 0:
+						x = vbuf._byteBuffer[i]
+						i = i + 1
+						y = vbuf._byteBuffer[i]
+						i = i + 1
+						z = vbuf._byteBuffer[i]
+						i = i + 1
+						verts.append((x, y, z))
+					if att == 1:
+						x = vbuf._byteBuffer[i]
+						i = i + 1
+						y = vbuf._byteBuffer[i]
+						i = i + 1
+						z = vbuf._byteBuffer[i]
+						i = i + 1
+						norms.append((x, y, z))
+					if att == 2:
+						a = vbuf._byteBuffer[i]
+						i = i + 1
+						b = vbuf._byteBuffer[i]
+						i = i + 1
+						c = vbuf._byteBuffer[i]
+						i = i + 1
+						d = vbuf._byteBuffer[i]
+						i = i + 1
+						tans.append((a,b,c,d))
+					if att == 3:
+						ai = vbuf._byteBuffer[i]
+						i = i + 1
+						aw = vbuf._byteBuffer[i]
+						i = i + 1
+						bi = vbuf._byteBuffer[i]
+						i = i + 1
+						bw = vbuf._byteBuffer[i]
+						i = i + 1
+						#jointA.index, jointA.weight, jointB.index, jointB.weight
+						joints.append((ai, aw, bi, bw))
+					if att == 4:
+						uv1 = vbuf._byteBuffer[i]
+						i = i + 1
+						uv2 = vbuf._byteBuffer[i]
+						uv2 = 1.0 - uv2
+						i = i + 1
+						uvs.append([uv1,uv2])
+					
+		#print(verts)
+		#print(faces)
+		#print(uvs)
+		#print(self._name)
+		
+		if self._name is not None:
+			nme = self._name
+		else:
+			nme = "Mesh"
+		
+		# create a new mesh  
+		me = bpy.data.meshes.new(nme) 
+		
+		# create an object with that mesh
+		ob = bpy.data.objects.new(nme, me)  
+		
+		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
+			ob.matrix_local = self._transform.getMatrix()
+		else:
+			# position object at 3d-cursor
+			ob.location = bpy.context.scene.cursor_location
+		
+		# Link object to scene
+		bpy.context.scene.objects.link(ob)  
+		
+		# Fill the mesh with verts, edges, faces 
+		# from_pydata doesn't work correctly, it swaps vertices in some triangles 
+		me.from_pydata(verts,[],faces)   # edges or faces should be [], or you ask for problems
+		
+		#me.vertices.add(len(verts))
+		#me.faces.add(len(faces))
+		
+		#for i in range(len(verts)):
+		#	me.vertices[i].co=verts[i]
+			
+		#for i in range(len(faces)):
+		#	me.faces[i].vertices=faces[i]
+		
+		#select object
+		for object in bpy.data.objects:
+			object.select = False
+		ob.select = True
+		bpy.context.scene.objects.active = ob
+		
+		#me.update(calc_edges=True)    # Update mesh with new data
+		
+		#add uv layer
+		uvname = "UV1"
+		uvlayer = me.uv_textures.new(uvname)
+		diffuseimg = None
+		
+		if self._visible == False:
+			ob.hide = True
+		
+		for surf in self._surfaces:
+			#surf._indexBegin
+			#surf._materialId
+			#surf._numTriangles
+			
+			if surf._materialId is not None:
+				#get material
+				mat = materials[surf._materialId]
+				
+				#new material
+				surf_mat = bpy.data.materials.new("Material")
+				me.materials.append(surf_mat)
+				
+				if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._diffuseMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("diffuse", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+					
+					#set diffuse img for uv window
+					diffuseimg = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = True
+					mtex.uv_layer = uvname
+					
+				if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._glossinessMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("glossiness", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_raymir = True
+					mtex.uv_layer = uvname
+					
+				if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._lightMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("light", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_ambient = True
+					mtex.uv_layer = uvname
+					
+				if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._normalMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("normal", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_normal = True
+					mtex.uv_layer = uvname
+					
+				if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._opacityMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("opacity", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_alpha = True
+					mtex.uv_layer = uvname
+					
+				if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._reflectionCubeMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("reflection", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.uv_layer = uvname
+					
+				if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._specularMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("specular", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_specular = True
+					mtex.uv_layer = uvname
+		
+		#set norms
+		if len(norms) > 0:
+			for i in range(len(norms)):
+				me.vertices[i].normal=norms[i]
+		
+		if len(uvs) > 0:
+			if checkBMesh() == True:
+				uv_faces = me.uv_layers[0].data
+				fcc=0
+				for fc in range(len(uv_faces)):
+					if fcc >= len(uv_faces):
+						break
+					face = faces[fc]
+					v1, v2, v3 = face
+					if diffuseimg is not None:
+						me.uv_textures[0].data[0].image = diffuseimg
+					uv_faces[fcc].uv = uvs[v1]
+					uv_faces[fcc+1].uv = uvs[v2]
+					uv_faces[fcc+2].uv = uvs[v3]
+					fcc = fcc + 3
+			else:
+				uv_faces = me.uv_textures.active.data[:]
+				for fidx, uf in enumerate(uv_faces):
+					face = faces[fidx]
+					v1, v2, v3 = face
+					if diffuseimg is not None:
+						uf.image = diffuseimg
+					uf.uv1 = uvs[v1]
+					uf.uv2 = uvs[v2]
+					uf.uv3 = uvs[v3]
+
+		me.validate()
+		me.update(calc_edges=True)
+
+class A3D2Skin:
+	def __init__(self,Config):
+		self._boundBoxId = None
+		self._id = 0
+		self._indexBufferId = 0
+		self._jointBindTransforms = []
+		self._joints = []
+		self._name = None
+		self._numJoints = []
+		self._parentId = None
+		self._surfaces = []
+		self._transform = None
+		self._vertexBuffers = []
+		self._visible = 1
+		
+		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
+		self._optmask = ""
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._boundBoxId = None
+		self._id = 0
+		self._indexBufferId = 0
+		self._jointBindTransforms = 0
+		self._joints = []
+		self._name = None
+		self._numJoints = []
+		self._parentId = None
+		self._surfaces = []
+		self._transform = None
+		self._vertexBuffers = []
+		self._visible = 1
+		self._mskindex = 0
+		
+	def read(self,file,mask,mskindex):
+		print("read A3D2Skin")
+		if mask[mskindex + self._mskindex] == "0":
+			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
+		self._indexBufferId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		
+		arr = A3DArray()
+		arr.read(file)
+		for x in range(arr.length):
+			a3djntbnd = A3D2JointBindTransform(self.Config)
+			self._jointBindTransforms.append(a3djntbnd.read(file,mask,mskindex))
+			
+		arr = A3DArray()
+		arr.read(file)
+		for x in range(arr.length):
+			self._joints.append(struct.unpack("Q", file.read(struct.calcsize("Q")))[0])
+			
+		if mask[mskindex + self._mskindex] == "0":
+			a3dstr = A3DString()
+			a3dstr.read(file)
+			self._name = a3dstr.name
+		self._mskindex = self._mskindex + 1
+		
+		print(self._name)
+		
+		arr = A3DArray()
+		arr.read(file)
+		for x in range(arr.length):
+			self._numJoints.append(struct.unpack(">H", file.read(struct.calcsize(">H")))[0])
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		arr = A3DArray()
+		arr.read(file)
+		for a in range(arr.length):
+			a3dsurf = A3D2Surface(self.Config)
+			self._surfaces.append(a3dsurf.read(file,mask,mskindex + self._mskindex))
+			self._mskindex = self._mskindex + a3dsurf._mskindex
+			
+		if mask[mskindex + self._mskindex] == "0":
+			a3dtran = A3DTransform(self.Config)
+			a3dtran.read(file)
+		self._mskindex = self._mskindex + 1
+		
+		arr = A3DArray()
+		arr.read(file)
+		self._vertexBuffers = []
+		for a in range(arr.length):
+			self._vertexBuffers.append(struct.unpack(">L", file.read(struct.calcsize(">L")))[0])
+		
+		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
+		
+	def write(self,file):
+		print("write")
+	
+	def render(self,ibuffers,vbuffers,materials,maps,images):
+		verts = []
+		faces = []
+		uvs = []
+		norms = []
+		tans = []
+		joints = []
+	
+		#index buff
+		ibuf = ibuffers[self._indexBufferId]
+		i=0
+		for x in range(int(len(ibuf._byteBuffer)/3)):
+			temp = (ibuf._byteBuffer[i],ibuf._byteBuffer[i+1],ibuf._byteBuffer[i+2])
+			faces.append(temp)
+			i=i+3
+		
+		#vert buff
+		for v in self._vertexBuffers:
+			vbuf = vbuffers[v]
+			print("Attributes:"+str(vbuf._attributes))
+			numflts = 0
+			for att in vbuf._attributes:
+				if att == 0:
+					#position
+					numflts = numflts + 3
+				if att == 1:
+					#normal
+					numflts = numflts + 3
+				if att == 2:
+					#tangent
+					numflts = numflts + 4
+				if att == 3:
+					#joint
+					numflts = numflts + 4
+				if att == 4:
+					#uv
+					numflts = numflts + 2
+			flcount = int(len(vbuf._byteBuffer))
+			points = int(flcount/numflts)
+			i = 0
+			for p in range(points):
+				for att in vbuf._attributes:
+					if att == 0:
+						x = vbuf._byteBuffer[i]
+						i = i + 1
+						y = vbuf._byteBuffer[i]
+						i = i + 1
+						z = vbuf._byteBuffer[i]
+						i = i + 1
+						verts.append((x, y, z))
+					if att == 1:
+						x = vbuf._byteBuffer[i]
+						i = i + 1
+						y = vbuf._byteBuffer[i]
+						i = i + 1
+						z = vbuf._byteBuffer[i]
+						i = i + 1
+						norms.append((x, y, z))
+					if att == 2:
+						a = vbuf._byteBuffer[i]
+						i = i + 1
+						b = vbuf._byteBuffer[i]
+						i = i + 1
+						c = vbuf._byteBuffer[i]
+						i = i + 1
+						d = vbuf._byteBuffer[i]
+						i = i + 1
+						tans.append((a,b,c,d))
+					if att == 3:
+						ai = vbuf._byteBuffer[i]
+						i = i + 1
+						aw = vbuf._byteBuffer[i]
+						i = i + 1
+						bi = vbuf._byteBuffer[i]
+						i = i + 1
+						bw = vbuf._byteBuffer[i]
+						i = i + 1
+						#jointA.index, jointA.weight, jointB.index, jointB.weight
+						joints.append((ai, aw, bi, bw))
+					if att == 4:
+						uv1 = vbuf._byteBuffer[i]
+						i = i + 1
+						uv2 = vbuf._byteBuffer[i]
+						uv2 = 1.0 - uv2
+						i = i + 1
+						uvs.append([uv1,uv2])
+					
+		#print(verts)
+		#print(faces)
+		#print(uvs)
+		#print(mesh._name)
+		
+		if self._name is not None:
+			nme = self._name
+		else:
+			nme = "Skin"
+		
+		# create a new mesh  
+		me = bpy.data.meshes.new(nme) 
+		
+		# create an object with that mesh
+		ob = bpy.data.objects.new(nme, me)  
+		
+		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
+			ob.matrix_local = self._transform.getMatrix()
+		else:
+			# position object at 3d-cursor
+			ob.location = bpy.context.scene.cursor_location
+		
+		# Link object to scene
+		bpy.context.scene.objects.link(ob)  
+		
+		# Fill the mesh with verts, edges, faces 
+		# from_pydata doesn't work correctly, it swaps vertices in some triangles 
+		me.from_pydata(verts,[],faces)   # edges or faces should be [], or you ask for problems
+		
+		#me.vertices.add(len(verts))
+		#me.faces.add(len(faces))
+		
+		#for i in range(len(verts)):
+		#	me.vertices[i].co=verts[i]
+			
+		#for i in range(len(faces)):
+		#	me.faces[i].vertices=faces[i]
+		
+		#select object
+		for object in bpy.data.objects:
+			object.select = False
+		ob.select = True
+		bpy.context.scene.objects.active = ob
+		
+		#me.update(calc_edges=True)    # Update mesh with new data
+		
+		#add uv layer
+		uvname = "UV1"
+		uvlayer = me.uv_textures.new(uvname)
+		diffuseimg = None
+		
+		if self._visible == False:
+			ob.hide = True
+		
+		for surf in self._surfaces:
+			#surf._indexBegin
+			#surf._materialId
+			#surf._numTriangles
+			
+			if surf._materialId is not None:
+				#get material
+				mat = materials[surf._materialId]
+				
+				#new material
+				surf_mat = bpy.data.materials.new("Material")
+				me.materials.append(surf_mat)
+				
+				if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._diffuseMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("diffuse", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+					
+					#set diffuse img for uv window
+					diffuseimg = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = True
+					mtex.uv_layer = uvname
+					
+				if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._glossinessMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("glossiness", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_raymir = True
+					mtex.uv_layer = uvname
+					
+				if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._lightMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("light", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_ambient = True
+					mtex.uv_layer = uvname
+					
+				if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._normalMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("normal", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_normal = True
+					mtex.uv_layer = uvname
+					
+				if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._opacityMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("opacity", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_alpha = True
+					mtex.uv_layer = uvname
+					
+				if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._reflectionCubeMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("reflection", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.uv_layer = uvname
+					
+				if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._specularMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("specular", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_specular = True
+					mtex.uv_layer = uvname
+		
+		#set norms
+		if len(norms) > 0:
+			for i in range(len(norms)):
+				me.vertices[i].normal=norms[i]
+		
+		if len(uvs) > 0:
+			if checkBMesh() == True:
+				uv_faces = me.uv_layers[0].data
+				fcc=0
+				for fc in range(len(uv_faces)):
+					if fcc >= len(uv_faces):
+						break
+					face = faces[fc]
+					v1, v2, v3 = face
+					if diffuseimg is not None:
+						me.uv_textures[0].data[0].image = diffuseimg
+					uv_faces[fcc].uv = uvs[v1]
+					uv_faces[fcc+1].uv = uvs[v2]
+					uv_faces[fcc+2].uv = uvs[v3]
+					fcc = fcc + 3
+			else:
+				uv_faces = me.uv_textures.active.data[:]
+				for fidx, uf in enumerate(uv_faces):
+					face = faces[fidx]
+					v1, v2, v3 = face
+					if diffuseimg is not None:
+						uf.image = diffuseimg
+					uf.uv1 = uvs[v1]
+					uf.uv2 = uvs[v2]
+					uf.uv3 = uvs[v3]
+
+		me.validate()
+		me.update(calc_edges=True)
+
+class A3D2Object:
+	def __init__(self,Config):
+		self._boundBoxId = None
+		self._id = 0
+		self._name = None
+		self._parentId = None
+		self._transform = None
+		self._visible = 1
+		
+		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
+		self._optmask = ""
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._boundBoxId = None
+		self._id = 0
+		self._name = None
+		self._parentId = None
+		self._transform = None
+		self._visible = 1
+		self._optmask = ""
+		self._mskindex = 0
+				
+	def read(self,file,mask,mskindex):
+		print("read A3D2Object")
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
+
+		if mask[mskindex + self._mskindex] == "0":
+			a3dstr = A3DString()
+			a3dstr.read(file)
+			self._name = a3dstr.name
+		self._mskindex = self._mskindex + 1
+		
+		print(self._name)
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		#transform
+		if mask[mskindex + self._mskindex] == "0":
+			a3dtran = A3DTransform(self.Config)
+			a3dtran.read(file)
+		self._mskindex = self._mskindex + 1
+				
+		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
+		
+	def write(self,file):
+		#bbid, id, indexbufid
+		if self._boundBoxId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._boundBoxId))
+		else:
+			self._optmask = self._optmask + str(1)
+		file.write(struct.pack("Q",self._id))
+		#string
+		if self._name is not None:
+			self._optmask = self._optmask + str(0)
+			self._name.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		#parentid
+		if self._parentId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack("Q",self._parentId))
+		else:
+			self._optmask = self._optmask + str(1)
+		#transform
+		if self._transform is not None:
+			self._optmask = self._optmask + str(0)
+			self._transform.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		#visible
 		file.write(struct.pack("B",self._visible))
 
+# anim/rigging
+		
 class A3D2AnimationClip:
 	def __init__(self,Config):
 		self._id = 0
@@ -5194,42 +5621,33 @@ class A3D2AnimationClip:
 		self._tracks = []
 		self._mskindex = 0
 		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-		
 	def read(self,file,mask,mskindex):
 		print("read A3D2AnimationClip")
 		self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
 		self._loop = struct.unpack("B", file.read(struct.calcsize("B")))[0]
 		
 		if mask[mskindex + self._mskindex] == "0":
-			a3dstr = A3D2String()
+			a3dstr = A3DString()
 			a3dstr.read(file)
 			self._name = a3dstr.name
 		self._mskindex = self._mskindex + 1
 		
 		if mask[mskindex + self._mskindex] == "0":
-			arr = A3D2Array()
+			arr = A3DArray()
 			arr.read(file)
 			self._objectIDs = []
 			for x in range(arr.length):
 				self._objectIDs.append(struct.unpack("Q", file.read(struct.calcsize("Q")))[0])
 		self._mskindex = self._mskindex + 1
 		
-		arr = A3D2Array()
+		arr = A3DArray()
 		arr.read(file)
 		for x in range(arr.length):
 			self._tracks.append(struct.unpack(">L", file.read(struct.calcsize(">L")))[0])		
 		
 	def write(self,file):
 		print("write")
-		
+
 class A3D2Track:
 	def __init__(self,Config):
 		self._id = 0
@@ -5247,6 +5665,51 @@ class A3D2Track:
 		self._objectName = ""
 		self._mskindex = 0
 		
+	def read(self,file,mask,mskindex):
+		print("read A3D2Track")
+		self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		
+		arr = A3DArray()
+		arr.read(file)
+		print(str(arr.length)+" x keyframes")
+		if arr.length > 0:
+			for a in range(arr.length):
+				a3dkeyf = A3D2Keyframe(self.Config)
+				self._keyframes.append(a3dkeyf.read(file,mask,mskindex + self._mskindex))
+				self._mskindex = self._mskindex + a3dkeyf._mskindex
+		
+		a3dstr = A3DString()
+		a3dstr.read(file)
+		self._objectName = a3dstr.name
+		
+		print(self._objectName)
+		
+	def write(self,file):
+		print("write")
+
+class A3D2Joint:
+	def __init__(self,Config):
+		self._boundBoxId = None
+		self._id = 0
+		self._name = None
+		self._parentId = None
+		self._transform = None
+		self._visible = 1
+		
+		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
+		self._optmask = ""
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._boundBoxId = None
+		self._id = 0
+		self._name = None
+		self._parentId = None
+		self._transform = None
+		self._visible = 1
+		self._mskindex = 0
+		
 	def readOptions(self):
 		if len(self._optionals) > 0:
 			for o in self._optionals:
@@ -5257,26 +5720,218 @@ class A3D2Track:
 		return self._optmask
 		
 	def read(self,file,mask,mskindex):
-		print("read A3D2Track")
-		self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		print("read A3D2Joint")
+		if mask[mskindex + self._mskindex] == "0":
+			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
 		
-		arr = A3D2Array()
-		arr.read(file)
-		print(str(arr.length)+" x keyframes")
-		if arr.length > 0:
-			for a in range(arr.length):
-				a3dkeyf = A3D2Keyframe(self.Config)
-				self._keyframes.append(a3dkeyf.read(file,mask,mskindex + self._mskindex))
-				self._mskindex = self._mskindex + a3dkeyf._mskindex
+		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
 		
-		a3dstr = A3D2String()
-		a3dstr.read(file)
-		self._objectName = a3dstr.name
+		if mask[mskindex + self._mskindex] == "0":
+			a3dstr = A3DString()
+			a3dstr.read(file)
+			self._name = a3dstr.name
+		self._mskindex = self._mskindex + 1
 		
-		print(self._objectName)
+		if mask[mskindex + self._mskindex] == "0":
+			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			a3dtran = A3DTransform(self.Config)
+			a3dtran.read(file)
+		self._mskindex = self._mskindex + 1
+		
+		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
+		
+	def write(self,file):
+		if self._boundBoxId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack(">L",self._boundBoxId))
+		else:
+			self._optmask = self._optmask + str(1)
+		file.write(struct.pack("Q",self._id))
+		if self._name is not None:
+			self._optmask = self._optmask + str(0)
+			self._name.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._parentId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(struct.pack("Q",self._parentId))
+		else:
+			self._optmask = self._optmask + str(1)
+		if self._transform is not None:
+			self._optmask = self._optmask + str(0)
+			self._transform.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		file.write(struct.pack("B",self._visible))
+
+class A3D2JointBindTransform:
+	def __init__(self,Config):
+		self._bindPoseTransform = 0
+		self._id = 0
+		
+		self._optionals = []
+		self._optmask = ""
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._bindPoseTransform = 0
+		self._id = 0
+		self._mskindex = 0
+		
+	def read(self,file,mask,mskindex):
+		print("read A3D2JointBindTransform")
+		a3dtran = A3DTransform(self.Config)
+		a3dtran.read(file)
+		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
+		return self
 		
 	def write(self,file):
 		print("write")
+
+class A3D2Keyframe:
+	def __init__(self,Config):
+		self._time = 0
+		self._transform = 0
+		
+		self._optionals = []
+		self._optmask = ""
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._time = 0
+		self._transform = 0
+		self._mskindex = 0
+		
+	def read(self,file,mask,mskindex):
+		#print("read A3D2Keyframe")
+		self._time = struct.unpack(">f",file.read(struct.calcsize(">f")))[0]
+		a3dtran = A3DTransform(self.Config)
+		a3dtran.read(file)
+		return self
+		
+	def write(self,file):
+		print("write")
+
+# Buffers
+		
+class A3D2IndexBuffer:
+	def __init__(self,Config):
+		self._byteBuffer = []
+		self._id = 0
+		self._indexCount = 0
+		
+		self._optionals = []
+		self._optmask = ""
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._byteBuffer = []
+		self._id = 0
+		self._indexCount = 0
+		self._mskindex = 0
+				
+	def read(self,file,mask,mskindex):
+		print("read A3D2IndexBuffer")
+		arr = A3DArray()
+		arr.read(file)
+		for a in range(int(arr.length/2)):
+			self._byteBuffer.append( struct.unpack("<H",file.read(struct.calcsize("<H")))[0] )
+		self._id = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		self._indexCount = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
+		
+	def write(self,file):
+		arr = A3DArray()
+		# multiply by 2 because its length of bytes and we are using 2 bytes
+		vbuflen = int(len(self._byteBuffer) * 2)
+		#vbuflen = len(self._byteBuffer) 
+		#vbuflen = int((len(self._byteBuffer) * 3) * 2)
+		arr.write(file,vbuflen) 
+		for x in range(len(self._byteBuffer)):
+			#each index uses 2 bytes (little-endian)
+			file.write(struct.pack('<H',self._byteBuffer[x]))
+		#write id
+		file.write(struct.pack('>L',self._id))
+		#write indexcount
+		file.write(struct.pack('>L',self._indexCount))
+		print("ibuf_indexCount="+str(self._indexCount))
+		print("ibuf_byteBufferlength="+str(vbuflen))
+
+class A3D2VertexBuffer:
+	def __init__(self,Config):
+		self._attributes = [0]
+		self._byteBuffer = []
+		self._id = 0
+		self._vertexCount = 0
+		
+		self._optionals = []
+		self._optmask = ""
+		self.Config = Config
+		self._mskindex = 0
+	
+	def reset(self):
+		self._attributes = [0]
+		self._byteBuffer = []
+		self._id = 0
+		self._vertexCount = 0
+		self._mskindex = 0
+				
+	def read(self,file,mask,mskindex):
+		print("read A3D2VertexBuffer")
+		arr = A3DArray()
+		arr.read(file)
+		self._attributes = []
+		for a in range(arr.length):
+			self._attributes.append(struct.unpack(">L",file.read(struct.calcsize(">L")))[0])
+		arr = A3DArray()
+		arr.read(file)
+		if self.Config.A3DVersionSystem == "1":
+			#2.6
+			for a in range(int(arr.length/2)):
+				h = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
+				fcomp = Float16Compressor()
+				x = fcomp.decompress(h)
+				str = struct.pack('I',x)
+				hf = struct.unpack('f',str)[0]
+				self._byteBuffer.append(hf)
+		else:
+			for a in range(int(arr.length/4)):
+				self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
+		self._id  = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
+		self._vertexCount  = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
+		
+	def write(self,file):
+		#print("write vertexbuffer")
+		#attributes
+		arr = A3DArray()
+		arr.write(file,len(self._attributes))
+		for x in range(len(self._attributes)):
+			file.write(struct.pack(">L",self._attributes[x]))
+		arr = A3DArray()
+		bybufsize = int(len(self._byteBuffer)*4)
+
+		#if version 2.6 then compressed vertex buffer
+		if self.Config.A3DVersionSystem == 1:
+			#2.6
+			arr.write(file,int(bybufsize/2)) #half it because we storing shorts now
+			for float32 in self._byteBuffer:
+				fcomp = Float16Compressor()
+				f16 = fcomp.compress(float32)
+				file.write(struct.pack(">H",f16))
+		else:
+			arr.write(file,bybufsize) 
+			for byte in self._byteBuffer:
+				file.write(struct.pack("<f",byte))
+		file.write(struct.pack(">L",self._id))
+		file.write(struct.pack(">H",self._vertexCount))
+
+# Other
 	
 class A3D2Box:
 	def __init__(self,Config):
@@ -5292,37 +5947,21 @@ class A3D2Box:
 		self._box = []
 		self._id = 0
 		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
 				
 	def read(self,file,mask,mskindex):
 		print("read A3D2Box")
-		arr = A3D2Array()
+		arr = A3DArray()
 		arr.read(file)
 		for a in range(arr.length):
 			self._box.append( struct.unpack(">f",file.read(struct.calcsize(">f")))[0] )
 		self._id = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
 		
 	def write(self,file):
-		print("write boundbox\n")
-		#6 floats minX, minY, minZ, maxX, maxY, maxZ
-		#bpy.data.object['cube'].bound_box
-		#Vertex 1: bound_box[0][0]    bound_box[0][1]    bound_box[0][2]
-		#Vertex 2: bound_box[1][0]    etc
-		#Or you could go the long way... bound_box.data.data.vertices[0].co etc
-		arr = A3D2Array()
+		#print("write boundbox\n")
+		arr = A3DArray()
 		arr.write(file,len(self._box))
-		#file.write(struct.pack('f'*len(self._box),*self._box))
 		for x in range(len(self._box)):
 			file.write(struct.pack('>f',self._box[x]))
-		#write id
 		file.write(struct.pack('>L',self._id))		
 
 class A3D2CubeMap:
@@ -5348,16 +5987,8 @@ class A3D2CubeMap:
 		self._leftId = None
 		self._rightId = None
 		self._topId = 0
+		self._optmask = ""
 		self._mskindex = 0	
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
 		
 	def read(self,file,mask,mskindex):
 		print("read A3D2CubeMap")
@@ -5422,16 +6053,8 @@ class A3D2Decal:
 		self._transform = None
 		self._vertexBuffers = 0
 		self._visible = 1
+		self._optmask = ""
 		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
 		
 	def read(self,file,mask,mskindex):
 		print("read A3D2Decal")
@@ -5443,7 +6066,7 @@ class A3D2Decal:
 		self._indexBufferId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
 		
 		if mask[mskindex + self._mskindex] == "0":
-			a3dstr = A3D2String()
+			a3dstr = A3DString()
 			a3dstr.read(file)
 			self._name = a3dstr.name
 		self._mskindex = self._mskindex + 1
@@ -5456,7 +6079,7 @@ class A3D2Decal:
 			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
 		self._mskindex = self._mskindex + 1
 		
-		arr = A3D2Array()
+		arr = A3DArray()
 		arr.read(file)
 		for a in range(arr.length):
 			a3dsurf = A3D2Surface(self.Config)
@@ -5464,11 +6087,11 @@ class A3D2Decal:
 			self._mskindex = self._mskindex + a3dsurf._mskindex
 			
 		if mask[mskindex + self._mskindex] == "0":
-			a3dtran = A3D2Transform(self.Config)
+			a3dtran = A3DTransform(self.Config)
 			a3dtran.read(file)
 		self._mskindex = self._mskindex + 1
 		
-		arr = A3D2Array()
+		arr = A3DArray()
 		arr.read(file)
 		self._vertexBuffers = []
 		for a in range(arr.length):
@@ -5478,96 +6101,6 @@ class A3D2Decal:
 		
 	def write(self,file):
 		print("write")
-
-class A3D2DirectionalLight:
-	def __init__(self,Config):
-		self._boundBoxId = None
-		self._color = 0
-		self._id = 0
-		self._intensity = 0
-		self._name = None
-		self._parentId = None
-		self._transform = None
-		self._visible = 1
-		
-		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
-		self._optmask = ""
-		self.Config = Config
-		self._mskindex = 0
-	
-	def reset(self):
-		self._boundBoxId = None
-		self._color = 0
-		self._id = 0
-		self._intensity = 0
-		self._name = None
-		self._parentId = None
-		self._transform = None
-		self._visible = 1
-		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-		
-	def read(self,file,mask,mskindex):
-		print("read A3D2DirectionalLight")
-		if mask[mskindex + self._mskindex] == "0":
-			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		self._color = toRgb(struct.unpack("I", file.read(struct.calcsize("I")))[0])
-		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		self._intensity = struct.unpack(">f", file.read(struct.calcsize(">f")))[0]
-		
-		if mask[mskindex + self._mskindex] == "0":
-			a3dstr = A3D2String()
-			a3dstr.read(file)
-			self._name = a3dstr.name
-		self._mskindex = self._mskindex + 1
-		
-		if mask[mskindex + self._mskindex] == "0":
-			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		if mask[mskindex + self._mskindex] == "0":
-			a3dtran = A3D2Transform(self.Config)
-			a3dtran.read(file)
-			self._transform = a3dtran
-		self._mskindex = self._mskindex + 1
-		
-		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
-		
-	def write(self,file):
-		if self._boundBoxId is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack(">L",self._boundBoxId))
-		else:
-			self._optmask = self._optmask + str(1)
-		file.write(struct.pack("I",self._color))
-		file.write(struct.pack("Q",self._id))
-		file.write(struct.pack(">f",self._intensity))
-		if self._name is not None:
-			self._optmask = self._optmask + str(0)
-			self._name.write(file)
-		else:
-			self._optmask = self._optmask + str(1)
-		if self._parentId is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack("Q",self._parentId))
-		else:
-			self._optmask = self._optmask + str(1)
-		if self._transform is not None:
-			self._optmask = self._optmask + str(0)
-			self._transform.write(file)
-		else:
-			self._optmask = self._optmask + str(1)
-		file.write(struct.pack("B",self._visible))
 
 class A3D2Image:
 	def __init__(self,Config):
@@ -5582,161 +6115,19 @@ class A3D2Image:
 	def reset(self):
 		self._id = 0
 		self._url = 0
+		self._optmask = ""
 		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
 		
 	def read(self,file,mask,mskindex):
 		print("read A3D2Image")
 		self._id = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-		a3dstr = A3D2String()
+		a3dstr = A3DString()
 		a3dstr.read(file)
 		self._url = a3dstr.name
 		
 	def write(self,file):
 		file.write(struct.pack(">L",self._id))
 		self._url.write(file)
-
-class A3D2IndexBuffer:
-	def __init__(self,Config):
-		self._byteBuffer = []
-		self._id = 0
-		self._indexCount = 0
-		
-		self._optionals = []
-		self._optmask = ""
-		self.Config = Config
-		self._mskindex = 0
-	
-	def reset(self):
-		self._byteBuffer = []
-		self._id = 0
-		self._indexCount = 0
-		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-				
-	def read(self,file,mask,mskindex):
-		print("read A3D2IndexBuffer")
-		arr = A3D2Array()
-		arr.read(file)
-		for a in range(int(arr.length/2)):
-			self._byteBuffer.append( struct.unpack("<H",file.read(struct.calcsize("<H")))[0] )
-		self._id = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
-		self._indexCount = struct.unpack('>L',file.read(struct.calcsize(">L")))[0]
-		
-	def write(self,file):
-		
-		arr = A3D2Array()
-		# multiply by 2 because its length of bytes and we are using 2 bytes
-		vbuflen = int(len(self._byteBuffer) * 2)
-		#vbuflen = len(self._byteBuffer) 
-		#vbuflen = int((len(self._byteBuffer) * 3) * 2)
-		arr.write(file,vbuflen) 
-		for x in range(len(self._byteBuffer)):
-			#each index uses 2 bytes (little-endian)
-			file.write(struct.pack('<H',self._byteBuffer[x]))
-		#write id
-		file.write(struct.pack('>L',self._id))
-		#write indexcount
-		file.write(struct.pack('>L',self._indexCount))
-		print("ibuf_indexCount="+str(self._indexCount))
-		print("ibuf_byteBufferlength="+str(vbuflen))
-
-class A3D2Joint:
-	def __init__(self,Config):
-		self._boundBoxId = None
-		self._id = 0
-		self._name = None
-		self._parentId = None
-		self._transform = None
-		self._visible = 1
-		
-		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
-		self._optmask = ""
-		self.Config = Config
-		self._mskindex = 0
-	
-	def reset(self):
-		self._boundBoxId = None
-		self._id = 0
-		self._name = None
-		self._parentId = None
-		self._transform = None
-		self._visible = 1
-		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-		
-	def read(self,file,mask,mskindex):
-		print("read A3D2Joint")
-		if mask[mskindex + self._mskindex] == "0":
-			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		
-		if mask[mskindex + self._mskindex] == "0":
-			a3dstr = A3D2String()
-			a3dstr.read(file)
-			self._name = a3dstr.name
-		self._mskindex = self._mskindex + 1
-		
-		if mask[mskindex + self._mskindex] == "0":
-			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		if mask[mskindex + self._mskindex] == "0":
-			a3dtran = A3D2Transform(self.Config)
-			a3dtran.read(file)
-		self._mskindex = self._mskindex + 1
-		
-		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
-		
-	def write(self,file):
-		if self._boundBoxId is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack(">L",self._boundBoxId))
-		else:
-			self._optmask = self._optmask + str(1)
-		file.write(struct.pack("Q",self._id))
-		if self._name is not None:
-			self._optmask = self._optmask + str(0)
-			self._name.write(file)
-		else:
-			self._optmask = self._optmask + str(1)
-		if self._parentId is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack("Q",self._parentId))
-		else:
-			self._optmask = self._optmask + str(1)
-		if self._transform is not None:
-			self._optmask = self._optmask + str(0)
-			self._transform.write(file)
-		else:
-			self._optmask = self._optmask + str(1)
-		file.write(struct.pack("B",self._visible))
 		
 class A3D2Map:
 	def __init__(self,Config):
@@ -5755,15 +6146,6 @@ class A3D2Map:
 		self._imageId = 0
 		self._optmask = ""
 		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
 		
 	def read(self,file,mask,mskindex):
 		print("read A3D2Map")
@@ -5803,15 +6185,6 @@ class A3D2Material:
 		self._specularMapId = None
 		self._optmask = ""
 		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
 	
 	def read(self,file,mask,mskindex):
 		print("read A3D2Material")
@@ -5845,21 +6218,6 @@ class A3D2Material:
 		if mask[mskindex + self._mskindex] == "0":
 			self._specularMapId = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
 		self._mskindex = self._mskindex + 1
-		
-	
-	#def read(self,file,mask,mskindex):
-	#	print("read A3D2Material")
-	#	x = 0
-	#	items = sorted(self._properties.items(), key=lambda x: x[1])
-	#	for item in items:
-	#		o = item[0]
-	#		v = item[1]
-	#		if v == 0:
-	#			o = struct.unpack(self._structs[x], file.read(struct.calcsize(self._structs[x])))
-	#		elif (v == 1) and (mask[mskindex]) == "0":
-	#			o = struct.unpack(self._structs[x], file.read(struct.calcsize(self._structs[x])))
-	#			self._mskindex = self._mskindex + 1
-	#		x=x+1
 		
 	def write(self,file):
 		if self._diffuseMapId is not None:
@@ -5900,431 +6258,19 @@ class A3D2Material:
 			file.write(struct.pack(">L",self._specularMapId))
 		else:
 			self._optmask = self._optmask + str(1)
-		
-class A3D2Mesh:
-	def __init__(self,Config):
-		self._boundBoxId = None
-		self._id = 0
-		self._indexBufferId = 0
-		self._name = None
-		self._parentId = None
-		self._surfaces = []
-		self._transform = None
-		self._vertexBuffers = [0]
-		self._visible = 1
-		
-		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
-		self._optmask = ""
-		self.Config = Config
-		self._mskindex = 0
-	
-	def reset(self):
-		self._boundBoxId = None
-		self._id = 0
-		self._indexBufferId = 0
-		self._name = None
-		self._parentId = None
-		self._surfaces = []
-		self._transform = None
-		self._vertexBuffers = [0]
-		self._visible = 1
-		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-				
-	def read(self,file,mask,mskindex):
-		print("read A3D2Mesh")
-		
-		if mask[mskindex + self._mskindex] == "0":
-			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		self._indexBufferId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-
-		if mask[mskindex + self._mskindex] == "0":
-			a3dstr = A3D2String()
-			a3dstr.read(file)
-			self._name = a3dstr.name
-		self._mskindex = self._mskindex + 1
-		
-		if mask[mskindex + self._mskindex] == "0":
-			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		#surfaces
-		arr = A3D2Array()
-		arr.read(file)
-		for a in range(arr.length):
-			a3dsurf = A3D2Surface(self.Config)
-			self._surfaces.append(a3dsurf.read(file,mask,mskindex + self._mskindex))
-			self._mskindex = self._mskindex + a3dsurf._mskindex
-		
-		#transform
-		if mask[mskindex + self._mskindex] == "0":
-			a3dtran = A3D2Transform(self.Config)
-			a3dtran.read(file)
-			self._transform = a3dtran
-		self._mskindex = self._mskindex + 1
-		
-		#buffer
-		arr = A3D2Array()
-		arr.read(file)
-		self._vertexBuffers = []
-		for a in range(arr.length):
-			self._vertexBuffers.append(struct.unpack(">L", file.read(struct.calcsize(">L")))[0])
-		
-		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
-		
-	def write(self,file):
-		print("write mesh\n")
-		#bbid, id, indexbufid
-		if self._boundBoxId is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack(">L",self._boundBoxId))
-		else:
-			self._optmask = self._optmask + str(1)
-			
-		file.write(struct.pack("Q",self._id))
-		file.write(struct.pack(">L",self._indexBufferId))
-		
-		#string
-		if self._name is not None:
-			self._optmask = self._optmask + str(0)
-			self._name.write(file)
-		else:
-			self._optmask = self._optmask + str(1)
-		#parentid
-		if self._parentId is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack("Q",self._parentId))
-		else:
-			self._optmask = self._optmask + str(1)
-		#surfaces
-		arr = A3D2Array()
-		arr.write(file,len(self._surfaces))
-		for surf in self._surfaces:
-			surf.write(file)
-			self._optmask = self._optmask + surf._optmask
-		#transform
-		if self._transform is not None:
-			self._optmask = self._optmask + str(0)
-			self._transform.write(file)
-		else:
-			self._optmask = self._optmask + str(1)
-		#vbuffers
-		arr = A3D2Array()
-		arr.write(file,len(self._vertexBuffers))
-		for x in range(len(self._vertexBuffers)):
-			file.write(struct.pack(">L",self._vertexBuffers[x]))
-		#visible
-		file.write(struct.pack("B",self._visible))
-
-class A3D2Object:
-	def __init__(self,Config):
-		self._boundBoxId = None
-		self._id = 0
-		self._name = None
-		self._parentId = None
-		self._transform = None
-		self._visible = 1
-		
-		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
-		self._optmask = ""
-		self.Config = Config
-		self._mskindex = 0
-	
-	def reset(self):
-		self._boundBoxId = None
-		self._id = 0
-		self._name = None
-		self._parentId = None
-		self._transform = None
-		self._visible = 1
-		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-				
-	def read(self,file,mask,mskindex):
-		print("read A3D2Object")
-		
-		if mask[mskindex + self._mskindex] == "0":
-			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-
-		if mask[mskindex + self._mskindex] == "0":
-			a3dstr = A3D2String()
-			a3dstr.read(file)
-			self._name = a3dstr.name
-		self._mskindex = self._mskindex + 1
-		
-		print(self._name)
-		
-		if mask[mskindex + self._mskindex] == "0":
-			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		#transform
-		if mask[mskindex + self._mskindex] == "0":
-			a3dtran = A3D2Transform(self.Config)
-			a3dtran.read(file)
-		self._mskindex = self._mskindex + 1
-				
-		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
-		
-	def write(self,file):
-		#bbid, id, indexbufid
-		if self._boundBoxId is not None:
-			file.write(struct.pack(">L",self._boundBoxId))
-		file.write(struct.pack("Q",self._id))
-		#string
-		if self._name is not None:
-			self._name.write(file)
-		#parentid
-		if self._parentId is not None:
-			file.write(struct.pack("Q",self._parentId))
-		#transform
-		if self._transform is not None:
-			self._transform.write(file)
-		#visible
-		file.write(struct.pack("B",self._visible))
-
-class A3D2OmniLight:
-	def __init__(self,Config):
-		self._attenuationBegin = 0
-		self._attenuationEnd = 0
-		self._boundBoxId = None
-		self._color = 0
-		self._id = 0
-		self._intensity = 0
-		self._name = None
-		self._parentId = None
-		self._transform = None
-		self._visible = 1
-		
-		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
-		self._optmask = ""
-		self.Config = Config
-		self._mskindex = 0
-	
-	def reset(self):
-		self._attenuationBegin = 0
-		self._attenuationEnd = 0
-		self._boundBoxId = None
-		self._color = 0
-		self._id = 0
-		self._intensity = 0
-		self._name = None
-		self._parentId = None
-		self._transform = None
-		self._visible = 1
-		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-		
-	def read(self,file,mask,mskindex):
-		print("read A3D2OmniLight")
-		self._mskindex = 1
-		
-	def write(self,file):
-		file.write(struct.pack('>f',self._attenuationBegin))
-		file.write(struct.pack('>f',self._attenuationEnd))
-		
-		if self._boundBoxId is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack(">L",self._boundBoxId))
-		else:
-			self._optmask = self._optmask + str(1)
-
-		file.write(struct.pack("I",self._color))			
-		file.write(struct.pack("Q",self._id))
-		file.write(struct.pack(">f",self._intensity))
-		if self._name is not None:
-			self._optmask = self._optmask + str(0)
-			self._name.write(file)
-		else:
-			self._optmask = self._optmask + str(1)
-		if self._parentId is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack("Q",self._parentId))
-		else:
-			self._optmask = self._optmask + str(1)
-		if self._transform is not None:
-			self._optmask = self._optmask + str(0)
-			self._transform.write(file)
-		else:
-			self._optmask = self._optmask + str(1)
-		file.write(struct.pack("B",self._visible))
-
-class A3D2SpotLight:
-	def __init__(self,Config):
-		self._attenuationBegin = 0
-		self._attenuationEnd = 0
-		self._boundBoxId = None
-		self._color = 0
-		self._falloff = None
-		self._hotspot = None
-		self._id = 0
-		self._intensity = 0
-		self._name = None
-		self._parentId = None
-		self._transform = None
-		self._visible = 1
-		
-		self._optionals = [self._boundBoxId,self._falloff,self._hotspot,self._name,self._parentId,self._transform]
-		self._optmask = ""
-		self.Config = Config
-		self._mskindex = 0
-	
-	def reset(self):
-		self._attenuationBegin = 0
-		self._attenuationEnd = 0
-		self._boundBoxId = None
-		self._color = 0
-		self._falloff = None
-		self._hotspot = None
-		self._id = 0
-		self._intensity = 0
-		self._name = None
-		self._parentId = None
-		self._transform = None
-		self._visible = 1
-		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-		
-	def read(self,file,mask,mskindex):
-		print("read A3D2SpotLight")
-		self._attenuationBegin = struct.unpack('>f', file.read(struct.calcsize(">f")))[0]
-		self._attenuationEnd = struct.unpack('>f', file.read(struct.calcsize(">f")))[0]
-		
-		print(self._attenuationBegin)
-		print(self._attenuationEnd)
-		
-		if mask[mskindex + self._mskindex] == "0":
-			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		print(self._boundBoxId)
-		
-		self._color = struct.unpack("I",file.read(struct.calcsize("I")))[0]
-		print(self._color)
-		
-		if mask[mskindex + self._mskindex] == "0":
-			self._falloff = struct.unpack('>f', file.read(struct.calcsize(">f")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		if mask[mskindex + self._mskindex] == "0":
-			self._hotspot = struct.unpack('>f', file.read(struct.calcsize(">f")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		self._id = struct.unpack("Q",file.read(struct.calcsize("Q")))[0]
-		self._intensity = struct.unpack(">f",file.read(struct.calcsize(">f")))[0]
-		
-		if mask[mskindex + self._mskindex] == "0":
-			a3dstr = A3D2String()
-			a3dstr.read(file)
-			self._name = a3dstr.name
-		self._mskindex = self._mskindex + 1
-		
-		print(self._name)
-		
-		if mask[mskindex + self._mskindex] == "0":
-			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		if mask[mskindex + self._mskindex] == "0":
-			a3dtran = A3D2Transform(self.Config)
-			a3dtran.read(file)
-		self._mskindex = self._mskindex + 1
-		
-		file.write(struct.pack("B",self._visible))
-		
-	def write(self,file):
-		file.write(struct.pack('>f',self._attenuationBegin))
-		file.write(struct.pack('>f',self._attenuationEnd))
-		
-		if self._boundBoxId is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack(">L",self._boundBoxId))
-		else:
-			self._optmask = self._optmask + str(1)
-
-		file.write(struct.pack("I",self._color))
-		
-		if self._falloff is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack(">f",self._falloff))
-		else:
-			self._optmask = self._optmask + str(1)
-			
-		if self._hotspot is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack(">f",self._hotspot))
-		else:
-			self._optmask = self._optmask + str(1)
-			
-		file.write(struct.pack("Q",self._id))
-		file.write(struct.pack(">f",self._intensity))
-		if self._name is not None:
-			self._optmask = self._optmask + str(0)
-			self._name.write(file)
-		else:
-			self._optmask = self._optmask + str(1)
-		if self._parentId is not None:
-			self._optmask = self._optmask + str(0)
-			file.write(struct.pack("Q",self._parentId))
-		else:
-			self._optmask = self._optmask + str(1)
-		if self._transform is not None:
-			self._optmask = self._optmask + str(0)
-			self._transform.write(file)
-		else:
-			self._optmask = self._optmask + str(1)
-		file.write(struct.pack("B",self._visible))
 
 class A3D2Sprite:
 	def __init__(self,Config):
-		self._alwaysOnTop = 1
+		self._alwaysOnTop = 0
 		self._boundBoxId = None
 		self._height = 100
 		self._id = 0
 		self._materialId = None
 		self._name = None
-		self._originX = 0
-		self._originY = 0
+		self._originX = 0.5
+		self._originY = 0.5
 		self._parentId = None
-		self._perspectiveScale = 0
+		self._perspectiveScale = 1
 		self._rotation = 0
 		self._transform = None
 		self._visible = 1
@@ -6336,31 +6282,22 @@ class A3D2Sprite:
 		self._mskindex = 0
 	
 	def reset(self):
-		self._alwaysOnTop = 1
+		self._alwaysOnTop = 0
 		self._boundBoxId = None
 		self._height = 100
 		self._id = 0
 		self._materialId = None
 		self._name = None
-		self._originX = 0
-		self._originY = 0
+		self._originX = 0.5
+		self._originY = 0.5
 		self._parentId = None
-		self._perspectiveScale = 0
+		self._perspectiveScale = 1
 		self._rotation = 0
 		self._transform = None
 		self._visible = 1
 		self._width = 100
 		self._optmask = ""
 		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
 		
 	def read(self,file,mask,mskindex):
 		print("read A3D2Sprite")
@@ -6412,522 +6349,6 @@ class A3D2Sprite:
 			
 		file.write(struct.pack("B",self._visible))
 		file.write(struct.pack(">f",self._width))
-
-class A3D2Skin:
-	def __init__(self,Config):
-		self._boundBoxId = None
-		self._id = 0
-		self._indexBufferId = 0
-		self._jointBindTransforms = []
-		self._joints = []
-		self._name = None
-		self._numJoints = []
-		self._parentId = None
-		self._surfaces = []
-		self._transform = None
-		self._vertexBuffers = []
-		self._visible = 1
-		
-		self._optionals = [self._boundBoxId,self._name,self._parentId,self._transform]
-		self._optmask = ""
-		self.Config = Config
-		self._mskindex = 0
-	
-	def reset(self):
-		self._boundBoxId = None
-		self._id = 0
-		self._indexBufferId = 0
-		self._jointBindTransforms = 0
-		self._joints = []
-		self._name = None
-		self._numJoints = []
-		self._parentId = None
-		self._surfaces = []
-		self._transform = None
-		self._vertexBuffers = []
-		self._visible = 1
-		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-		
-	def read(self,file,mask,mskindex):
-		print("read A3D2Skin")
-		if mask[mskindex + self._mskindex] == "0":
-			self._boundBoxId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		self._indexBufferId = struct.unpack(">L", file.read(struct.calcsize(">L")))[0]
-		
-		arr = A3D2Array()
-		arr.read(file)
-		for x in range(arr.length):
-			a3djntbnd = A3D2JointBindTransform(self.Config)
-			self._jointBindTransforms.append(a3djntbnd.read(file,mask,mskindex))
-			
-		arr = A3D2Array()
-		arr.read(file)
-		for x in range(arr.length):
-			self._joints.append(struct.unpack("Q", file.read(struct.calcsize("Q")))[0])
-			
-		if mask[mskindex + self._mskindex] == "0":
-			a3dstr = A3D2String()
-			a3dstr.read(file)
-			self._name = a3dstr.name
-		self._mskindex = self._mskindex + 1
-		
-		print(self._name)
-		
-		arr = A3D2Array()
-		arr.read(file)
-		for x in range(arr.length):
-			self._numJoints.append(struct.unpack(">H", file.read(struct.calcsize(">H")))[0])
-		
-		if mask[mskindex + self._mskindex] == "0":
-			self._parentId = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		self._mskindex = self._mskindex + 1
-		
-		arr = A3D2Array()
-		arr.read(file)
-		for a in range(arr.length):
-			a3dsurf = A3D2Surface(self.Config)
-			self._surfaces.append(a3dsurf.read(file,mask,mskindex + self._mskindex))
-			self._mskindex = self._mskindex + a3dsurf._mskindex
-			
-		if mask[mskindex + self._mskindex] == "0":
-			a3dtran = A3D2Transform(self.Config)
-			a3dtran.read(file)
-		self._mskindex = self._mskindex + 1
-		
-		arr = A3D2Array()
-		arr.read(file)
-		self._vertexBuffers = []
-		for a in range(arr.length):
-			self._vertexBuffers.append(struct.unpack(">L", file.read(struct.calcsize(">L")))[0])
-		
-		self._visible = struct.unpack("B", file.read(struct.calcsize("B")))[0]
-		
-	def write(self,file):
-		print("write")
-		
-class A3D2JointBindTransform:
-	def __init__(self,Config):
-		self._bindPoseTransform = 0
-		self._id = 0
-		
-		self._optionals = []
-		self._optmask = ""
-		self.Config = Config
-		self._mskindex = 0
-	
-	def reset(self):
-		self._bindPoseTransform = 0
-		self._id = 0
-		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-		
-	def read(self,file,mask,mskindex):
-		print("read A3D2JointBindTransform")
-		a3dtran = A3D2Transform(self.Config)
-		a3dtran.read(file)
-		self._id = struct.unpack("Q", file.read(struct.calcsize("Q")))[0]
-		return self
-		
-	def write(self,file):
-		print("write")
-
-class A3D2Keyframe:
-	def __init__(self,Config):
-		self._time = 0
-		self._transform = 0
-		
-		self._optionals = []
-		self._optmask = ""
-		self.Config = Config
-		self._mskindex = 0
-	
-	def reset(self):
-		self._time = 0
-		self._transform = 0
-		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-		
-	def read(self,file,mask,mskindex):
-		#print("read A3D2Keyframe")
-		self._time = struct.unpack(">f",file.read(struct.calcsize(">f")))[0]
-		a3dtran = A3D2Transform(self.Config)
-		a3dtran.read(file)
-		return self
-		
-	def write(self,file):
-		print("write")
-		
-class A3D2VertexBuffer:
-	def __init__(self,Config):
-		self._attributes = [0]
-		self._byteBuffer = []
-		self._id = 0
-		self._vertexCount = 0
-		
-		self._optionals = []
-		self._optmask = ""
-		self.Config = Config
-		self._mskindex = 0
-	
-	def reset(self):
-		self._attributes = [0]
-		self._byteBuffer = []
-		self._id = 0
-		self._vertexCount = 0
-		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
-				
-	def read(self,file,mask,mskindex):
-		print("read A3D2VertexBuffer")
-		arr = A3D2Array()
-		arr.read(file)
-		self._attributes = []
-		for a in range(arr.length):
-			self._attributes.append(struct.unpack(">L",file.read(struct.calcsize(">L")))[0])
-		
-		arr = A3D2Array()
-		arr.read(file)
-		if self.Config.A3DVersionSystem == "1":
-			#2.6
-			for a in range(int(arr.length/2)):
-				#h = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
-				h = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
-				x = self.HalfToFloat(h)
-				str = struct.pack('I',x)
-				hf = struct.unpack('f',str)[0]
-				self._byteBuffer.append(hf)
-		else:
-			for a in range(int(arr.length/4)):
-				self._byteBuffer.append(struct.unpack("<f",file.read(struct.calcsize("<f")))[0])
-		self._id  = struct.unpack(">L",file.read(struct.calcsize(">L")))[0]
-		self._vertexCount  = struct.unpack(">H",file.read(struct.calcsize(">H")))[0]
-		
-	def write(self,file):
-		print("write vertexbuffer")
-		#attributes
-		arr = A3D2Array()
-		arr.write(file,len(self._attributes))
-		for x in range(len(self._attributes)):
-			file.write(struct.pack(">L",self._attributes[x]))
-		#bytebuffer -little endian float
-		arr = A3D2Array()
-		#bybufsize = int(len(self._byteBuffer))
-		bybufsize = int(len(self._byteBuffer)*4) #this worked for cube # times 4 because bytebuffer is length of bytes
-		#bybufsize = int(len(self._byteBuffer)*3)
-		#bybufsize = int( (self._vertexCount*3)*4 )
-		
-		print("A3DVersionSystem="+str(self.Config.A3DVersionSystem))
-		#if version 2.6 then compressed vertex buffer
-		if self.Config.A3DVersionSystem == 1:
-			#2.6
-			arr.write(file,int(bybufsize/2)) #half it because we storing shorts now
-			self.packVertexBuffer(file)
-		else:
-			arr.write(file,bybufsize) 
-			for byte in self._byteBuffer:
-				file.write(struct.pack("<f",byte))
-		
-		#id
-		file.write(struct.pack(">L",self._id))
-		#vertexcount
-		file.write(struct.pack(">H",self._vertexCount))
-	
-	def packVertexBuffer_newish(self,file):
-		basetable,shifttable = {},{}
-		fcomp = Float16Compressor()
-		for byte in self._byteBuffer:
-			print(fcomp.compress(byte))
-			f32 = int(byte)
-			#h = ((f32>>16)&0x8000)|((((f32&0x7f800000)-0x38000000)>>13)&0x7c00)|((f32>>13)&0x03ff)
-			basetable, shifttable = self.generatetables()
-			#print(basetable)
-			#print(shifttable)
-			h=basetable[(f32>>23)&0x1ff]+((f32&0x007fffff)>>shifttable[(f32>>23)&0x1ff])
-			print("float %f" % byte)
-			print(h)
-			print(struct.pack(">H",h))
-			file.write(struct.pack(">H",h))
-	
-	def packVertexBuffer(self,file):
-		F16_EXPONENT_BITS = 0x1F
-		F16_EXPONENT_SHIFT = 10
-		F16_EXPONENT_BIAS = 15
-		F16_MANTISSA_BITS = 0x3ff
-		F16_MANTISSA_SHIFT =  (23 - F16_EXPONENT_SHIFT)
-		F16_MAX_EXPONENT =  (F16_EXPONENT_BITS << F16_EXPONENT_SHIFT)
-
-		for float32 in self._byteBuffer:
-			a = struct.pack('>f',float32)
-			b = binascii.hexlify(a)
-
-			f32 = int(b,16)
-			f16 = 0
-			sign = (f32 >> 16) & 0x8000
-			exponent = ((f32 >> 23) & 0xff) - 127
-			mantissa = f32 & 0x007fffff
-			#m, e = math.frexp(param)
-				
-			if exponent == 128:
-				f16 = sign | F16_MAX_EXPONENT
-				if mantissa:
-					f16 |= (mantissa & F16_MANTISSA_BITS)
-			elif exponent > 15:
-				f16 = sign | F16_MAX_EXPONENT
-			elif exponent > -15:
-				exponent += F16_EXPONENT_BIAS
-				mantissa >>= F16_MANTISSA_SHIFT
-				f16 = sign | exponent << F16_EXPONENT_SHIFT | mantissa
-			else:
-				f16 = sign
-			file.write(struct.pack(">H",f16))
-			
-	def packVertexBuffer_OLD2(self,file):
-		#http://gamedev.stackexchange.com/questions/17326/conversion-of-a-number-from-single-precision-floating-point-representation-to-a
-		F16_EXPONENT_BITS = 0x1F
-		F16_EXPONENT_SHIFT = 10
-		F16_EXPONENT_BIAS = 15
-		F16_MANTISSA_BITS = 0x3ff
-		F16_MANTISSA_SHIFT =  (23 - F16_EXPONENT_SHIFT)
-		F16_MAX_EXPONENT =  (F16_EXPONENT_BITS << F16_EXPONENT_SHIFT)
-
-		for byte in self._byteBuffer:
-			f32 = int(byte)
-			f16 = 0
-			sign = (f32 >> 16) & 0x8000
-			exponent = ((f32 >> 23) & 0xff) - 127
-			mantissa = f32 & 0x007fffff
-			
-			if exponent == 128:
-				f16 = sign | F16_MAX_EXPONENT
-				if mantissa:
-					f16 |= (mantissa & F16_MANTISSA_BITS)
-			elif exponent > 15:
-				f16 = sign | F16_MAX_EXPONENT
-			elif exponent > -15:
-				exponent += F16_EXPONENT_BIAS
-				mantissa >>= F16_MANTISSA_SHIFT
-				f16 = sign | exponent << F16_EXPONENT_SHIFT | mantissa
-			else:
-				f16 = sign
-			print("float %f" % byte)
-			print(f16)
-			file.write(struct.pack(">H",f16))
-	
-	def packVertexBuffer_OLD1(self,file):
-		#http://stackoverflow.com/questions/1659440/32-bit-to-16-bit-floating-point-conversion
-		shift = 13
-		shiftSign = 16
-		infN = 0x7F800000
-		maxN = 0x477FE000
-		minN = 0x38800000
-		signN = 0x80000000
-		infC = infN >> shift
-		nanN = (infC + 1) << shift
-		maxC = maxN >> shift
-		minC = minN >> shift
-		signC = signN >> shiftSign
-		mulN = 0x52000000
-		mulC = 0x33800000
-		subC = 0x003FF
-		norC = 0x00400
-		maxD = infC - maxC - 1
-		minD = minC - subC - 1
-		
-		for byte in self._byteBuffer:
-			v = VBits()
-			s = VBits()
-			
-			v.f = byte
-			sign = v.si & signN
-			v.si ^= sign
-			sign >>= shiftSign # logical shift
-			s.si = mulN
-			s.si = s.f * v.f # correct subnormals
-			v.si ^= (int(s.si) ^ v.si) & -(minN > v.si)
-			v.si ^= (infN ^ v.si) & -((infN > v.si) & (v.si > maxN))
-			v.si ^= (nanN ^ v.si) & -((nanN > v.si) & (v.si > infN))
-			v.ui >>= shift # logical shift
-			v.si ^= ((v.si - maxD) ^ v.si) & -(v.si > maxC)
-			v.si ^= ((v.si - minD) ^ v.si) & -(v.si > subC)
-			data = v.ui | sign
-			
-			print("float %f" % byte)
-			print(data)
-			file.write(struct.pack(">H",data))
-		
-	def packVertexBuffer_OLD(self,file):
-		print("packVertexBuffer")
-		
-		#getting matissa and exponent
-		#param = 8.0
-		#m, e = math.frexp(param)
-		#print(m)
-		#print(e)
-		#print("%f * 2^%d = %f\n" % (m, e, param))
-		
-		fl=struct.pack('f',1.1)
-		print(FloatToHalf(fl))
-		
-		#http://www.cplusplus.com/reference/clibrary/cmath/frexp/
-		#m, e = frexp(x)
-		#mantissa = float
-		#e = decimal
-		
-		#http://hildstrom.com/projects/floatcomposition/index.html
-		#loop self._byteBuffer
-		n1 = float
-		
-		#parse float components
-		#right-shift by 31 bits, leaving sign bit in bit 0, keep 1 bit
-		sign = n1 >> 31 & 0x1 
-		#right-shift by 23 bits, leaving exponent in bits 0-8, keep 8 bits
-		exp =  n1 >> 23 & 0xFF
-		#no shift, mantissa is in bits 0-23, keep 23 bits
-		mant = n1 & 0x7FFFFF
-
-		file.write(short)
-		
-	def unpackVertexBuffer(self,file):
-		print("unpackVertexBuffer")
-		#epsilon = 2^(E-10)    % For a 16-bit float (half precision)
-		# sample (1.0) - see Wikipedia
-		FP16='\x00\x3c'
-
-		v = struct.unpack('H', FP16)
-		x = HalfToFloat(v[0])
-
-		# hack to coerce int to float
-		str = struct.pack('I',x)
-		f=struct.unpack('f', str)
-
-		# print the floating point
-		print(f[0])
-	
-	def FloatToHalf(i):
-		#Half precision floating point = 1 Sign bit , 5 exponent bits , 10 significand bits = 16 bit
-		b=binascii.hexlify(i)
-		i = int(b,16)
-		s = int((i >> 16) & 0x00008000)
-		e = int(((i >> 23) & 0x000000ff) - (127 - 15))
-		f = int(i & 0x007fffff)
-		if e <= 0:
-			if e <= -10:
-				if s:
-					return 0x8000
-				else:
-					return 0
-			f = (f | 0x00800000) >> (1 - e)
-			return s | (f >> 13)
-		elif e == 0xff - (127 - 15):
-			if f == 0:
-				return s | 0x7c00
-			else:
-				f >>= 13
-				return s | 0x7c00 | f | (f == 0)
-		else:
-			if e > 30:
-				return s | 0x7c00
-			return s | (e << 10) | (f >> 13)
-		
-	def HalfToFloat(self,h):
-		#http://forums.devshed.com/python-programming-11/converting-half-precision-floating-point-numbers-from-hexidecimal-to-decimal-576842.html
-		s = int((h >> 15) & 0x00000001)    # sign
-		e = int((h >> 10) & 0x0000001f)    # exponent
-		f = int(h & 0x000003ff)            # fraction
-
-		if e == 0:
-			if f == 0:
-				return int(s << 31)
-			else:
-				while not (f & 0x00000400):
-					f = f << 1
-					e -= 1
-				e += 1
-				f &= ~0x00000400
-				print(s,e,f)
-		elif e == 31:
-			if f == 0:
-				return int((s << 31) | 0x7f800000)
-			else:
-				return int((s << 31) | 0x7f800000 | (f << 13))
-
-		e = e + (127 -15)
-		f = f << 13
-		return int((s << 31) | (e << 23) | f)
-
-	def generatetables(self):
-		i=0
-		e=0
-		basetable,shifttable = {},{}
-		for i in range(256):
-			e=i-127
-			#Very small numbers map to zero
-			if e<-24:
-			  basetable[i|0x000]=0x0000
-			  basetable[i|0x100]=0x8000
-			  shifttable[i|0x000]=24
-			  shifttable[i|0x100]=24
-			#Small numbers map to denorms
-			elif e<-14:
-			  basetable[i|0x000]=(0x0400>>(-e-14))
-			  basetable[i|0x100]=(0x0400>>(-e-14)) | 0x8000
-			  shifttable[i|0x000]=-e-1
-			  shifttable[i|0x100]=-e-1
-			# Normal numbers just lose precision
-			elif e<=15:
-			  basetable[i|0x000]=((e+15)<<10)
-			  basetable[i|0x100]=((e+15)<<10) | 0x8000
-			  shifttable[i|0x000]=13
-			  shifttable[i|0x100]=13
-			# Large numbers map to Infinity
-			elif e<128:
-			  basetable[i|0x000]=0x7C00
-			  basetable[i|0x100]=0xFC00
-			  shifttable[i|0x000]=24
-			  shifttable[i|0x100]=24
-			# Infinity and NaN's stay Infinity and NaN's
-			else:
-			  basetable[i|0x000]=0x7C00
-			  basetable[i|0x100]=0xFC00
-			  shifttable[i|0x000]=13
-			  shifttable[i|0x100]=13
-		return basetable,shifttable
 			
 class A3D2Layer:
 	def __init__(self,Config):
@@ -6982,6 +6403,7 @@ class A3D2Camera:
 		self._parentId = None
 		self._transform = None
 		self._visible = 1
+		self._optmask = ""
 		self._mskindex = 0
 		
 	def read(self,file,mask,mskindex):
@@ -7049,6 +6471,7 @@ class A3D2LOD:
 		self._parentId = None
 		self._transform = None
 		self._visible = 1
+		self._optmask = ""
 		self._mskindex = 0
 		
 	def read(self,file,mask,mskindex):
@@ -7073,16 +6496,8 @@ class A3D2Surface:
 		self._indexBegin = 0
 		self._materialId = None
 		self._numTriangles = 0
+		self._optmask = ""
 		self._mskindex = 0
-		
-	def readOptions(self):
-		if len(self._optionals) > 0:
-			for o in self._optionals:
-				if o is not None:
-					self._optmask = self._optmask + str(0)
-				else:
-					self._optmask = self._optmask + str(1)
-		return self._optmask
 			
 	def read(self,file,mask,mskindex):
 		print("read A3D2Surface")
@@ -7101,271 +6516,48 @@ class A3D2Surface:
 		else:
 			self._optmask = self._optmask + str(1)
 		file.write(struct.pack(">L",self._numTriangles))
-		print("surf_numTriangles="+str(self._numTriangles))
-
-class A3DVersion:
-	def __init__(self,Config):
-		self.baseversion = 2
-		self.pointversion = 0
-		self.Config = Config
-	def reset(self):
-		self.baseversion = 2
-		self.pointversion = 0
-	def read(self,file):
-		temp_data = file.read(struct.calcsize('H'))
-		self.baseversion = int(struct.unpack('>H', temp_data)[0]) 
-		temp_data = file.read(struct.calcsize('H'))
-		self.pointversion = int(struct.unpack('>H', temp_data)[0])
-	def write(self,file):
-		file.write(struct.pack('>H', self.baseversion))
-		file.write(struct.pack('>H', self.pointversion))
-
-class A3D2Transform:
-	def __init__(self,Config):
-		self._matrix = A3D2Matrix()
-		self.Config = Config
-		self._mskindex = 0
-		
-	def reset(self):
-		self._matrix = A3D2Matrix()
-		self._mskindex = 0
-		self._matrix.reset()
-		
-	def getMatrix(self):	
-		matrx = mathutils.Matrix()
-		matrx[0][0], matrx[0][1], matrx[0][2], matrx[0][3] = self._matrix.a, self._matrix.b, self._matrix.c, self._matrix.d
-		matrx[1][0], matrx[1][1], matrx[1][2], matrx[1][3] = self._matrix.e, self._matrix.f, self._matrix.g, self._matrix.h
-		matrx[2][0], matrx[2][1], matrx[2][2], matrx[2][3] = self._matrix.i, self._matrix.j, self._matrix.k, self._matrix.l
-		return matrx
-		
-	def read(self,file):
-		self._matrix.read(file)
-		
-	def write(self,file):
-		self._matrix.write(file)
-		
-class A3D2Matrix:
-	def __init__(self):
-		self.a = 0
-		self.b = 0
-		self.c = 0
-		self.d = 0
-		self.e = 0
-		self.f = 0
-		self.g = 0
-		self.h = 0
-		self.i = 0
-		self.j = 0
-		self.k = 0
-		self.l = 0
-		self._mskindex = 0
-	
-	def reset(self):
-		self.a = 0
-		self.b = 0
-		self.c = 0
-		self.d = 0
-		self.e = 0
-		self.f = 0
-		self.g = 0
-		self.h = 0
-		self.i = 0
-		self.j = 0
-		self.k = 0
-		self.l = 0
-		self._mskindex = 0
-		
-	def read(self,file):
-		temp = file.read(4)
-		self.a = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.b = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.c = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.d = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.e = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.f = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.g = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.h = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.i = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.j = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.k = struct.unpack('>f',temp)[0]
-		temp = file.read(4)
-		self.l = struct.unpack('>f',temp)[0]
-	
-	def write(self,file):
-		file.write(struct.pack('>f',self.a))
-		file.write(struct.pack('>f',self.b))
-		file.write(struct.pack('>f',self.c))
-		file.write(struct.pack('>f',self.d))
-		file.write(struct.pack('>f',self.e))
-		file.write(struct.pack('>f',self.f))
-		file.write(struct.pack('>f',self.g))
-		file.write(struct.pack('>f',self.h))
-		file.write(struct.pack('>f',self.i))
-		file.write(struct.pack('>f',self.j))
-		file.write(struct.pack('>f',self.k))
-		file.write(struct.pack('>f',self.l))
-
-class VBits:
-	def __init__(self):
-		#self.f = c_float(0)
-		#self.si = c_int(0x00000000)
-		#self.ui = c_uint(0x00000000)
-		self.f = c_float()
-		self.si = c_int()
-		self.ui = c_uint()
-
-class Float16Compressor:
-	def __init__(self):
-		self.shift = c_int(13)
-		self.shiftSign = c_int(16)
-
-		self.infN = c_int(0x7F800000) # flt32 infinity
-		self.maxN = c_int(0x477FE000) # max flt16 normal as a flt32
-		self.minN = c_int(0x38800000) # min flt16 normal as a flt32
-		self.signN = c_int(0x80000000) # flt32 sign bi
-
-		self.infC = c_int(self.infN.value >> self.shift.value)
-		self.nanN = c_int((self.infC.value + 1) << self.shift.value) # minimum flt16 nan as a flt32
-		self.maxC = c_int(self.maxN.value >> self.shift.value)
-		self.minC = c_int(self.minN.value >> self.shift.value)
-		self.signC = c_int(self.signN.value >> self.shiftSign.value) # flt16 sign bit
-
-		self.mulN = c_int(0x52000000) # (1 << 23) / minN
-		self.mulC = c_int(0x33800000) # minN / (1 << (23 - shift))
-
-		self.subC = c_int(0x003FF) # max flt32 subnormal down shifted
-		self.norC = c_int(0x00400) # min flt32 normal down shifted
-
-		self.maxD = c_int(self.infC.value - self.maxC.value - 1)
-		self.minD = c_int(self.minC.value - self.subC.value - 1)
-		
-	def compress(self,float32):
-		print("compress")
-		
-		v = VBits()
-		s = VBits()
-
-		v.f = c_float(float(float32))
-		sign = c_uint(v.si.value & self.signN.value)
-		v.si.value ^= sign.value
-		sign.value >>= self.shiftSign.value
-		s.si.value = self.mulN.value
-		s.si.value = c_int(int(s.f.value * v.f.value)).value
-		v.si.value ^= (s.si.value ^ v.si.value) & -(self.minN.value > v.si.value)
-		v.si.value ^= (self.infN.value ^ v.si.value) & -((self.infN.value > v.si.value) & (v.si.value > self.maxN.value))
-		v.si.value ^= (self.nanN.value ^ v.si.value) & -((self.nanN.value > v.si.value) & (v.si.value > self.infN.value))
-		v.ui.value >>= self.shift.value
-		v.si.value ^= ((v.si.value - self.maxD.value) ^ v.si.value) & -(v.si.value > self.maxC.value)
-		v.si.value ^= ((v.si.value - self.minD.value) ^ v.si.value) & -(v.si.value > self.subC.value)
-		return v.ui.value | sign.value
-		
-	def decompress(self,float16):
-		print("decompress")
+		#print("surf_numTriangles="+str(self._numTriangles))
 
 		
 #==================================
-# Custom Meshes
-#==================================		
-class AddA3DLogo(bpy.types.Operator):
-	bl_idname = "a3dobj.a3d_logo"
-	bl_label = "Add A3D Logo"
-	bl_options = {'REGISTER', 'UNDO'}
-		
-	def execute(self, context):		
-		coords=[(49.6592, -9.7168, -36.695),(68.0484, -9.7168, -30.768),(65.9799, -9.7168, -23.6486),(-57.6792, 8.46341, -13.1369),(-39.1325, 8.46341, -13.9348),(-38.8807, 8.46341, -16.1225),(-8.20569, 6.46341, 53.3047),(-8.20569, -7.7168, 53.3047),(-1.46778, -7.7168, 57.5386),(-1.46778, -7.7168, 57.5386),(-1.46778, 6.46341, 57.5386),(-8.20569, 6.46341, 53.3047),(-1.46778, 6.46341, 57.5386),(-1.46778, -7.7168, 57.5386),(0.0871229, -7.7168, 57.966),(0.0871229, -7.7168, 57.966),(0.0871229, 6.46341, 57.966),(-1.46778, 6.46341, 57.5386),(0.0871229, 6.46341, 57.966),(0.0871229, -7.7168, 57.966),(1.64202, -7.7168, 57.5364),(1.64202, -7.7168, 57.5364),(1.64202, 6.46341, 57.5364),(0.0871229, 6.46341, 57.966),(1.64202, 6.46341, 57.5364),(1.64202, -7.7168, 57.5364),(9.31166, -7.7168, 53.6338),(9.31166, -7.7168, 53.6338),(9.31166, 6.46341, 53.6338),(1.64202, 6.46341, 57.5364),(9.31166, 6.46341, 53.6338),(9.31166, -7.7168, 53.6338),(14.5647, -7.7168, 50.3964),(14.5647, -7.7168, 50.3964),(14.5647, 6.46341, 50.3964),(9.31166, 6.46341, 53.6338),(14.5647, 6.46341, 50.3964),(14.5647, -7.7168, 50.3964),(19.4513, -7.7168, 46.8536),(19.4513, -7.7168, 46.8536),(19.4513, 6.46341, 46.8536),(14.5647, 6.46341, 50.3964),(19.4513, 6.46341, 46.8536),(19.4513, -7.7168, 46.8536),(25.0709, -7.7168, 42.0892),(25.0709, -7.7168, 42.0892),(25.0709, 6.46341, 42.0892),(19.4513, 6.46341, 46.8536),(25.0709, 6.46341, 42.0892),(25.0709, -7.7168, 42.0892),(31.7899, -7.7168, 35.6756),(31.7899, -7.7168, 35.6756),(31.7899, 6.46341, 35.6756),(25.0709, 6.46341, 42.0892),(31.7899, 6.46341, 35.6756),(31.7899, -7.7168, 35.6756),(37.8371, -7.7168, 29.0176),(37.8371, -7.7168, 29.0176),(37.8371, 6.46341, 29.0176),(31.7899, 6.46341, 35.6756),(37.8371, 6.46341, 29.0176),(37.8371, -7.7168, 29.0176),(42.1739, -7.7168, 23.7645),(42.1739, -7.7168, 23.7645),(42.1739, 6.46341, 23.7645),(37.8371, 6.46341, 29.0176),(42.1739, 6.46341, 23.7645),(42.1739, -7.7168, 23.7645),(47.7324, -7.7168, 16.2514),(47.7324, -7.7168, 16.2514),(47.7324, 6.46341, 16.2514),(42.1739, 6.46341, 23.7645),(47.7324, 6.46341, 16.2514),(47.7324, -7.7168, 16.2514),(52.2525, -7.7168, 9.46394),(52.2525, -7.7168, 9.46394),(52.2525, 6.46341, 9.46394),(47.7324, 6.46341, 16.2514),(52.2525, 6.46341, 9.46394),(52.2525, -7.7168, 9.46394),(55.8513, -7.7168, 3.35219),(55.8513, -7.7168, 3.35219),(55.8513, 6.46341, 3.35219),(52.2525, 6.46341, 9.46394),(55.8513, 6.46341, 3.35219),(55.8513, -7.7168, 3.35219),(59.0276, -7.7168, -2.38955),(59.0276, -7.7168, -2.38955),(59.0276, 6.46341, -2.38955),(55.8513, 6.46341, 3.35219),(59.0276, 6.46341, -2.38955),(59.0276, -7.7168, -2.38955),(61.7152, -7.7168, -7.76479),(61.7152, -7.7168, -7.76479),(61.7152, 6.46341, -7.76479),(59.0276, 6.46341, -2.38955),(61.7152, 6.46341, -7.76479),(61.7152, -7.7168, -7.76479),(65.4412, -7.7168, -16.1331),(65.4412, -7.7168, -16.1331),(65.4412, 6.46341, -16.1331),(61.7152, 6.46341, -7.76479),(65.4412, 6.46341, -16.1331),(65.4412, -7.7168, -16.1331),(67.8845, -7.7168, -23.0354),(67.8845, -7.7168, -23.0354),(67.8845, 6.46341, -23.0354),(65.4412, 6.46341, -16.1331),(67.8845, 6.46341, -23.0354),(67.8845, -7.7168, -23.0354),(70.511, -7.7168, -32.0755),(70.511, -7.7168, -32.0755),(70.511, 6.46341, -32.0755),(67.8845, 6.46341, -23.0354),(70.511, 6.46341, -32.0755),(70.511, -7.7168, -32.0755),(48.3382, -7.7168, -39.2222),(48.3382, -7.7168, -39.2222),(48.3382, 6.46341, -39.2222),(70.511, 6.46341, -32.0755),(-15.8074, 6.46341, 47.4306),(-15.8074, -7.7168, 47.4306),(-8.20569, -7.7168, 53.3047),(-8.20569, -7.7168, 53.3047),(-8.20569, 6.46341, 53.3047),(-15.8074, 6.46341, 47.4306),(-24.1866, 6.46341, 39.9153),(-24.1866, -7.7168, 39.9153),(-15.8074, -7.7168, 47.4306),(-15.8074, -7.7168, 47.4306),(-15.8074, 6.46341, 47.4306),(-24.1866, 6.46341, 39.9153),(-30.7518, 6.46341, 33.091),(-30.7518, -7.7168, 33.091),(-24.1866, -7.7168, 39.9153),(-24.1866, -7.7168, 39.9153),(-24.1866, 6.46341, 39.9153),(-30.7518, 6.46341, 33.091),(-36.9714, 6.46341, 25.7484),(-36.9714, -7.7168, 25.7484),(-30.7518, -7.7168, 33.091),(-30.7518, -7.7168, 33.091),(-30.7518, 6.46341, 33.091),(-36.9714, 6.46341, 25.7484),(-42.6727, 6.46341, 18.233),(-42.6727, -7.7168, 18.233),(-36.9714, -7.7168, 25.7484),(-36.9714, -7.7168, 25.7484),(-36.9714, 6.46341, 25.7484),(-42.6727, 6.46341, 18.233),(-48.201, 6.46341, 9.46394),(-48.201, -7.7168, 9.46394),(-42.6727, -7.7168, 18.233),(-42.6727, -7.7168, 18.233),(-42.6727, 6.46341, 18.233),(-48.201, 6.46341, 9.46394),(-52.4338, 6.46341, 2.42471),(-52.4338, -7.7168, 2.42471),(-48.201, -7.7168, 9.46394),(-48.201, -7.7168, 9.46394),(-48.201, 6.46341, 9.46394),(-52.4338, 6.46341, 2.42471),(-55.7163, 6.46341, -4.05405),(-55.7163, -7.7168, -4.05405),(-52.4338, -7.7168, 2.42471),(-52.4338, -7.7168, 2.42471),(-52.4338, 6.46341, 2.42471),(-55.7163, 6.46341, -4.05405),(-59.5172, 6.46341, -12.3469),(-59.5172, -7.7168, -12.3469),(-55.7163, -7.7168, -4.05405),(-55.7163, -7.7168, -4.05405),(-55.7163, 6.46341, -4.05405),(-59.5172, 6.46341, -12.3469),(-63.0589, 6.46341, -21.158),(-63.0589, -7.7168, -21.158),(-59.5172, -7.7168, -12.3469),(-59.5172, -7.7168, -12.3469),(-59.5172, 6.46341, -12.3469),(-63.0589, 6.46341, -21.158),(-65.3913, 6.46341, -27.8095),(-65.3913, -7.7168, -27.8095),(-63.0589, -7.7168, -21.158),(-63.0589, -7.7168, -21.158),(-63.0589, 6.46341, -21.158),(-65.3913, 6.46341, -27.8095),(-65.8232, 6.46341, -30.8329),(-65.8232, -7.7168, -30.8329),(-65.3913, -7.7168, -27.8095),(-65.3913, -7.7168, -27.8095),(-65.3913, 6.46341, -27.8095),(-65.8232, 6.46341, -30.8329),(-64.7866, 6.46341, -33.338),(-64.7866, -7.7168, -33.338),(-65.8232, -7.7168, -30.8329),(-65.8232, -7.7168, -30.8329),(-65.8232, 6.46341, -30.8329),(-64.7866, 6.46341, -33.338),(-63.0589, 6.46341, -34.6338),(-63.0589, -7.7168, -34.6338),(-64.7866, -7.7168, -33.338),(-64.7866, -7.7168, -33.338),(-64.7866, 6.46341, -33.338),(-63.0589, 6.46341, -34.6338),(-60.2947, 6.46341, -35.4112),(-60.2947, -7.7168, -35.4112),(-63.0589, -7.7168, -34.6338),(-63.0589, -7.7168, -34.6338),(-63.0589, 6.46341, -34.6338),(-60.2947, 6.46341, -35.4112),(-49.0648, 6.46341, -36.3615),(-49.0648, -7.7168, -36.3615),(-60.2947, -7.7168, -35.4112),(-60.2947, -7.7168, -35.4112),(-60.2947, 6.46341, -35.4112),(-49.0648, 6.46341, -36.3615),(-39.3035, 6.46341, -36.7934),(-39.3035, -7.7168, -36.7934),(-49.0648, -7.7168, -36.3615),(-49.0648, -7.7168, -36.3615),(-49.0648, 6.46341, -36.3615),(-39.3035, 6.46341, -36.7934),(-31.9609, 6.46341, -36.7934),(-31.9609, -7.7168, -36.7934),(-39.3035, -7.7168, -36.7934),(-39.3035, -7.7168, -36.7934),(-39.3035, 6.46341, -36.7934),(-31.9609, 6.46341, -36.7934),(-22.0268, 6.46341, -36.0159),(-22.0268, -7.7168, -36.0159),(-31.9609, -7.7168, -36.7934),(-31.9609, -7.7168, -36.7934),(-31.9609, 6.46341, -36.7934),(-22.0268, 6.46341, -36.0159),(-11.4016, 6.46341, -34.2019),(-11.4016, -7.7168, -34.2019),(-22.0268, -7.7168, -36.0159),(-22.0268, -7.7168, -36.0159),(-22.0268, 6.46341, -36.0159),(-11.4016, 6.46341, -34.2019),(-1.81306, 6.46341, -31.8695),(-1.81306, -7.7168, -31.8695),(-11.4016, -7.7168, -34.2019),(-11.4016, -7.7168, -34.2019),(-11.4016, 6.46341, -34.2019),(-1.81306, 6.46341, -31.8695),(6.91933, 6.46341, -29.0107),(6.91933, -7.7168, -29.0107),(-1.81306, -7.7168, -31.8695),(-1.81306, -7.7168, -31.8695),(-1.81306, 6.46341, -31.8695),(6.91933, 6.46341, -29.0107),(15.9595, 6.46341, -24.9792),(15.9595, -7.7168, -24.9792),(6.91933, -7.7168, -29.0107),(6.91933, -7.7168, -29.0107),(6.91933, 6.46341, -29.0107),(15.9595, 6.46341, -24.9792),(25.6105, 6.46341, -19.604),(25.6105, -7.7168, -19.604),(15.9595, -7.7168, -24.9792),(15.9595, -7.7168, -24.9792),(15.9595, 6.46341, -24.9792),(25.6105, 6.46341, -19.604),(33.1847, 6.46341, -14.5952),(33.1847, -7.7168, -14.5952),(25.6105, -7.7168, -19.604),(25.6105, -7.7168, -19.604),(25.6105, 6.46341, -19.604),(33.1847, 6.46341, -14.5952),(30.1306, 6.46341, -7.87619),(30.1306, -7.7168, -7.87619),(33.1847, -7.7168, -14.5952),(33.1847, -7.7168, -14.5952),(33.1847, 6.46341, -14.5952),(30.1306, 6.46341, -7.87619),(27.3208, 6.46341, -2.50095),(27.3208, -7.7168, -2.50095),(30.1306, -7.7168, -7.87619),(30.1306, -7.7168, -7.87619),(30.1306, 6.46341, -7.87619),(27.3208, 6.46341, -2.50095),(23.5337, 6.46341, 2.99647),(23.5337, -7.7168, 2.99647),(27.3208, -7.7168, -2.50095),(27.3208, -7.7168, -2.50095),(27.3208, 6.46341, -2.50095),(23.5337, 6.46341, 2.99647),(17.5527, 6.46341, -0.519135),(17.5527, -7.7168, -0.519135),(23.5337, -7.7168, 2.99647),(23.5337, -7.7168, 2.99647),(23.5337, 6.46341, 2.99647),(17.5527, 6.46341, -0.519135),(11.2612, 6.46341, -3.93974),(11.2612, -7.7168, -3.93974),(17.5527, -7.7168, -0.519135),(17.5527, -7.7168, -0.519135),(17.5527, 6.46341, -0.519135),(11.2612, 6.46341, -3.93974),(4.49783, 6.46341, -6.68845),(4.49783, -7.7168, -6.68845),(11.2612, -7.7168, -3.93974),(11.2612, -7.7168, -3.93974),(11.2612, 6.46341, -3.93974),(4.49783, 6.46341, -6.68845),(-1.01632, 6.46341, -8.76525),(-1.01632, -7.7168, -8.76525),(4.49783, -7.7168, -6.68845),(4.49783, -7.7168, -6.68845),(4.49783, 6.46341, -6.68845),(-1.01632, 6.46341, -8.76525),(-8.22404, 6.46341, -11.2085),(-8.22404, -7.7168, -11.2085),(-1.01632, -7.7168, -8.76525),(-1.01632, -7.7168, -8.76525),(-1.01632, 6.46341, -8.76525),(-8.22404, 6.46341, -11.2085),(-16.5312, 6.46341, -13.2853),(-16.5312, -7.7168, -13.2853),(-8.22404, -7.7168, -11.2085),(-8.22404, -7.7168, -11.2085),(-8.22404, 6.46341, -11.2085),(-16.5312, 6.46341, -13.2853),(-23.9222, 6.46341, -14.6291),(-23.9222, -7.7168, -14.6291),(-16.5312, -7.7168, -13.2853),(-16.5312, -7.7168, -13.2853),(-16.5312, 6.46341, -13.2853),(-23.9222, 6.46341, -14.6291),(-30.2137, 6.46341, -15.1789),(-30.2137, -7.7168, -15.1789),(-23.9222, -7.7168, -14.6291),(-23.9222, -7.7168, -14.6291),(-23.9222, 6.46341, -14.6291),(-30.2137, 6.46341, -15.1789),(-36.5662, 6.46341, -15.1178),(-36.5662, -7.7168, -15.1178),(-30.2137, -7.7168, -15.1789),(-30.2137, -7.7168, -15.1789),(-30.2137, 6.46341, -15.1789),(-36.5662, 6.46341, -15.1178),(-36.9998, 6.46341, -14.7524),(-36.9998, -7.7168, -14.7524),(-36.5662, -7.7168, -15.1178),(-36.5662, -7.7168, -15.1178),(-36.5662, 6.46341, -15.1178),(-36.9998, 6.46341, -14.7524),(-36.8716, 6.46341, -14.1405),(-36.8716, -7.7168, -14.1405),(-36.9998, -7.7168, -14.7524),(-36.9998, -7.7168, -14.7524),(-36.9998, 6.46341, -14.7524),(-36.8716, 6.46341, -14.1405),(-33.8786, 6.46341, -7.84901),(-33.8786, -7.7168, -7.84901),(-36.8716, -7.7168, -14.1405),(-36.8716, -7.7168, -14.1405),(-36.8716, 6.46341, -14.1405),(-33.8786, 6.46341, -7.84901),(-31.0077, 6.46341, -2.59593),(-31.0077, -7.7168, -2.59593),(-33.8786, -7.7168, -7.84901),(-33.8786, -7.7168, -7.84901),(-33.8786, 6.46341, -7.84901),(-31.0077, 6.46341, -2.59593),(-27.465, 6.46341, 3.02364),(-27.465, -7.7168, 3.02364),(-31.0077, -7.7168, -2.59593),(-31.0077, -7.7168, -2.59593),(-31.0077, 6.46341, -2.59593),(-27.465, 6.46341, 3.02364),(-22.8986, 6.46341, 9.46394),(-22.8986, -7.7168, 9.46394),(-27.465, -7.7168, 3.02364),(-27.465, -7.7168, 3.02364),(-27.465, 6.46341, 3.02364),(-22.8986, 6.46341, 9.46394),(-16.0574, 6.46341, 17.8011),(-16.0574, -7.7168, 17.8011),(-22.8986, -7.7168, 9.46394),(-22.8986, -7.7168, 9.46394),(-22.8986, 6.46341, 9.46394),(-16.0574, 6.46341, 17.8011),(-9.76589, 6.46341, 24.4591),(-9.76589, -7.7168, 24.4591),(-16.0574, -7.7168, 17.8011),(-16.0574, -7.7168, 17.8011),(-16.0574, 6.46341, 17.8011),(-9.76589, 6.46341, 24.4591),(-3.53549, 6.46341, 30.0176),(-3.53549, -7.7168, 30.0176),(-9.76589, -7.7168, 24.4591),(-9.76589, -7.7168, 24.4591),(-9.76589, 6.46341, 24.4591),(-3.53549, 6.46341, 30.0176),(1.35109, 6.46341, 33.6825),(1.35109, -7.7168, 33.6825),(-3.53549, -7.7168, 30.0176),(-3.53549, -7.7168, 30.0176),(-3.53549, 6.46341, 30.0176),(1.35109, 6.46341, 33.6825),(5.8101, 6.46341, 30.2619),(5.8101, -7.7168, 30.2619),(1.35109, -7.7168, 33.6825),(1.35109, -7.7168, 33.6825),(1.35109, 6.46341, 33.6825),(5.8101, 6.46341, 30.2619),(10.941, 6.46341, 25.5586),(10.941, -7.7168, 25.5586),(5.8101, -7.7168, 30.2619),(5.8101, -7.7168, 30.2619),(5.8101, 6.46341, 30.2619),(10.941, 6.46341, 25.5586),(15.7054, 6.46341, 20.7331),(15.7054, -7.7168, 20.7331),(10.941, -7.7168, 25.5586),(10.941, -7.7168, 25.5586),(10.941, 6.46341, 25.5586),(15.7054, 6.46341, 20.7331),(20.6531, 6.46341, 14.9303),(20.6531, -7.7168, 14.9303),(15.7054, -7.7168, 20.7331),(15.7054, -7.7168, 20.7331),(15.7054, 6.46341, 20.7331),(20.6531, 6.46341, 14.9303),(27.0608, 6.46341, 6.60854),(27.0608, -7.7168, 6.60854),(20.6531, -7.7168, 14.9303),(20.6531, -7.7168, 14.9303),(20.6531, 6.46341, 14.9303),(27.0608, 6.46341, 6.60854),(30.6025, 6.46341, 1.25276),(30.6025, -7.7168, 1.25276),(27.0608, -7.7168, 6.60854),(27.0608, -7.7168, 6.60854),(27.0608, 6.46341, 6.60854),(30.6025, 6.46341, 1.25276),(34.6625, 6.46341, -5.83068),(34.6625, -7.7168, -5.83068),(30.6025, -7.7168, 1.25276),(30.6025, -7.7168, 1.25276),(30.6025, 6.46341, 1.25276),(34.6625, 6.46341, -5.83068),(38.0315, 6.46341, -12.1367),(38.0315, -7.7168, -12.1367),(34.6625, -7.7168, -5.83068),(34.6625, -7.7168, -5.83068),(34.6625, 6.46341, -5.83068),(38.0315, 6.46341, -12.1367),(40.9685, 6.46341, -18.7018),(40.9685, -7.7168, -18.7018),(38.0315, -7.7168, -12.1367),(38.0315, -7.7168, -12.1367),(38.0315, 6.46341, -12.1367),(40.9685, 6.46341, -18.7018),(43.9056, 6.46341, -25.4397),(43.9056, -7.7168, -25.4397),(40.9685, -7.7168, -18.7018),(40.9685, -7.7168, -18.7018),(40.9685, 6.46341, -18.7018),(43.9056, 6.46341, -25.4397),(46.3243, 6.46341, -32.6095),(46.3243, -7.7168, -32.6095),(43.9056, -7.7168, -25.4397),(43.9056, -7.7168, -25.4397),(43.9056, 6.46341, -25.4397),(46.3243, 6.46341, -32.6095),(48.3382, 6.46341, -39.2222),(48.3382, -7.7168, -39.2222),(46.3243, -7.7168, -32.6095),(46.3243, -7.7168, -32.6095),(46.3243, 6.46341, -32.6095),(48.3382, 6.46341, -39.2222),(-0.342632, -9.7168, -10.6487),(-1.01632, -7.7168, -8.76525),(-8.22404, -7.7168, -11.2085),(-8.22404, -7.7168, -11.2085),(-7.65952, -9.7168, -13.129),(-0.342632, -9.7168, -10.6487),(-7.65952, -9.7168, -13.129),(-8.22404, -7.7168, -11.2085),(-16.5312, -7.7168, -13.2853),(-16.5312, -7.7168, -13.2853),(-16.1094, -9.7168, -15.2414),(-7.65952, -9.7168, -13.129),(-16.1094, -9.7168, -15.2414),(-16.5312, -7.7168, -13.2853),(-23.9222, -7.7168, -14.6291),(-23.9222, -7.7168, -14.6291),(-23.6557, -9.7168, -16.6135),(-16.1094, -9.7168, -15.2414),(-23.6557, -9.7168, -16.6135),(-23.9222, -7.7168, -14.6291),(-30.2137, -7.7168, -15.1789),(-30.2137, -7.7168, -15.1789),(-30.1361, -9.7168, -17.1797),(-23.6557, -9.7168, -16.6135),(-30.1361, -9.7168, -17.1797),(-30.2137, -7.7168, -15.1789),(-36.5662, -7.7168, -15.1178),(-36.5662, -7.7168, -15.1178),(-36.7622, -9.7168, -17.0322),(-30.1361, -9.7168, -17.1797),(-36.7622, -9.7168, -17.0322),(-36.5662, -7.7168, -15.1178),(-36.9998, -7.7168, -14.7524),(-36.9998, -7.7168, -14.7524),(-38.8807, -9.7168, -16.1225),(-36.7622, -9.7168, -17.0322),(-38.8807, -9.7168, -16.1225),(-36.9998, -7.7168, -14.7524),(-36.8716, -7.7168, -14.1405),(-36.8716, -7.7168, -14.1405),(-39.1325, -9.7168, -13.9348),(-38.8807, -9.7168, -16.1225),(-39.1325, -9.7168, -13.9348),(-36.8716, -7.7168, -14.1405),(-33.8786, -7.7168, -7.84901),(-33.8786, -7.7168, -7.84901),(-35.6605, -9.7168, -6.93914),(-39.1325, -9.7168, -13.9348),(-35.6605, -9.7168, -6.93914),(-33.8786, -7.7168, -7.84901),(-31.0077, -7.7168, -2.59593),(-31.0077, -7.7168, -2.59593),(-32.7328, -9.7168, -1.58208),(-35.6605, -9.7168, -6.93914),(-32.7328, -9.7168, -1.58208),(-31.0077, -7.7168, -2.59593),(-27.465, -7.7168, 3.02364),(-27.465, -7.7168, 3.02364),(-29.1279, -9.7168, 4.13616),(-32.7328, -9.7168, -1.58208),(-29.1279, -9.7168, 4.13616),(-27.465, -7.7168, 3.02364),(-22.8986, -7.7168, 9.46394),(-22.8986, -7.7168, 9.46394),(-24.4894, -9.7168, 10.6782),(-29.1279, -9.7168, 4.13616),(-24.4894, -9.7168, 10.6782),(-22.8986, -7.7168, 9.46394),(-16.0574, -7.7168, 17.8011),(-16.0574, -7.7168, 17.8011),(-17.5591, -9.7168, 19.1239),(-24.4894, -9.7168, 10.6782),(-17.5591, -9.7168, 19.1239),(-16.0574, -7.7168, 17.8011),(-9.76589, -7.7168, 24.4591),(-9.76589, -7.7168, 24.4591),(-11.161, -9.7168, 25.8947),(-17.5591, -9.7168, 19.1239),(-11.161, -9.7168, 25.8947),(-9.76589, -7.7168, 24.4591),(-3.53549, -7.7168, 30.0176),(-3.53549, -7.7168, 30.0176),(-4.8035, -9.7168, 31.5666),(-11.161, -9.7168, 25.8947),(-4.8035, -9.7168, 31.5666),(-3.53549, -7.7168, 30.0176),(1.35109, -7.7168, 33.6825),(1.35109, -7.7168, 33.6825),(1.36473, -9.7168, 36.1928),(-4.8035, -9.7168, 31.5666),(1.36473, -9.7168, 36.1928),(1.35109, -7.7168, 33.6825),(5.8101, -7.7168, 30.2619),(5.8101, -7.7168, 30.2619),(7.09695, -9.7168, 31.7955),(1.36473, -9.7168, 36.1928),(7.09695, -9.7168, 31.7955),(5.8101, -7.7168, 30.2619),(10.941, -7.7168, 25.5586),(10.941, -7.7168, 25.5586),(12.3292, -9.7168, 26.9992),(7.09695, -9.7168, 31.7955),(12.3292, -9.7168, 26.9992),(10.941, -7.7168, 25.5586),(15.7054, -7.7168, 20.7331),(15.7054, -7.7168, 20.7331),(17.1799, -9.7168, 22.0863),(12.3292, -9.7168, 26.9992),(17.1799, -9.7168, 22.0863),(15.7054, -7.7168, 20.7331),(20.6531, -7.7168, 14.9303),(20.6531, -7.7168, 14.9303),(22.2073, -9.7168, 16.19),(17.1799, -9.7168, 22.0863),(22.2073, -9.7168, 16.19),(20.6531, -7.7168, 14.9303),(27.0608, -7.7168, 6.60854),(27.0608, -7.7168, 6.60854),(28.6893, -9.7168, 7.77172),(22.2073, -9.7168, 16.19),(28.6893, -9.7168, 7.77172),(27.0608, -7.7168, 6.60854),(30.6025, -7.7168, 1.25276),(30.6025, -7.7168, 1.25276),(32.306, -9.7168, 2.3027),(28.6893, -9.7168, 7.77172),(32.306, -9.7168, 2.3027),(30.6025, -7.7168, 1.25276),(34.6625, -7.7168, -5.83068),(34.6625, -7.7168, -5.83068),(36.4125, -9.7168, -4.86197),(32.306, -9.7168, 2.3027),(36.4125, -9.7168, -4.86197),(34.6625, -7.7168, -5.83068),(38.0315, -7.7168, -12.1367),(38.0315, -7.7168, -12.1367),(39.8285, -9.7168, -11.256),(36.4125, -9.7168, -4.86197),(39.8285, -9.7168, -11.256),(38.0315, -7.7168, -12.1367),(40.9685, -7.7168, -18.7018),(40.9685, -7.7168, -18.7018),(42.7981, -9.7168, -17.8939),(39.8285, -9.7168, -11.256),(42.7981, -9.7168, -17.8939),(40.9685, -7.7168, -18.7018),(43.9056, -7.7168, -25.4397),(43.9056, -7.7168, -25.4397),(45.7732, -9.7168, -24.7192),(42.7981, -9.7168, -17.8939),(45.7732, -9.7168, -24.7192),(43.9056, -7.7168, -25.4397),(46.3243, -7.7168, -32.6095),(46.3243, -7.7168, -32.6095),(48.2289, -9.7168, -31.9984),(45.7732, -9.7168, -24.7192),(48.2289, -9.7168, -31.9984),(46.3243, -7.7168, -32.6095),(48.3382, -7.7168, -39.2222),(48.3382, -7.7168, -39.2222),(49.6592, -9.7168, -36.695),(48.2289, -9.7168, -31.9984),(49.6592, -9.7168, -36.695),(48.3382, -7.7168, -39.2222),(70.511, -7.7168, -32.0755),(70.511, -7.7168, -32.0755),(68.0484, -9.7168, -30.768),(49.6592, -9.7168, -36.695),(68.0484, -9.7168, -30.768),(70.511, -7.7168, -32.0755),(67.8845, -7.7168, -23.0354),(67.8845, -7.7168, -23.0354),(65.9799, -9.7168, -23.6486),(68.0484, -9.7168, -30.768),(65.9799, -9.7168, -23.6486),(67.8845, -7.7168, -23.0354),(65.4412, -7.7168, -16.1331),(65.4412, -7.7168, -16.1331),(63.5821, -9.7168, -16.8747),(65.9799, -9.7168, -23.6486),(63.5821, -9.7168, -16.8747),(65.4412, -7.7168, -16.1331),(61.7152, -7.7168, -7.76479),(61.7152, -7.7168, -7.76479),(59.9063, -9.7168, -8.61919),(63.5821, -9.7168, -16.8747),(59.9063, -9.7168, -8.61919),(61.7152, -7.7168, -7.76479),(59.0276, -7.7168, -2.38955),(59.0276, -7.7168, -2.38955),(57.2573, -9.7168, -3.32123),(59.9063, -9.7168, -8.61919),(57.2573, -9.7168, -3.32123),(59.0276, -7.7168, -2.38955),(55.8513, -7.7168, 3.35219),(55.8513, -7.7168, 3.35219),(54.1142, -9.7168, 2.36055),(57.2573, -9.7168, -3.32123),(54.1142, -9.7168, 2.36055),(55.8513, -7.7168, 3.35219),(52.2525, -7.7168, 9.46394),(52.2525, -7.7168, 9.46394),(50.5572, -9.7168, 8.40144),(54.1142, -9.7168, 2.36055),(50.5572, -9.7168, 8.40144),(52.2525, -7.7168, 9.46394),(47.7324, -7.7168, 16.2514),(47.7324, -7.7168, 16.2514),(46.0952, -9.7168, 15.1017),(50.5572, -9.7168, 8.40144),(46.0952, -9.7168, 15.1017),(47.7324, -7.7168, 16.2514),(42.1739, -7.7168, 23.7645),(42.1739, -7.7168, 23.7645),(40.5978, -9.7168, 22.5323),(46.0952, -9.7168, 15.1017),(40.5978, -9.7168, 22.5323),(42.1739, -7.7168, 23.7645),(37.8371, -7.7168, 29.0176),(37.8371, -7.7168, 29.0176),(36.3249, -9.7168, 27.7079),(40.5978, -9.7168, 22.5323),(36.3249, -9.7168, 27.7079),(37.8371, -7.7168, 29.0176),(31.7899, -7.7168, 35.6756),(31.7899, -7.7168, 35.6756),(30.3574, -9.7168, 34.2781),(36.3249, -9.7168, 27.7079),(30.3574, -9.7168, 34.2781),(31.7899, -7.7168, 35.6756),(25.0709, -7.7168, 42.0892),(25.0709, -7.7168, 42.0892),(23.7326, -9.7168, 40.6018),(30.3574, -9.7168, 34.2781),(23.7326, -9.7168, 40.6018),(25.0709, -7.7168, 42.0892),(19.4513, -7.7168, 46.8536),(19.4513, -7.7168, 46.8536),(18.2159, -9.7168, 45.279),(23.7326, -9.7168, 40.6018),(18.2159, -9.7168, 45.279),(19.4513, -7.7168, 46.8536),(14.5647, -7.7168, 50.3964),(14.5647, -7.7168, 50.3964),(13.4516, -9.7168, 48.7331),(18.2159, -9.7168, 45.279),(13.4516, -9.7168, 48.7331),(14.5647, -7.7168, 50.3964),(9.31166, -7.7168, 53.6338),(9.31166, -7.7168, 53.6338),(8.33187, -9.7168, 51.8883),(13.4516, -9.7168, 48.7331),(8.33187, -9.7168, 51.8883),(9.31166, -7.7168, 53.6338),(1.64202, -7.7168, 57.5364),(1.64202, -7.7168, 57.5364),(1.00884, -9.7168, 56.0242),(8.33187, -9.7168, 51.8883),(1.00884, -9.7168, 56.0242),(1.64202, -7.7168, 57.5364),(0.0871229, -7.7168, 57.966),(0.0871229, -7.7168, 57.966),(0.0860662, -9.7168, 56.2969),(1.00884, -9.7168, 56.0242),(0.0860662, -9.7168, 56.2969),(0.0871229, -7.7168, 57.966),(-1.46778, -7.7168, 57.5386),(-1.46778, -7.7168, 57.5386),(-0.768229, -9.7168, 56.0568),(0.0860662, -9.7168, 56.2969),(-0.768229, -9.7168, 56.0568),(-1.46778, -7.7168, 57.5386),(-8.20569, -7.7168, 53.3047),(-8.20569, -7.7168, 53.3047),(-7.0595, -9.7168, 51.6628),(-0.768229, -9.7168, 56.0568),(-7.0595, -9.7168, 51.6628),(-8.20569, -7.7168, 53.3047),(-15.8074, -7.7168, 47.4306),(-15.8074, -7.7168, 47.4306),(-14.5266, -9.7168, 45.8928),(-7.0595, -9.7168, 51.6628),(-14.5266, -9.7168, 45.8928),(-15.8074, -7.7168, 47.4306),(-24.1866, -7.7168, 39.9153),(-24.1866, -7.7168, 39.9153),(-22.7964, -9.7168, 38.4756),(-14.5266, -9.7168, 45.8928),(-22.7964, -9.7168, 38.4756),(-24.1866, -7.7168, 39.9153),(-30.7518, -7.7168, 33.091),(-30.7518, -7.7168, 33.091),(-29.2666, -9.7168, 31.75),(-22.7964, -9.7168, 38.4756),(-29.2666, -9.7168, 31.75),(-30.7518, -7.7168, 33.091),(-36.9714, -7.7168, 25.7484),(-36.9714, -7.7168, 25.7484),(-35.4105, -9.7168, 24.4967),(-29.2666, -9.7168, 31.75),(-35.4105, -9.7168, 24.4967),(-36.9714, -7.7168, 25.7484),(-42.6727, -7.7168, 18.233),(-42.6727, -7.7168, 18.233),(-41.027, -9.7168, 17.0932),(-35.4105, -9.7168, 24.4967),(-41.027, -9.7168, 17.0932),(-42.6727, -7.7168, 18.233),(-48.201, -7.7168, 9.46394),(-48.201, -7.7168, 9.46394),(-46.4979, -9.7168, 8.4152),(-41.027, -9.7168, 17.0932),(-46.4979, -9.7168, 8.4152),(-48.201, -7.7168, 9.46394),(-52.4338, -7.7168, 2.42471),(-52.4338, -7.7168, 2.42471),(-50.6824, -9.7168, 1.45615),(-46.4979, -9.7168, 8.4152),(-50.6824, -9.7168, 1.45615),(-52.4338, -7.7168, 2.42471),(-55.7163, -7.7168, -4.05405),(-55.7163, -7.7168, -4.05405),(-53.9145, -9.7168, -4.923),(-50.6824, -9.7168, 1.45615),(-53.9145, -9.7168, -4.923),(-55.7163, -7.7168, -4.05405),(-59.5172, -7.7168, -12.3469),(-59.5172, -7.7168, -12.3469),(-57.6792, -9.7168, -13.1369),(-53.9145, -9.7168, -4.923),(-57.6792, -9.7168, -13.1369),(-59.5172, -7.7168, -12.3469),(-63.0589, -7.7168, -21.158),(-63.0589, -7.7168, -21.158),(-61.1865, -9.7168, -21.8622),(-57.6792, -9.7168, -13.1369),(-61.1865, -9.7168, -21.8622),(-63.0589, -7.7168, -21.158),(-65.3913, -7.7168, -27.8095),(-65.3913, -7.7168, -27.8095),(-63.4391, -9.7168, -28.2864),(-61.1865, -9.7168, -21.8622),(-63.4391, -9.7168, -28.2864),(-65.3913, -7.7168, -27.8095),(-65.8232, -7.7168, -30.8329),(-65.8232, -7.7168, -30.8329),(-63.7659, -9.7168, -30.5739),(-63.4391, -9.7168, -28.2864),(-63.7659, -9.7168, -30.5739),(-65.8232, -7.7168, -30.8329),(-64.7866, -7.7168, -33.338),(-64.7866, -7.7168, -33.338),(-63.1481, -9.7168, -32.0669),(-63.7659, -9.7168, -30.5739),(-63.1481, -9.7168, -32.0669),(-64.7866, -7.7168, -33.338),(-63.0589, -7.7168, -34.6338),(-63.0589, -7.7168, -34.6338),(-62.1578, -9.7168, -32.8096),(-63.1481, -9.7168, -32.0669),(-62.1578, -9.7168, -32.8096),(-63.0589, -7.7168, -34.6338),(-60.2947, -7.7168, -35.4112),(-60.2947, -7.7168, -35.4112),(-59.9364, -9.7168, -33.4344),(-62.1578, -9.7168, -32.8096),(-59.9364, -9.7168, -33.4344),(-60.2947, -7.7168, -35.4112),(-49.0648, -7.7168, -36.3615),(-49.0648, -7.7168, -36.3615),(-48.9362, -9.7168, -34.3652),(-59.9364, -9.7168, -33.4344),(-48.9362, -9.7168, -34.3652),(-49.0648, -7.7168, -36.3615),(-39.3035, -7.7168, -36.7934),(-39.3035, -7.7168, -36.7934),(-39.2592, -9.7168, -34.7934),(-48.9362, -9.7168, -34.3652),(-39.2592, -9.7168, -34.7934),(-39.3035, -7.7168, -36.7934),(-31.9609, -7.7168, -36.7934),(-31.9609, -7.7168, -36.7934),(-32.039, -9.7168, -34.7934),(-39.2592, -9.7168, -34.7934),(-32.039, -9.7168, -34.7934),(-31.9609, -7.7168, -36.7934),(-22.0268, -7.7168, -36.0159),(-22.0268, -7.7168, -36.0159),(-22.2736, -9.7168, -34.0291),(-32.039, -9.7168, -34.7934),(-22.2736, -9.7168, -34.0291),(-22.0268, -7.7168, -36.0159),(-11.4016, -7.7168, -34.2019),(-11.4016, -7.7168, -34.2019),(-11.8068, -9.7168, -32.2421),(-22.2736, -9.7168, -34.0291),(-11.8068, -9.7168, -32.2421),(-11.4016, -7.7168, -34.2019),(-1.81306, -7.7168, -31.8695),(-1.81306, -7.7168, -31.8695),(-2.36138, -9.7168, -29.9446),(-11.8068, -9.7168, -32.2421),(-2.36138, -9.7168, -29.9446),(-1.81306, -7.7168, -31.8695),(6.91933, -7.7168, -29.0107),(6.91933, -7.7168, -29.0107),(6.199, -9.7168, -27.142),(-2.36138, -9.7168, -29.9446),(6.199, -9.7168, -27.142),(6.91933, -7.7168, -29.0107),(15.9595, -7.7168, -24.9792),(15.9595, -7.7168, -24.9792),(15.0639, -9.7168, -23.1888),(6.199, -9.7168, -27.142),(15.0639, -9.7168, -23.1888),(15.9595, -7.7168, -24.9792),(25.6105, -7.7168, -19.604),(25.6105, -7.7168, -19.604),(24.5708, -9.7168, -17.8938),(15.0639, -9.7168, -23.1888),(24.5708, -9.7168, -17.8938),(25.6105, -7.7168, -19.604),(33.1847, -7.7168, -14.5952),(33.1847, -7.7168, -14.5952),(30.6576, -9.7168, -13.8687),(24.5708, -9.7168, -17.8938),(30.6576, -9.7168, -13.8687),(33.1847, -7.7168, -14.5952),(30.1306, -7.7168, -7.87619),(30.1306, -7.7168, -7.87619),(28.3327, -9.7168, -8.75391),(30.6576, -9.7168, -13.8687),(28.3327, -9.7168, -8.75391),(30.1306, -7.7168, -7.87619),(27.3208, -7.7168, -2.50095),(27.3208, -7.7168, -2.50095),(25.6048, -9.7168, -3.53532),(28.3327, -9.7168, -8.75391),(25.6048, -9.7168, -3.53532),(27.3208, -7.7168, -2.50095),(23.5337, -7.7168, 2.99647),(23.5337, -7.7168, 2.99647),(22.9426, -9.7168, 0.329102),(25.6048, -9.7168, -3.53532),(22.9426, -9.7168, 0.329102),(23.5337, -7.7168, 2.99647),(17.5527, -7.7168, -0.519135),(17.5527, -7.7168, -0.519135),(18.5374, -9.7168, -2.26027),(22.9426, -9.7168, 0.329102),(18.5374, -9.7168, -2.26027),(17.5527, -7.7168, -0.519135),(11.2612, -7.7168, -3.93974),(11.2612, -7.7168, -3.93974),(12.1181, -9.7168, -5.75037),(18.5374, -9.7168, -2.26027),(12.1181, -9.7168, -5.75037),(11.2612, -7.7168, -3.93974),(4.49783, -7.7168, -6.68845),(4.49783, -7.7168, -6.68845),(5.22691, -9.7168, -8.55099),(12.1181, -9.7168, -5.75037),(5.22691, -9.7168, -8.55099),(4.49783, -7.7168, -6.68845),(-1.01632, -7.7168, -8.76525),(-1.01632, -7.7168, -8.76525),(-0.342632, -9.7168, -10.6487),(5.22691, -9.7168, -8.55099),(0.0860662, -9.7168, 56.2969),(-0.768229, -9.7168, 56.0568),(1.36473, -9.7168, 36.1928),(-0.768229, -9.7168, 56.0568),(-7.0595, -9.7168, 51.6628),(1.36473, -9.7168, 36.1928),(1.00884, -9.7168, 56.0242),(0.0860662, -9.7168, 56.2969),(1.36473, -9.7168, 36.1928),(0.0860662, 8.46341, 56.2968),(1.00884, 8.46341, 56.0242),(1.36473, 8.46341, 36.1928),(1.00884, 8.46341, 56.0242),(8.33187, 8.46341, 51.8883),(1.36473, 8.46341, 36.1928),(-0.768229, 8.46341, 56.0568),(0.0860662, 8.46341, 56.2968),(1.36473, 8.46341, 36.1928),(-36.7622, 8.46341, -17.0322),(-38.8807, 8.46341, -16.1225),(-36.9998, 6.46341, -14.7524),(-36.9998, 6.46341, -14.7524),(-36.5662, 6.46341, -15.1178),(-36.7622, 8.46341, -17.0322),(-38.8807, 8.46341, -16.1225),(-39.1325, 8.46341, -13.9348),(-36.8716, 6.46341, -14.1405),(-36.8716, 6.46341, -14.1405),(-36.9998, 6.46341, -14.7524),(-38.8807, 8.46341, -16.1225),(-0.342632, 8.46341, -10.6487),(-7.65952, 8.46341, -13.129),(-8.22404, 6.46341, -11.2085),(-8.22404, 6.46341, -11.2085),(-1.01632, 6.46341, -8.76525),(-0.342632, 8.46341, -10.6487),(-7.65952, 8.46341, -13.129),(-16.1094, 8.46341, -15.2414),(-16.5312, 6.46341, -13.2853),(-16.5312, 6.46341, -13.2853),(-8.22404, 6.46341, -11.2085),(-7.65952, 8.46341, -13.129),(-16.1094, 8.46341, -15.2414),(-23.6557, 8.46341, -16.6135),(-23.9222, 6.46341, -14.6291),(-23.9222, 6.46341, -14.6291),(-16.5312, 6.46341, -13.2853),(-16.1094, 8.46341, -15.2414),(-23.6557, 8.46341, -16.6135),(-30.1361, 8.46341, -17.1797),(-30.2137, 6.46341, -15.1789),(-30.2137, 6.46341, -15.1789),(-23.9222, 6.46341, -14.6291),(-23.6557, 8.46341, -16.6135),(-30.1361, 8.46341, -17.1797),(-36.7622, 8.46341, -17.0322),(-36.5662, 6.46341, -15.1178),(-36.5662, 6.46341, -15.1178),(-30.2137, 6.46341, -15.1789),(-30.1361, 8.46341, -17.1797),(-39.1325, 8.46341, -13.9348),(-35.6605, 8.46341, -6.93914),(-33.8786, 6.46341, -7.84901),(-33.8786, 6.46341, -7.84901),(-36.8716, 6.46341, -14.1405),(-39.1325, 8.46341, -13.9348),(-35.6605, 8.46341, -6.93914),(-32.7328, 8.46341, -1.58208),(-31.0077, 6.46341, -2.59593),(-31.0077, 6.46341, -2.59593),(-33.8786, 6.46341, -7.84901),(-35.6605, 8.46341, -6.93914),(-32.7328, 8.46341, -1.58208),(-29.1279, 8.46341, 4.13616),(-27.465, 6.46341, 3.02364),(-27.465, 6.46341, 3.02364),(-31.0077, 6.46341, -2.59593),(-32.7328, 8.46341, -1.58208),(-29.1279, 8.46341, 4.13616),(-24.4894, 8.46341, 10.6782),(-22.8986, 6.46341, 9.46394),(-22.8986, 6.46341, 9.46394),(-27.465, 6.46341, 3.02364),(-29.1279, 8.46341, 4.13616),(-24.4894, 8.46341, 10.6782),(-17.5591, 8.46341, 19.1239),(-16.0574, 6.46341, 17.8011),(-16.0574, 6.46341, 17.8011),(-22.8986, 6.46341, 9.46394),(-24.4894, 8.46341, 10.6782),(-17.5591, 8.46341, 19.1239),(-11.161, 8.46341, 25.8947),(-9.76589, 6.46341, 24.4591),(-9.76589, 6.46341, 24.4591),(-16.0574, 6.46341, 17.8011),(-17.5591, 8.46341, 19.1239),(-11.161, 8.46341, 25.8947),(-4.8035, 8.46341, 31.5666),(-3.53549, 6.46341, 30.0176),(-3.53549, 6.46341, 30.0176),(-9.76589, 6.46341, 24.4591),(-11.161, 8.46341, 25.8947),(-4.8035, 8.46341, 31.5666),(1.36473, 8.46341, 36.1928),(1.35109, 6.46341, 33.6825),(1.35109, 6.46341, 33.6825),(-3.53549, 6.46341, 30.0176),(-4.8035, 8.46341, 31.5666),(1.36473, 8.46341, 36.1928),(7.09695, 8.46341, 31.7955),(5.8101, 6.46341, 30.2619),(5.8101, 6.46341, 30.2619),(1.35109, 6.46341, 33.6825),(1.36473, 8.46341, 36.1928),(7.09695, 8.46341, 31.7955),(12.3292, 8.46341, 26.9992),(10.941, 6.46341, 25.5586),(10.941, 6.46341, 25.5586),(5.8101, 6.46341, 30.2619),(7.09695, 8.46341, 31.7955),(12.3292, 8.46341, 26.9992),(17.1799, 8.46341, 22.0863),(15.7054, 6.46341, 20.7331),(15.7054, 6.46341, 20.7331),(10.941, 6.46341, 25.5586),(12.3292, 8.46341, 26.9992),(17.1799, 8.46341, 22.0863),(22.2073, 8.46341, 16.19),(20.6531, 6.46341, 14.9303),(20.6531, 6.46341, 14.9303),(15.7054, 6.46341, 20.7331),(17.1799, 8.46341, 22.0863),(22.2073, 8.46341, 16.19),(28.6893, 8.46341, 7.77172),(27.0608, 6.46341, 6.60854),(27.0608, 6.46341, 6.60854),(20.6531, 6.46341, 14.9303),(22.2073, 8.46341, 16.19),(28.6893, 8.46341, 7.77172),(32.306, 8.46341, 2.3027),(30.6025, 6.46341, 1.25276),(30.6025, 6.46341, 1.25276),(27.0608, 6.46341, 6.60854),(28.6893, 8.46341, 7.77172),(32.306, 8.46341, 2.3027),(36.4125, 8.46341, -4.86197),(34.6625, 6.46341, -5.83068),(34.6625, 6.46341, -5.83068),(30.6025, 6.46341, 1.25276),(32.306, 8.46341, 2.3027),(36.4125, 8.46341, -4.86197),(39.8285, 8.46341, -11.256),(38.0315, 6.46341, -12.1367),(38.0315, 6.46341, -12.1367),(34.6625, 6.46341, -5.83068),(36.4125, 8.46341, -4.86197),(39.8285, 8.46341, -11.256),(42.7981, 8.46341, -17.8939),(40.9685, 6.46341, -18.7018),(40.9685, 6.46341, -18.7018),(38.0315, 6.46341, -12.1367),(39.8285, 8.46341, -11.256),(42.7981, 8.46341, -17.8939),(45.7732, 8.46341, -24.7192),(43.9056, 6.46341, -25.4397),(43.9056, 6.46341, -25.4397),(40.9685, 6.46341, -18.7018),(42.7981, 8.46341, -17.8939),(45.7732, 8.46341, -24.7192),(48.2289, 8.46341, -31.9984),(46.3243, 6.46341, -32.6095),(46.3243, 6.46341, -32.6095),(43.9056, 6.46341, -25.4397),(45.7732, 8.46341, -24.7192),(48.2289, 8.46341, -31.9984),(49.6592, 8.46341, -36.695),(48.3382, 6.46341, -39.2222),(48.3382, 6.46341, -39.2222),(46.3243, 6.46341, -32.6095),(48.2289, 8.46341, -31.9984),(49.6592, 8.46341, -36.695),(68.0484, 8.46341, -30.768),(70.511, 6.46341, -32.0755),(70.511, 6.46341, -32.0755),(48.3382, 6.46341, -39.2222),(49.6592, 8.46341, -36.695),(68.0484, 8.46341, -30.768),(65.9799, 8.46341, -23.6486),(67.8845, 6.46341, -23.0354),(67.8845, 6.46341, -23.0354),(70.511, 6.46341, -32.0755),(68.0484, 8.46341, -30.768),(65.9799, 8.46341, -23.6486),(63.5821, 8.46341, -16.8747),(65.4412, 6.46341, -16.1331),(65.4412, 6.46341, -16.1331),(67.8845, 6.46341, -23.0354),(65.9799, 8.46341, -23.6486),(63.5821, 8.46341, -16.8747),(59.9063, 8.46341, -8.61919),(61.7152, 6.46341, -7.76479),(61.7152, 6.46341, -7.76479),(65.4412, 6.46341, -16.1331),(63.5821, 8.46341, -16.8747),(59.9063, 8.46341, -8.61919),(57.2573, 8.46341, -3.32123),(59.0276, 6.46341, -2.38955),(59.0276, 6.46341, -2.38955),(61.7152, 6.46341, -7.76479),(59.9063, 8.46341, -8.61919),(57.2573, 8.46341, -3.32123),(54.1142, 8.46341, 2.36055),(55.8513, 6.46341, 3.35219),(55.8513, 6.46341, 3.35219),(59.0276, 6.46341, -2.38955),(57.2573, 8.46341, -3.32123),(54.1142, 8.46341, 2.36055),(50.5572, 8.46341, 8.40144),(52.2525, 6.46341, 9.46394),(52.2525, 6.46341, 9.46394),(55.8513, 6.46341, 3.35219),(54.1142, 8.46341, 2.36055),(50.5572, 8.46341, 8.40144),(46.0952, 8.46341, 15.1017),(47.7324, 6.46341, 16.2514),(47.7324, 6.46341, 16.2514),(52.2525, 6.46341, 9.46394),(50.5572, 8.46341, 8.40144),(46.0952, 8.46341, 15.1017),(40.5978, 8.46341, 22.5323),(42.1739, 6.46341, 23.7645),(42.1739, 6.46341, 23.7645),(47.7324, 6.46341, 16.2514),(46.0952, 8.46341, 15.1017),(40.5978, 8.46341, 22.5323),(36.3249, 8.46341, 27.7079),(37.8371, 6.46341, 29.0176),(37.8371, 6.46341, 29.0176),(42.1739, 6.46341, 23.7645),(40.5978, 8.46341, 22.5323),(36.3249, 8.46341, 27.7079),(30.3574, 8.46341, 34.2781),(31.7899, 6.46341, 35.6756),(31.7899, 6.46341, 35.6756),(37.8371, 6.46341, 29.0176),(36.3249, 8.46341, 27.7079),(30.3574, 8.46341, 34.2781),(23.7326, 8.46341, 40.6018),(25.0709, 6.46341, 42.0892),(25.0709, 6.46341, 42.0892),(31.7899, 6.46341, 35.6756),(30.3574, 8.46341, 34.2781),(23.7326, 8.46341, 40.6018),(18.2159, 8.46341, 45.279),(19.4513, 6.46341, 46.8536),(19.4513, 6.46341, 46.8536),(25.0709, 6.46341, 42.0892),(23.7326, 8.46341, 40.6018),(18.2159, 8.46341, 45.279),(13.4516, 8.46341, 48.7331),(14.5647, 6.46341, 50.3964),(14.5647, 6.46341, 50.3964),(19.4513, 6.46341, 46.8536),(18.2159, 8.46341, 45.279),(13.4516, 8.46341, 48.7331),(8.33187, 8.46341, 51.8883),(9.31166, 6.46341, 53.6338),(9.31166, 6.46341, 53.6338),(14.5647, 6.46341, 50.3964),(13.4516, 8.46341, 48.7331),(8.33187, 8.46341, 51.8883),(1.00884, 8.46341, 56.0242),(1.64202, 6.46341, 57.5364),(1.64202, 6.46341, 57.5364),(9.31166, 6.46341, 53.6338),(8.33187, 8.46341, 51.8883),(1.00884, 8.46341, 56.0242),(0.0860662, 8.46341, 56.2968),(0.0871229, 6.46341, 57.966),(0.0871229, 6.46341, 57.966),(1.64202, 6.46341, 57.5364),(1.00884, 8.46341, 56.0242),(0.0860662, 8.46341, 56.2968),(-0.768229, 8.46341, 56.0568),(-1.46778, 6.46341, 57.5386),(-1.46778, 6.46341, 57.5386),(0.0871229, 6.46341, 57.966),(0.0860662, 8.46341, 56.2968),(-0.768229, 8.46341, 56.0568),(-7.0595, 8.46341, 51.6628),(-8.20569, 6.46341, 53.3047),(-8.20569, 6.46341, 53.3047),(-1.46778, 6.46341, 57.5386),(-0.768229, 8.46341, 56.0568),(-7.0595, 8.46341, 51.6628),(-14.5266, 8.46341, 45.8928),(-15.8074, 6.46341, 47.4306),(-15.8074, 6.46341, 47.4306),(-8.20569, 6.46341, 53.3047),(-7.0595, 8.46341, 51.6628),(-14.5266, 8.46341, 45.8928),(-22.7964, 8.46341, 38.4756),(-24.1866, 6.46341, 39.9153),(-24.1866, 6.46341, 39.9153),(-15.8074, 6.46341, 47.4306),(-14.5266, 8.46341, 45.8928),(-22.7964, 8.46341, 38.4756),(-29.2666, 8.46341, 31.75),(-30.7518, 6.46341, 33.091),(-30.7518, 6.46341, 33.091),(-24.1866, 6.46341, 39.9153),(-22.7964, 8.46341, 38.4756),(-29.2666, 8.46341, 31.75),(-35.4105, 8.46341, 24.4967),(-36.9714, 6.46341, 25.7484),(-36.9714, 6.46341, 25.7484),(-30.7518, 6.46341, 33.091),(-29.2666, 8.46341, 31.75),(-35.4105, 8.46341, 24.4967),(-41.027, 8.46341, 17.0932),(-42.6727, 6.46341, 18.233),(-42.6727, 6.46341, 18.233),(-36.9714, 6.46341, 25.7484),(-35.4105, 8.46341, 24.4967),(-41.027, 8.46341, 17.0932),(-46.4979, 8.46341, 8.4152),(-48.201, 6.46341, 9.46394),(-48.201, 6.46341, 9.46394),(-42.6727, 6.46341, 18.233),(-41.027, 8.46341, 17.0932),(-46.4979, 8.46341, 8.4152),(-50.6824, 8.46341, 1.45615),(-52.4338, 6.46341, 2.42471),(-52.4338, 6.46341, 2.42471),(-48.201, 6.46341, 9.46394),(-46.4979, 8.46341, 8.4152),(-50.6824, 8.46341, 1.45615),(-53.9145, 8.46341, -4.92301),(-55.7163, 6.46341, -4.05405),(-55.7163, 6.46341, -4.05405),(-52.4338, 6.46341, 2.42471),(-50.6824, 8.46341, 1.45615),(-53.9145, 8.46341, -4.92301),(-57.6792, 8.46341, -13.1369),(-59.5172, 6.46341, -12.3469),(-59.5172, 6.46341, -12.3469),(-55.7163, 6.46341, -4.05405),(-53.9145, 8.46341, -4.92301),(-57.6792, 8.46341, -13.1369),(-61.1865, 8.46341, -21.8622),(-63.0589, 6.46341, -21.158),(-63.0589, 6.46341, -21.158),(-59.5172, 6.46341, -12.3469),(-57.6792, 8.46341, -13.1369),(-61.1865, 8.46341, -21.8622),(-63.4391, 8.46341, -28.2864),(-65.3913, 6.46341, -27.8095),(-65.3913, 6.46341, -27.8095),(-63.0589, 6.46341, -21.158),(-61.1865, 8.46341, -21.8622),(-63.4391, 8.46341, -28.2864),(-63.7659, 8.46341, -30.5739),(-65.8232, 6.46341, -30.8329),(-65.8232, 6.46341, -30.8329),(-65.3913, 6.46341, -27.8095),(-63.4391, 8.46341, -28.2864),(-63.7659, 8.46341, -30.5739),(-63.1481, 8.46341, -32.0669),(-64.7866, 6.46341, -33.338),(-64.7866, 6.46341, -33.338),(-65.8232, 6.46341, -30.8329),(-63.7659, 8.46341, -30.5739),(-63.1481, 8.46341, -32.0669),(-62.1578, 8.46341, -32.8096),(-63.0589, 6.46341, -34.6338),(-63.0589, 6.46341, -34.6338),(-64.7866, 6.46341, -33.338),(-63.1481, 8.46341, -32.0669),(-62.1578, 8.46341, -32.8096),(-59.9364, 8.46341, -33.4344),(-60.2947, 6.46341, -35.4112),(-60.2947, 6.46341, -35.4112),(-63.0589, 6.46341, -34.6338),(-62.1578, 8.46341, -32.8096),(-59.9364, 8.46341, -33.4344),(-48.9362, 8.46341, -34.3652),(-49.0648, 6.46341, -36.3615),(-49.0648, 6.46341, -36.3615),(-60.2947, 6.46341, -35.4112),(-59.9364, 8.46341, -33.4344),(-48.9362, 8.46341, -34.3652),(-39.2592, 8.46341, -34.7934),(-39.3035, 6.46341, -36.7934),(-39.3035, 6.46341, -36.7934),(-49.0648, 6.46341, -36.3615),(-48.9362, 8.46341, -34.3652),(-39.2592, 8.46341, -34.7934),(-32.039, 8.46341, -34.7934),(-31.9609, 6.46341, -36.7934),(-31.9609, 6.46341, -36.7934),(-39.3035, 6.46341, -36.7934),(-39.2592, 8.46341, -34.7934),(-32.039, 8.46341, -34.7934),(-22.2736, 8.46341, -34.0291),(-22.0268, 6.46341, -36.0159),(-22.0268, 6.46341, -36.0159),(-31.9609, 6.46341, -36.7934),(-32.039, 8.46341, -34.7934),(-22.2736, 8.46341, -34.0291),(-11.8068, 8.46341, -32.2421),(-11.4016, 6.46341, -34.2019),(-11.4016, 6.46341, -34.2019),(-22.0268, 6.46341, -36.0159),(-22.2736, 8.46341, -34.0291),(-11.8068, 8.46341, -32.2421),(-2.36138, 8.46341, -29.9446),(-1.81306, 6.46341, -31.8695),(-1.81306, 6.46341, -31.8695),(-11.4016, 6.46341, -34.2019),(-11.8068, 8.46341, -32.2421),(-2.36138, 8.46341, -29.9446),(6.199, 8.46341, -27.142),(6.91933, 6.46341, -29.0107),(6.91933, 6.46341, -29.0107),(-1.81306, 6.46341, -31.8695),(-2.36138, 8.46341, -29.9446),(6.199, 8.46341, -27.142),(15.0639, 8.46341, -23.1888),(15.9595, 6.46341, -24.9792),(15.9595, 6.46341, -24.9792),(6.91933, 6.46341, -29.0107),(6.199, 8.46341, -27.142),(15.0639, 8.46341, -23.1888),(24.5708, 8.46341, -17.8938),(25.6105, 6.46341, -19.604),(25.6105, 6.46341, -19.604),(15.9595, 6.46341, -24.9792),(15.0639, 8.46341, -23.1888),(24.5708, 8.46341, -17.8938),(30.6576, 8.46341, -13.8687),(33.1847, 6.46341, -14.5952),(33.1847, 6.46341, -14.5952),(25.6105, 6.46341, -19.604),(24.5708, 8.46341, -17.8938),(30.6576, 8.46341, -13.8687),(28.3327, 8.46341, -8.75391),(30.1306, 6.46341, -7.87619),(30.1306, 6.46341, -7.87619),(33.1847, 6.46341, -14.5952),(30.6576, 8.46341, -13.8687),(28.3327, 8.46341, -8.75391),(25.6048, 8.46341, -3.53532),(27.3208, 6.46341, -2.50095),(27.3208, 6.46341, -2.50095),(30.1306, 6.46341, -7.87619),(28.3327, 8.46341, -8.75391),(25.6048, 8.46341, -3.53532),(22.9426, 8.46341, 0.329102),(23.5337, 6.46341, 2.99647),(23.5337, 6.46341, 2.99647),(27.3208, 6.46341, -2.50095),(25.6048, 8.46341, -3.53532),(22.9426, 8.46341, 0.329102),(18.5374, 8.46341, -2.26027),(17.5527, 6.46341, -0.519135),(17.5527, 6.46341, -0.519135),(23.5337, 6.46341, 2.99647),(22.9426, 8.46341, 0.329102),(18.5374, 8.46341, -2.26027),(12.1181, 8.46341, -5.75037),(11.2612, 6.46341, -3.93974),(11.2612, 6.46341, -3.93974),(17.5527, 6.46341, -0.519135),(18.5374, 8.46341, -2.26027),(12.1181, 8.46341, -5.75037),(5.22691, 8.46341, -8.55099),(4.49783, 6.46341, -6.68845),(4.49783, 6.46341, -6.68845),(11.2612, 6.46341, -3.93974),(12.1181, 8.46341, -5.75037),(5.22691, 8.46341, -8.55099),(-0.342632, 8.46341, -10.6487),(-1.01632, 6.46341, -8.76525),(-1.01632, 6.46341, -8.76525),(4.49783, 6.46341, -6.68845),(5.22691, 8.46341, -8.55099),(-14.5266, -9.7168, 45.8928),(-4.8035, -9.7168, 31.5666),(1.36473, -9.7168, 36.1928),(1.36473, -9.7168, 36.1928),(-7.0595, -9.7168, 51.6628),(-14.5266, -9.7168, 45.8928),(-22.7964, -9.7168, 38.4756),(-11.161, -9.7168, 25.8947),(-4.8035, -9.7168, 31.5666),(-4.8035, -9.7168, 31.5666),(-14.5266, -9.7168, 45.8928),(-22.7964, -9.7168, 38.4756),(-29.2666, -9.7168, 31.75),(-17.5591, -9.7168, 19.1239),(-11.161, -9.7168, 25.8947),(-11.161, -9.7168, 25.8947),(-22.7964, -9.7168, 38.4756),(-29.2666, -9.7168, 31.75),(8.33187, -9.7168, 51.8883),(1.00884, -9.7168, 56.0242),(1.36473, -9.7168, 36.1928),(13.4516, -9.7168, 48.7331),(8.33187, -9.7168, 51.8883),(1.36473, -9.7168, 36.1928),(1.36473, -9.7168, 36.1928),(7.09695, -9.7168, 31.7955),(13.4516, -9.7168, 48.7331),(7.09695, -9.7168, 31.7955),(12.3292, -9.7168, 26.9992),(18.2159, -9.7168, 45.279),(18.2159, -9.7168, 45.279),(13.4516, -9.7168, 48.7331),(7.09695, -9.7168, 31.7955),(23.7326, -9.7168, 40.6018),(18.2159, -9.7168, 45.279),(12.3292, -9.7168, 26.9992),(12.3292, -9.7168, 26.9992),(17.1799, -9.7168, 22.0863),(23.7326, -9.7168, 40.6018),(17.1799, -9.7168, 22.0863),(22.2073, -9.7168, 16.19),(30.3574, -9.7168, 34.2781),(30.3574, -9.7168, 34.2781),(23.7326, -9.7168, 40.6018),(17.1799, -9.7168, 22.0863),(36.3249, -9.7168, 27.7079),(30.3574, -9.7168, 34.2781),(22.2073, -9.7168, 16.19),(22.2073, -9.7168, 16.19),(28.6893, -9.7168, 7.77172),(36.3249, -9.7168, 27.7079),(28.6893, -9.7168, 7.77172),(32.306, -9.7168, 2.3027),(40.5978, -9.7168, 22.5323),(40.5978, -9.7168, 22.5323),(36.3249, -9.7168, 27.7079),(28.6893, -9.7168, 7.77172),(46.0952, -9.7168, 15.1017),(40.5978, -9.7168, 22.5323),(32.306, -9.7168, 2.3027),(32.306, -9.7168, 2.3027),(36.4125, -9.7168, -4.86197),(46.0952, -9.7168, 15.1017),(36.4125, -9.7168, -4.86197),(39.8285, -9.7168, -11.256),(50.5572, -9.7168, 8.40144),(50.5572, -9.7168, 8.40144),(46.0952, -9.7168, 15.1017),(36.4125, -9.7168, -4.86197),(54.1142, -9.7168, 2.36055),(50.5572, -9.7168, 8.40144),(39.8285, -9.7168, -11.256),(39.8285, -9.7168, -11.256),(42.7981, -9.7168, -17.8939),(54.1142, -9.7168, 2.36055),(42.7981, -9.7168, -17.8939),(45.7732, -9.7168, -24.7192),(57.2573, -9.7168, -3.32123),(57.2573, -9.7168, -3.32123),(54.1142, -9.7168, 2.36055),(42.7981, -9.7168, -17.8939),(59.9063, -9.7168, -8.61919),(57.2573, -9.7168, -3.32123),(45.7732, -9.7168, -24.7192),(45.7732, -9.7168, -24.7192),(48.2289, -9.7168, -31.9984),(59.9063, -9.7168, -8.61919),(63.5821, -9.7168, -16.8747),(59.9063, -9.7168, -8.61919),(48.2289, -9.7168, -31.9984),(48.2289, -9.7168, -31.9984),(49.6592, -9.7168, -36.695),(63.5821, -9.7168, -16.8747),(65.9799, -9.7168, -23.6486),(63.5821, -9.7168, -16.8747),(49.6592, -9.7168, -36.695),(-35.4105, -9.7168, 24.4967),(-24.4894, -9.7168, 10.6782),(-17.5591, -9.7168, 19.1239),(-17.5591, -9.7168, 19.1239),(-29.2666, -9.7168, 31.75),(-35.4105, -9.7168, 24.4967),(-41.027, -9.7168, 17.0932),(-29.1279, -9.7168, 4.13616),(-24.4894, -9.7168, 10.6782),(-24.4894, -9.7168, 10.6782),(-35.4105, -9.7168, 24.4967),(-41.027, -9.7168, 17.0932),(-46.4979, -9.7168, 8.4152),(-32.7328, -9.7168, -1.58208),(-29.1279, -9.7168, 4.13616),(-29.1279, -9.7168, 4.13616),(-41.027, -9.7168, 17.0932),(-46.4979, -9.7168, 8.4152),(-50.6824, -9.7168, 1.45615),(-35.6605, -9.7168, -6.93914),(-32.7328, -9.7168, -1.58208),(-32.7328, -9.7168, -1.58208),(-46.4979, -9.7168, 8.4152),(-50.6824, -9.7168, 1.45615),(-53.9145, -9.7168, -4.923),(-39.1325, -9.7168, -13.9348),(-35.6605, -9.7168, -6.93914),(-35.6605, -9.7168, -6.93914),(-50.6824, -9.7168, 1.45615),(-53.9145, -9.7168, -4.923),(-53.9145, -9.7168, -4.923),(-57.6792, -9.7168, -13.1369),(-39.1325, -9.7168, -13.9348),(-57.6792, -9.7168, -13.1369),(-38.8807, -9.7168, -16.1225),(-39.1325, -9.7168, -13.9348),(25.6048, -9.7168, -3.53532),(22.9426, -9.7168, 0.329102),(18.5374, -9.7168, -2.26027),(-38.8807, -9.7168, -16.1225),(-57.6792, -9.7168, -13.1369),(-61.1865, -9.7168, -21.8622),(-38.8807, -9.7168, -16.1225),(-61.1865, -9.7168, -21.8622),(-63.4391, -9.7168, -28.2864),(-38.8807, -9.7168, -16.1225),(-63.4391, -9.7168, -28.2864),(-63.7659, -9.7168, -30.5739),(-38.8807, -9.7168, -16.1225),(-63.7659, -9.7168, -30.5739),(-63.1481, -9.7168, -32.0669),(-38.8807, -9.7168, -16.1225),(-63.1481, -9.7168, -32.0669),(-62.1578, -9.7168, -32.8096),(-38.8807, -9.7168, -16.1225),(-62.1578, -9.7168, -32.8096),(-59.9364, -9.7168, -33.4344),(-59.9364, -9.7168, -33.4344),(-36.7622, -9.7168, -17.0322),(-38.8807, -9.7168, -16.1225),(-36.7622, -9.7168, -17.0322),(-59.9364, -9.7168, -33.4344),(-48.9362, -9.7168, -34.3652),(-36.7622, -9.7168, -17.0322),(-48.9362, -9.7168, -34.3652),(-39.2592, -9.7168, -34.7934),(-39.2592, -9.7168, -34.7934),(-30.1361, -9.7168, -17.1797),(-36.7622, -9.7168, -17.0322),(-30.1361, -9.7168, -17.1797),(-39.2592, -9.7168, -34.7934),(-32.039, -9.7168, -34.7934),(-32.039, -9.7168, -34.7934),(-23.6557, -9.7168, -16.6135),(-30.1361, -9.7168, -17.1797),(-23.6557, -9.7168, -16.6135),(-32.039, -9.7168, -34.7934),(-22.2736, -9.7168, -34.0291),(-22.2736, -9.7168, -34.0291),(-16.1094, -9.7168, -15.2414),(-23.6557, -9.7168, -16.6135),(-16.1094, -9.7168, -15.2414),(-22.2736, -9.7168, -34.0291),(-11.8068, -9.7168, -32.2421),(-11.8068, -9.7168, -32.2421),(-7.65952, -9.7168, -13.129),(-16.1094, -9.7168, -15.2414),(-7.65952, -9.7168, -13.129),(-11.8068, -9.7168, -32.2421),(-2.36138, -9.7168, -29.9446),(-2.36138, -9.7168, -29.9446),(-0.342632, -9.7168, -10.6487),(-7.65952, -9.7168, -13.129),(-0.342632, -9.7168, -10.6487),(-2.36138, -9.7168, -29.9446),(6.199, -9.7168, -27.142),(6.199, -9.7168, -27.142),(5.22691, -9.7168, -8.55099),(-0.342632, -9.7168, -10.6487),(5.22691, -9.7168, -8.55099),(6.199, -9.7168, -27.142),(15.0639, -9.7168, -23.1888),(15.0639, -9.7168, -23.1888),(12.1181, -9.7168, -5.75037),(5.22691, -9.7168, -8.55099),(12.1181, -9.7168, -5.75037),(15.0639, -9.7168, -23.1888),(24.5708, -9.7168, -17.8938),(24.5708, -9.7168, -17.8938),(18.5374, -9.7168, -2.26027),(12.1181, -9.7168, -5.75037),(24.5708, -9.7168, -17.8938),(30.6576, -9.7168, -13.8687),(28.3327, -9.7168, -8.75391),(28.3327, -9.7168, -8.75391),(25.6048, -9.7168, -3.53532),(18.5374, -9.7168, -2.26027),(18.5374, -9.7168, -2.26027),(24.5708, -9.7168, -17.8938),(28.3327, -9.7168, -8.75391),(-7.0595, 8.46341, 51.6628),(-0.768229, 8.46341, 56.0568),(1.36473, 8.46341, 36.1928),(-14.5266, 8.46341, 45.8928),(-7.0595, 8.46341, 51.6628),(1.36473, 8.46341, 36.1928),(1.36473, 8.46341, 36.1928),(-4.8035, 8.46341, 31.5666),(-14.5266, 8.46341, 45.8928),(-22.7964, 8.46341, 38.4756),(-14.5266, 8.46341, 45.8928),(-4.8035, 8.46341, 31.5666),(-4.8035, 8.46341, 31.5666),(-11.161, 8.46341, 25.8947),(-22.7964, 8.46341, 38.4756),(-29.2666, 8.46341, 31.75),(-22.7964, 8.46341, 38.4756),(-11.161, 8.46341, 25.8947),(-11.161, 8.46341, 25.8947),(-17.5591, 8.46341, 19.1239),(-29.2666, 8.46341, 31.75),(-35.4105, 8.46341, 24.4967),(-29.2666, 8.46341, 31.75),(-17.5591, 8.46341, 19.1239),(-17.5591, 8.46341, 19.1239),(-24.4894, 8.46341, 10.6782),(-35.4105, 8.46341, 24.4967),(-41.027, 8.46341, 17.0932),(-35.4105, 8.46341, 24.4967),(-24.4894, 8.46341, 10.6782),(-24.4894, 8.46341, 10.6782),(-29.1279, 8.46341, 4.13616),(-41.027, 8.46341, 17.0932),(-46.4979, 8.46341, 8.4152),(-41.027, 8.46341, 17.0932),(-29.1279, 8.46341, 4.13616),(-29.1279, 8.46341, 4.13616),(-32.7328, 8.46341, -1.58208),(-46.4979, 8.46341, 8.4152),(-50.6824, 8.46341, 1.45615),(-46.4979, 8.46341, 8.4152),(-32.7328, 8.46341, -1.58208),(-32.7328, 8.46341, -1.58208),(-35.6605, 8.46341, -6.93914),(-50.6824, 8.46341, 1.45615),(-53.9145, 8.46341, -4.92301),(-50.6824, 8.46341, 1.45615),(-35.6605, 8.46341, -6.93914),(-35.6605, 8.46341, -6.93914),(-39.1325, 8.46341, -13.9348),(-53.9145, 8.46341, -4.92301),(-57.6792, 8.46341, -13.1369),(-53.9145, 8.46341, -4.92301),(-39.1325, 8.46341, -13.9348),(-38.8807, 8.46341, -16.1225),(-61.1865, 8.46341, -21.8622),(-57.6792, 8.46341, -13.1369),(-38.8807, 8.46341, -16.1225),(-63.4391, 8.46341, -28.2864),(-61.1865, 8.46341, -21.8622),(-38.8807, 8.46341, -16.1225),(-63.7659, 8.46341, -30.5739),(-63.4391, 8.46341, -28.2864),(-38.8807, 8.46341, -16.1225),(-36.7622, 8.46341, -17.0322),(-59.9364, 8.46341, -33.4344),(-59.9364, 8.46341, -33.4344),(-62.1578, 8.46341, -32.8096),(-38.8807, 8.46341, -16.1225),(-63.1481, 8.46341, -32.0669),(-63.7659, 8.46341, -30.5739),(-38.8807, 8.46341, -16.1225),(-62.1578, 8.46341, -32.8096),(-63.1481, 8.46341, -32.0669),(-38.8807, 8.46341, -16.1225),(-36.7622, 8.46341, -17.0322),(-48.9362, 8.46341, -34.3652),(-59.9364, 8.46341, -33.4344),(-36.7622, 8.46341, -17.0322),(-30.1361, 8.46341, -17.1797),(-39.2592, 8.46341, -34.7934),(-39.2592, 8.46341, -34.7934),(-48.9362, 8.46341, -34.3652),(-36.7622, 8.46341, -17.0322),(-30.1361, 8.46341, -17.1797),(-23.6557, 8.46341, -16.6135),(-32.039, 8.46341, -34.7934),(-32.039, 8.46341, -34.7934),(-39.2592, 8.46341, -34.7934),(-30.1361, 8.46341, -17.1797),(-23.6557, 8.46341, -16.6135),(-16.1094, 8.46341, -15.2414),(-22.2736, 8.46341, -34.0291),(-22.2736, 8.46341, -34.0291),(-32.039, 8.46341, -34.7934),(-23.6557, 8.46341, -16.6135),(-16.1094, 8.46341, -15.2414),(-7.65952, 8.46341, -13.129),(-11.8068, 8.46341, -32.2421),(-11.8068, 8.46341, -32.2421),(-22.2736, 8.46341, -34.0291),(-16.1094, 8.46341, -15.2414),(-7.65952, 8.46341, -13.129),(-0.342632, 8.46341, -10.6487),(-2.36138, 8.46341, -29.9446),(-2.36138, 8.46341, -29.9446),(-11.8068, 8.46341, -32.2421),(-7.65952, 8.46341, -13.129),(-0.342632, 8.46341, -10.6487),(5.22691, 8.46341, -8.55099),(6.199, 8.46341, -27.142),(6.199, 8.46341, -27.142),(-2.36138, 8.46341, -29.9446),(-0.342632, 8.46341, -10.6487),(5.22691, 8.46341, -8.55099),(12.1181, 8.46341, -5.75037),(15.0639, 8.46341, -23.1888),(15.0639, 8.46341, -23.1888),(6.199, 8.46341, -27.142),(5.22691, 8.46341, -8.55099),(12.1181, 8.46341, -5.75037),(18.5374, 8.46341, -2.26027),(24.5708, 8.46341, -17.8938),(24.5708, 8.46341, -17.8938),(15.0639, 8.46341, -23.1888),(12.1181, 8.46341, -5.75037),(25.6048, 8.46341, -3.53532),(28.3327, 8.46341, -8.75391),(24.5708, 8.46341, -17.8938),(24.5708, 8.46341, -17.8938),(18.5374, 8.46341, -2.26027),(25.6048, 8.46341, -3.53532),(18.5374, 8.46341, -2.26027),(22.9426, 8.46341, 0.329102),(25.6048, 8.46341, -3.53532),(28.3327, 8.46341, -8.75391),(30.6576, 8.46341, -13.8687),(24.5708, 8.46341, -17.8938),(13.4516, 8.46341, 48.7331),(7.09695, 8.46341, 31.7955),(1.36473, 8.46341, 36.1928),(1.36473, 8.46341, 36.1928),(8.33187, 8.46341, 51.8883),(13.4516, 8.46341, 48.7331),(18.2159, 8.46341, 45.279),(12.3292, 8.46341, 26.9992),(7.09695, 8.46341, 31.7955),(7.09695, 8.46341, 31.7955),(13.4516, 8.46341, 48.7331),(18.2159, 8.46341, 45.279),(23.7326, 8.46341, 40.6018),(17.1799, 8.46341, 22.0863),(12.3292, 8.46341, 26.9992),(12.3292, 8.46341, 26.9992),(18.2159, 8.46341, 45.279),(23.7326, 8.46341, 40.6018),(30.3574, 8.46341, 34.2781),(22.2073, 8.46341, 16.19),(17.1799, 8.46341, 22.0863),(17.1799, 8.46341, 22.0863),(23.7326, 8.46341, 40.6018),(30.3574, 8.46341, 34.2781),(36.3249, 8.46341, 27.7079),(28.6893, 8.46341, 7.77172),(22.2073, 8.46341, 16.19),(22.2073, 8.46341, 16.19),(30.3574, 8.46341, 34.2781),(36.3249, 8.46341, 27.7079),(40.5978, 8.46341, 22.5323),(32.306, 8.46341, 2.3027),(28.6893, 8.46341, 7.77172),(28.6893, 8.46341, 7.77172),(36.3249, 8.46341, 27.7079),(40.5978, 8.46341, 22.5323),(46.0952, 8.46341, 15.1017),(36.4125, 8.46341, -4.86197),(32.306, 8.46341, 2.3027),(32.306, 8.46341, 2.3027),(40.5978, 8.46341, 22.5323),(46.0952, 8.46341, 15.1017),(50.5572, 8.46341, 8.40144),(39.8285, 8.46341, -11.256),(36.4125, 8.46341, -4.86197),(36.4125, 8.46341, -4.86197),(46.0952, 8.46341, 15.1017),(50.5572, 8.46341, 8.40144),(54.1142, 8.46341, 2.36055),(42.7981, 8.46341, -17.8939),(39.8285, 8.46341, -11.256),(39.8285, 8.46341, -11.256),(50.5572, 8.46341, 8.40144),(54.1142, 8.46341, 2.36055),(57.2573, 8.46341, -3.32123),(45.7732, 8.46341, -24.7192),(42.7981, 8.46341, -17.8939),(42.7981, 8.46341, -17.8939),(54.1142, 8.46341, 2.36055),(57.2573, 8.46341, -3.32123),(59.9063, 8.46341, -8.61919),(48.2289, 8.46341, -31.9984),(45.7732, 8.46341, -24.7192),(45.7732, 8.46341, -24.7192),(57.2573, 8.46341, -3.32123),(59.9063, 8.46341, -8.61919),(63.5821, 8.46341, -16.8747),(49.6592, 8.46341, -36.695),(48.2289, 8.46341, -31.9984),(48.2289, 8.46341, -31.9984),(59.9063, 8.46341, -8.61919),(63.5821, 8.46341, -16.8747),(63.5821, 8.46341, -16.8747),(65.9799, 8.46341, -23.6486),(49.6592, 8.46341, -36.695),(65.9799, 8.46341, -23.6486),(68.0484, 8.46341, -30.768),(49.6592, 8.46341, -36.695)]
-		
-		faces=[(0,1,2),(3,4,5),(6,7,8),(9,10,11),(12,13,14),(15,16,17),(18,19,20),(21,22,23),(24,25,26),(27,28,29),(30,31,32),(33,34,35),(36,37,38),(39,40,41),(42,43,44),(45,46,47),(48,49,50),(51,52,53),(54,55,56),(57,58,59),(60,61,62),(63,64,65),(66,67,68),(69,70,71),(72,73,74),(75,76,77),(78,79,80),(81,82,83),(84,85,86),(87,88,89),(90,91,92),(93,94,95),(96,97,98),(99,100,101),(102,103,104),(105,106,107),(108,109,110),(111,112,113),(114,115,116),(117,118,119),(120,121,122),(123,124,125),(126,127,128),(129,130,131),(132,133,134),(135,136,137),(138,139,140),(141,142,143),(144,145,146),(147,148,149),(150,151,152),(153,154,155),(156,157,158),(159,160,161),(162,163,164),(165,166,167),(168,169,170),(171,172,173),(174,175,176),(177,178,179),(180,181,182),(183,184,185),(186,187,188),(189,190,191),(192,193,194),(195,196,197),(198,199,200),(201,202,203),(204,205,206),(207,208,209),(210,211,212),(213,214,215),(216,217,218),(219,220,221),(222,223,224),(225,226,227),(228,229,230),(231,232,233),(234,235,236),(237,238,239),(240,241,242),(243,244,245),(246,247,248),(249,250,251),(252,253,254),(255,256,257),(258,259,260),(261,262,263),(264,265,266),(267,268,269),(270,271,272),(273,274,275),(276,277,278),(279,280,281),(282,283,284),(285,286,287),(288,289,290),(291,292,293),(294,295,296),(297,298,299),(300,301,302),(303,304,305),(306,307,308),(309,310,311),(312,313,314),(315,316,317),(318,319,320),(321,322,323),(324,325,326),(327,328,329),(330,331,332),(333,334,335),(336,337,338),(339,340,341),(342,343,344),(345,346,347),(348,349,350),(351,352,353),(354,355,356),(357,358,359),(360,361,362),(363,364,365),(366,367,368),(369,370,371),(372,373,374),(375,376,377),(378,379,380),(381,382,383),(384,385,386),(387,388,389),(390,391,392),(393,394,395),(396,397,398),(399,400,401),(402,403,404),(405,406,407),(408,409,410),(411,412,413),(414,415,416),(417,418,419),(420,421,422),(423,424,425),(426,427,428),(429,430,431),(432,433,434),(435,436,437),(438,439,440),(441,442,443),(444,445,446),(447,448,449),(450,451,452),(453,454,455),(456,457,458),(459,460,461),(462,463,464),(465,466,467),(468,469,470),(471,472,473),(474,475,476),(477,478,479),(480,481,482),(483,484,485),(486,487,488),(489,490,491),(492,493,494),(495,496,497),(498,499,500),(501,502,503),(504,505,506),(507,508,509),(510,511,512),(513,514,515),(516,517,518),(519,520,521),(522,523,524),(525,526,527),(528,529,530),(531,532,533),(534,535,536),(537,538,539),(540,541,542),(543,544,545),(546,547,548),(549,550,551),(552,553,554),(555,556,557),(558,559,560),(561,562,563),(564,565,566),(567,568,569),(570,571,572),(573,574,575),(576,577,578),(579,580,581),(582,583,584),(585,586,587),(588,589,590),(591,592,593),(594,595,596),(597,598,599),(600,601,602),(603,604,605),(606,607,608),(609,610,611),(612,613,614),(615,616,617),(618,619,620),(621,622,623),(624,625,626),(627,628,629),(630,631,632),(633,634,635),(636,637,638),(639,640,641),(642,643,644),(645,646,647),(648,649,650),(651,652,653),(654,655,656),(657,658,659),(660,661,662),(663,664,665),(666,667,668),(669,670,671),(672,673,674),(675,676,677),(678,679,680),(681,682,683),(684,685,686),(687,688,689),(690,691,692),(693,694,695),(696,697,698),(699,700,701),(702,703,704),(705,706,707),(708,709,710),(711,712,713),(714,715,716),(717,718,719),(720,721,722),(723,724,725),(726,727,728),(729,730,731),(732,733,734),(735,736,737),(738,739,740),(741,742,743),(744,745,746),(747,748,749),(750,751,752),(753,754,755),(756,757,758),(759,760,761),(762,763,764),(765,766,767),(768,769,770),(771,772,773),(774,775,776),(777,778,779),(780,781,782),(783,784,785),(786,787,788),(789,790,791),(792,793,794),(795,796,797),(798,799,800),(801,802,803),(804,805,806),(807,808,809),(810,811,812),(813,814,815),(816,817,818),(819,820,821),(822,823,824),(825,826,827),(828,829,830),(831,832,833),(834,835,836),(837,838,839),(840,841,842),(843,844,845),(846,847,848),(849,850,851),(852,853,854),(855,856,857),(858,859,860),(861,862,863),(864,865,866),(867,868,869),(870,871,872),(873,874,875),(876,877,878),(879,880,881),(882,883,884),(885,886,887),(888,889,890),(891,892,893),(894,895,896),(897,898,899),(900,901,902),(903,904,905),(906,907,908),(909,910,911),(912,913,914),(915,916,917),(918,919,920),(921,922,923),(924,925,926),(927,928,929),(930,931,932),(933,934,935),(936,937,938),(939,940,941),(942,943,944),(945,946,947),(948,949,950),(951,952,953),(954,955,956),(957,958,959),(960,961,962),(963,964,965),(966,967,968),(969,970,971),(972,973,974),(975,976,977),(978,979,980),(981,982,983),(984,985,986),(987,988,989),(990,991,992),(993,994,995),(996,997,998),(999,1000,1001),(1002,1003,1004),(1005,1006,1007),(1008,1009,1010),(1011,1012,1013),(1014,1015,1016),(1017,1018,1019),(1020,1021,1022),(1023,1024,1025),(1026,1027,1028),(1029,1030,1031),(1032,1033,1034),(1035,1036,1037),(1038,1039,1040),(1041,1042,1043),(1044,1045,1046),(1047,1048,1049),(1050,1051,1052),(1053,1054,1055),(1056,1057,1058),(1059,1060,1061),(1062,1063,1064),(1065,1066,1067),(1068,1069,1070),(1071,1072,1073),(1074,1075,1076),(1077,1078,1079),(1080,1081,1082),(1083,1084,1085),(1086,1087,1088),(1089,1090,1091),(1092,1093,1094),(1095,1096,1097),(1098,1099,1100),(1101,1102,1103),(1104,1105,1106),(1107,1108,1109),(1110,1111,1112),(1113,1114,1115),(1116,1117,1118),(1119,1120,1121),(1122,1123,1124),(1125,1126,1127),(1128,1129,1130),(1131,1132,1133),(1134,1135,1136),(1137,1138,1139),(1140,1141,1142),(1143,1144,1145),(1146,1147,1148),(1149,1150,1151),(1152,1153,1154),(1155,1156,1157),(1158,1159,1160),(1161,1162,1163),(1164,1165,1166),(1167,1168,1169),(1170,1171,1172),(1173,1174,1175),(1176,1177,1178),(1179,1180,1181),(1182,1183,1184),(1185,1186,1187),(1188,1189,1190),(1191,1192,1193),(1194,1195,1196),(1197,1198,1199),(1200,1201,1202),(1203,1204,1205),(1206,1207,1208),(1209,1210,1211),(1212,1213,1214),(1215,1216,1217),(1218,1219,1220),(1221,1222,1223),(1224,1225,1226),(1227,1228,1229),(1230,1231,1232),(1233,1234,1235),(1236,1237,1238),(1239,1240,1241),(1242,1243,1244),(1245,1246,1247),(1248,1249,1250),(1251,1252,1253),(1254,1255,1256),(1257,1258,1259),(1260,1261,1262),(1263,1264,1265),(1266,1267,1268),(1269,1270,1271),(1272,1273,1274),(1275,1276,1277),(1278,1279,1280),(1281,1282,1283),(1284,1285,1286),(1287,1288,1289),(1290,1291,1292),(1293,1294,1295),(1296,1297,1298),(1299,1300,1301),(1302,1303,1304),(1305,1306,1307),(1308,1309,1310),(1311,1312,1313),(1314,1315,1316),(1317,1318,1319),(1320,1321,1322),(1323,1324,1325),(1326,1327,1328),(1329,1330,1331),(1332,1333,1334),(1335,1336,1337),(1338,1339,1340),(1341,1342,1343),(1344,1345,1346),(1347,1348,1349),(1350,1351,1352),(1353,1354,1355),(1356,1357,1358),(1359,1360,1361),(1362,1363,1364),(1365,1366,1367),(1368,1369,1370),(1371,1372,1373),(1374,1375,1376),(1377,1378,1379),(1380,1381,1382),(1383,1384,1385),(1386,1387,1388),(1389,1390,1391),(1392,1393,1394),(1395,1396,1397),(1398,1399,1400),(1401,1402,1403),(1404,1405,1406),(1407,1408,1409),(1410,1411,1412),(1413,1414,1415),(1416,1417,1418),(1419,1420,1421),(1422,1423,1424),(1425,1426,1427),(1428,1429,1430),(1431,1432,1433),(1434,1435,1436),(1437,1438,1439),(1440,1441,1442),(1443,1444,1445),(1446,1447,1448),(1449,1450,1451),(1452,1453,1454),(1455,1456,1457),(1458,1459,1460),(1461,1462,1463),(1464,1465,1466),(1467,1468,1469),(1470,1471,1472),(1473,1474,1475),(1476,1477,1478),(1479,1480,1481),(1482,1483,1484),(1485,1486,1487),(1488,1489,1490),(1491,1492,1493),(1494,1495,1496),(1497,1498,1499),(1500,1501,1502),(1503,1504,1505),(1506,1507,1508),(1509,1510,1511),(1512,1513,1514),(1515,1516,1517),(1518,1519,1520),(1521,1522,1523),(1524,1525,1526),(1527,1528,1529),(1530,1531,1532),(1533,1534,1535),(1536,1537,1538),(1539,1540,1541),(1542,1543,1544),(1545,1546,1547),(1548,1549,1550),(1551,1552,1553),(1554,1555,1556),(1557,1558,1559),(1560,1561,1562),(1563,1564,1565),(1566,1567,1568),(1569,1570,1571),(1572,1573,1574),(1575,1576,1577),(1578,1579,1580),(1581,1582,1583),(1584,1585,1586),(1587,1588,1589),(1590,1591,1592),(1593,1594,1595),(1596,1597,1598),(1599,1600,1601),(1602,1603,1604),(1605,1606,1607),(1608,1609,1610),(1611,1612,1613),(1614,1615,1616),(1617,1618,1619),(1620,1621,1622),(1623,1624,1625),(1626,1627,1628),(1629,1630,1631),(1632,1633,1634),(1635,1636,1637),(1638,1639,1640),(1641,1642,1643),(1644,1645,1646),(1647,1648,1649),(1650,1651,1652),(1653,1654,1655),(1656,1657,1658),(1659,1660,1661),(1662,1663,1664),(1665,1666,1667),(1668,1669,1670),(1671,1672,1673),(1674,1675,1676),(1677,1678,1679),(1680,1681,1682),(1683,1684,1685),(1686,1687,1688),(1689,1690,1691),(1692,1693,1694),(1695,1696,1697),(1698,1699,1700),(1701,1702,1703),(1704,1705,1706),(1707,1708,1709),(1710,1711,1712),(1713,1714,1715),(1716,1717,1718),(1719,1720,1721),(1722,1723,1724),(1725,1726,1727),(1728,1729,1730),(1731,1732,1733),(1734,1735,1736),(1737,1738,1739),(1740,1741,1742),(1743,1744,1745),(1746,1747,1748),(1749,1750,1751),(1752,1753,1754),(1755,1756,1757),(1758,1759,1760),(1761,1762,1763),(1764,1765,1766),(1767,1768,1769),(1770,1771,1772),(1773,1774,1775),(1776,1777,1778),(1779,1780,1781),(1782,1783,1784),(1785,1786,1787),(1788,1789,1790),(1791,1792,1793),(1794,1795,1796),(1797,1798,1799),(1800,1801,1802),(1803,1804,1805),(1806,1807,1808),(1809,1810,1811),(1812,1813,1814),(1815,1816,1817),(1818,1819,1820),(1821,1822,1823),(1824,1825,1826),(1827,1828,1829),(1830,1831,1832),(1833,1834,1835),(1836,1837,1838),(1839,1840,1841),(1842,1843,1844),(1845,1846,1847),(1848,1849,1850),(1851,1852,1853),(1854,1855,1856),(1857,1858,1859)]	
-		
-		# create a new mesh  
-		me = bpy.data.meshes.new("A3DLogo") 
-		
-		# create an object with that mesh
-		ob = bpy.data.objects.new("A3DLogo", me)   
-		
-		# position object at 3d-cursor
-		ob.location = bpy.context.scene.cursor_location   
-		
-		# Link object to scene
-		bpy.context.scene.objects.link(ob)  
+# CUSTOM MESHES/MENUS
+#==================================
 
-		# Fill the mesh with verts, edges, faces 
-		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
-		me.update(calc_edges=True)    # Update mesh with new data	
-		return {'FINISHED'}
-		
-class AddOccluder(bpy.types.Operator):
-	bl_idname = "a3dobj.a3d_occluder"
-	bl_label = "Add Occluder"
-	bl_options = {'REGISTER', 'UNDO'}
-		
-	def execute(self, context):
-		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
-		coords=[ (1, 1, -1), (1, -1, -1), (-1, -0.9999998, -1), (-0.9999997, 1, -1), (1, 0.9999995, 1), (0.9999994, -1.000001, 1), (-1, -0.9999997, 1), (-1, 1, 1) ]
-		faces=[ (0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (4, 0, 3, 7) ]
-		
-		# create a new mesh  
-		me = bpy.data.meshes.new("A3DOccluder") 
-		
-		# create an object with that mesh
-		ob = bpy.data.objects.new("A3DOccluder", me)  		
-		
-		# position object at 3d-cursor
-		ob.location = bpy.context.scene.cursor_location   
-		
-		# Link object to scene
-		bpy.context.scene.objects.link(ob)  
-		
-		# give custom property type
-		ob["a3dtype"] = "A3DOccluder"
+class A3d_submenu(bpy.types.Menu):
+	bl_idname = "A3d_submenu"
+	bl_label = "Alternativa3D"
 
-		# Fill the mesh with verts, edges, faces 
-		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
-		me.update(calc_edges=True)    # Update mesh with new data	
-		return {'FINISHED'}
-		
+	def draw(self, context):
+		layout = self.layout
+		layout.operator_context = 'INVOKE_REGION_WIN'
+		layout.operator("a3dobj.a3d_sprite3d", text="Sprite3D", icon='MESH_PLANE')
+		layout.separator()
+		layout.operator("a3dobj.a3d_ambientlight", text="AmbientLight", icon='OUTLINER_OB_LAMP')
+		layout.operator("a3dobj.a3d_directionallight", text="DirectionalLight", icon='OUTLINER_OB_LAMP')
+		layout.operator("a3dobj.a3d_omnilight", text="OmniLight", icon='OUTLINER_OB_LAMP')
+		layout.operator("a3dobj.a3d_spotlight", text="SpotLight", icon='OUTLINER_OB_LAMP')
+
 class AddSprite3D(bpy.types.Operator):
 	bl_idname = "a3dobj.a3d_sprite3d"
 	bl_label = "Add Sprite3D"
 	bl_options = {'REGISTER', 'UNDO'}
 		
 	def execute(self, context):
-		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
 		coords=[ (1, 1, 0), (1, -1, 0), (-1, -0.9999998, 0), (-0.9999997, 1, 0) ]
 		faces=[ (0, 3, 2, 1) ]
 		
-		# create a new mesh  
 		me = bpy.data.meshes.new("A3DSprite3D") 
-		
-		# create an object with that mesh
 		ob = bpy.data.objects.new("A3DSprite3D", me)  
 		
-		# position object at 3d-cursor
 		ob.location = bpy.context.scene.cursor_location   
-		
-		#rotate 90 degrees so plane is upright
 		ob.rotation_euler = (1.57079633,0,1) 
-		
-		# Link object to scene
 		bpy.context.scene.objects.link(ob)  
 		
-		# give custom property type
 		ob["a3dtype"] = "A3DSprite3D"
 
-		# Fill the mesh with verts, edges, faces 
-		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
-		me.update(calc_edges=True)    # Update mesh with new data	
+		me.from_pydata(coords,[],faces)
+		me.update(calc_edges=True)
 
-		#add material and texture
 		mat = bpy.data.materials.new("SpriteMaterial")
 		me.materials.append(mat)
 		texture = bpy.data.textures.new("diffuse", type='IMAGE')
@@ -7373,179 +6565,6 @@ class AddSprite3D(bpy.types.Operator):
 		mtex.texture_coords = 'UV'
 		mtex.use_map_color_diffuse = True
 		mtex.texture = texture
-
-		return {'FINISHED'}
-				
-class AddSkybox(bpy.types.Operator):
-	bl_idname = "a3dobj.a3d_skybox"
-	bl_label = "Add Skybox"
-	bl_options = {'REGISTER', 'UNDO'}
-		
-	def execute(self, context):
-		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
-		coords=[(1.000000,1.000000,-1.000000),(1.000000,-1.000000,-1.000000),(-1.000000,-1.000000,-1.000000),(-1.000000,1.000000,-1.000000),(1.000000,1.000000,1.000000),(0.999999,-1.000001,1.000000),(-1.000000,-1.000000,1.000000),(-1.000000,1.000000,1.000000)]
-		faces=[(0,3,2,1),(4,5,6,7),(0,1,5,4),(1,2,6,5),(2,3,7,6),(4,7,3,0)]
-		uvs=[(0.003059,0.000000),(1.000000,0.003059),(0.996942,1.000000),(0.000000,0.996941),(0.000000,0.003058),(0.996942,0.000000),(1.000000,0.996942),(0.003058,1.000000),(0.003058,0.000000),(1.000000,0.003059),(0.996942,1.000000),(0.000000,0.996942),(0.000000,0.003058),(0.996942,0.000000),(1.000000,0.996942),(0.003059,1.000000),(0.000000,0.003058),(0.996942,0.000000),(1.000000,0.996942),(0.003058,1.000000),(1.000000,0.996941),(0.003058,1.000000),(0.000000,0.003058),(0.996941,0.000000)]
-		
-		# create a new mesh  
-		me = bpy.data.meshes.new("A3DSkybox") 
-		
-		# create an object with that mesh
-		ob = bpy.data.objects.new("A3DSkybox", me)  
-				
-		# position object at 3d-cursor
-		ob.location = bpy.context.scene.cursor_location   
-		
-		# Link object to scene
-		bpy.context.scene.objects.link(ob) 
-
-		# give custom property type
-		ob["a3dtype"] = "A3DSkybox"		
-		
-		# set the skybox to active
-		bpy.context.scene.objects.active = ob
-		
-		# Fill the mesh with verts, edges, faces 
-		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
-		me.update(calc_edges=True)    # Update mesh with new data	
-		
-		#set uvs
-		if len(uvs) > 0:
-			uvlayer = me.uv_textures.new()
-			uv_faces = me.uv_layers[0].data
-			x=0
-			for vert in uv_faces:
-				vert.uv = uvs[x]
-				x=x+1
-		
-		# flip the normals as we want it inside the cube not outside
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.mesh.select_all(action='SELECT')
-		bpy.ops.mesh.flip_normals()
-		bpy.ops.mesh.select_all(action='DESELECT')
-		bpy.ops.object.mode_set(mode = 'OBJECT')
-		#bpy.ops.object.select_all(action='DESELECT')
-		
-		#add materials for each face
-		slot = bpy.ops.object.material_slot_add()
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.mesh.select_all(action='DESELECT')
-		bpy.ops.object.mode_set(mode = 'OBJECT')
-		for face in me.polygons:
-			face.select=False
-		me.polygons[0].select=True
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.object.material_slot_assign()
-		#Assign a material to the last slot 
-		matbottom = bpy.data.materials.new("Bottom")
-		ob.material_slots[ob.material_slots.__len__() - 1].material = matbottom
-		#slot.material = matbottom
-		#me.materials.append(matbottom)
-		#new texture
-		texture = bpy.data.textures.new("Bottom", type='IMAGE')
-		mtex = matbottom.texture_slots.add()
-		mtex.texture_coords = 'UV'
-		mtex.use_map_color_diffuse = True
-		mtex.texture = texture
-		
-		
-		slot = bpy.ops.object.material_slot_add()
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.mesh.select_all(action='DESELECT')
-		bpy.ops.object.mode_set(mode = 'OBJECT')
-		for face in me.polygons:
-			face.select=False
-		me.polygons[1].select=True
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.object.material_slot_assign()
-		mattop = bpy.data.materials.new("Top")
-		ob.material_slots[ob.material_slots.__len__() - 1].material = mattop
-		#me.materials.append(mattop)
-		texture = bpy.data.textures.new("Top", type='IMAGE')
-		mtex = mattop.texture_slots.add()
-		mtex.texture_coords = 'UV'
-		mtex.use_map_color_diffuse = True
-		mtex.texture = texture
-
-		slot = bpy.ops.object.material_slot_add()
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.mesh.select_all(action='DESELECT')
-		bpy.ops.object.mode_set(mode = 'OBJECT')
-		for face in me.polygons:
-			face.select=False
-		me.polygons[2].select=True
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.object.material_slot_assign()
-		matback = bpy.data.materials.new("Back")
-		ob.material_slots[ob.material_slots.__len__() - 1].material =  matback
-		#me.materials.append(matback)
-		texture = bpy.data.textures.new("Back", type='IMAGE')
-		mtex = matback.texture_slots.add()
-		mtex.texture_coords = 'UV'
-		mtex.use_map_color_diffuse = True
-		mtex.texture = texture
-
-		slot = bpy.ops.object.material_slot_add()
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.mesh.select_all(action='DESELECT')
-		bpy.ops.object.mode_set(mode = 'OBJECT')
-		for face in me.polygons:
-			face.select=False
-		me.polygons[3].select=True
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.object.material_slot_assign()
-		matleft = bpy.data.materials.new("Left")
-		ob.material_slots[ob.material_slots.__len__() - 1].material = matleft
-		#me.materials.append(matleft)
-		texture = bpy.data.textures.new("Left", type='IMAGE')
-		mtex = matleft.texture_slots.add()
-		mtex.texture_coords = 'UV'
-		mtex.use_map_color_diffuse = True
-		mtex.texture = texture
-		
-		slot = bpy.ops.object.material_slot_add()
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.mesh.select_all(action='DESELECT')
-		bpy.ops.object.mode_set(mode = 'OBJECT')
-		for face in me.polygons:
-			face.select=False
-		me.polygons[4].select=True
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.object.material_slot_assign()
-		matfront = bpy.data.materials.new("Front")
-		ob.material_slots[ob.material_slots.__len__() - 1].material = matfront
-		#me.materials.append(matfront)
-		texture = bpy.data.textures.new("Front", type='IMAGE')
-		mtex = matfront.texture_slots.add()
-		mtex.texture_coords = 'UV'
-		mtex.use_map_color_diffuse = True
-		mtex.texture = texture
-
-		slot = bpy.ops.object.material_slot_add()
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.mesh.select_all(action='DESELECT')
-		bpy.ops.object.mode_set(mode = 'OBJECT')
-		for face in me.polygons:
-			face.select=False
-		me.polygons[5].select=True
-		bpy.ops.object.mode_set(mode = 'EDIT')
-		bpy.ops.object.material_slot_assign()
-		matright = bpy.data.materials.new("Right")
-		ob.material_slots[ob.material_slots.__len__() - 1].material = matright
-		#me.materials.append(matright)
-		texture = bpy.data.textures.new("Right", type='IMAGE')
-		mtex = matright.texture_slots.add()
-		mtex.texture_coords = 'UV'
-		mtex.use_map_color_diffuse = True
-		mtex.texture = texture
-		
-		bpy.ops.mesh.select_all(action='DESELECT')
-		bpy.ops.mesh.select_all(action='SELECT')
-		bpy.ops.object.mode_set(mode = 'OBJECT')
-		
-		#add texture to each material
-		#set mapping to uv coords
-		
 		return {'FINISHED'}
 
 class AddAmbientLight(bpy.types.Operator):
@@ -7560,12 +6579,9 @@ class AddAmbientLight(bpy.types.Operator):
 		ob.location = bpy.context.scene.cursor_location
 		bpy.context.scene.objects.link(ob)
 	
-		# give custom property type
 		ob["a3dtype"] = "A3DAmbientLight"		
 		
-		# set the skybox to active
 		bpy.context.scene.objects.active = ob
-		
 		return {'FINISHED'}
 		
 class AddDirectionalLight(bpy.types.Operator):
@@ -7580,12 +6596,9 @@ class AddDirectionalLight(bpy.types.Operator):
 		ob.location = bpy.context.scene.cursor_location
 		bpy.context.scene.objects.link(ob)
 	
-		# give custom property type
 		ob["a3dtype"] = "A3DDirectionalLight"		
 		
-		# set the skybox to active
 		bpy.context.scene.objects.active = ob
-		
 		return {'FINISHED'}
 
 class AddOmniLight(bpy.types.Operator):
@@ -7600,12 +6613,9 @@ class AddOmniLight(bpy.types.Operator):
 		ob.location = bpy.context.scene.cursor_location
 		bpy.context.scene.objects.link(ob)
 	
-		# give custom property type
 		ob["a3dtype"] = "A3DOmniLight"		
 		
-		# set the skybox to active
 		bpy.context.scene.objects.active = ob
-		
 		return {'FINISHED'}
 
 class AddSpotLight(bpy.types.Operator):
@@ -7620,125 +6630,10 @@ class AddSpotLight(bpy.types.Operator):
 		ob.location = bpy.context.scene.cursor_location
 		bpy.context.scene.objects.link(ob)
 	
-		# give custom property type
 		ob["a3dtype"] = "A3DSpotLight"		
 		
-		# set the skybox to active
 		bpy.context.scene.objects.active = ob
-		
 		return {'FINISHED'}
-
-class AddPlane(bpy.types.Operator):
-	bl_idname = "a3dobj.a3d_plane"
-	bl_label = "Add Plane"
-	bl_options = {'REGISTER', 'UNDO'}
-		
-	def execute(self, context):
-		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
-		coords=[ (1, 0, 1), (-1, 0, 1), (1, 0, -1), (-1, 0, -1) ]
-		faces=[ (2,1,3,4) ]
-		
-		# create a new mesh  
-		me = bpy.data.meshes.new("A3DPlane") 
-		
-		# create an object with that mesh
-		ob = bpy.data.objects.new("A3DPlane", me)  
-		
-		# position object at 3d-cursor
-		ob.location = bpy.context.scene.cursor_location   
-		
-		#rotate 90 degrees so plane is upright
-		ob.rotation_euler = (1.57079633,0,1) 
-		
-		# Link object to scene
-		bpy.context.scene.objects.link(ob)  
-		
-		# give custom property type
-		ob["a3dtype"] = "A3DPlane"
-
-		# Fill the mesh with verts, edges, faces 
-		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
-		me.update(calc_edges=True)    # Update mesh with new data	
-		return {'FINISHED'}		
-		
-class AddLOD(bpy.types.Operator):
-	bl_idname = "a3dobj.a3d_lod"
-	bl_label = "Add LOD"
-	bl_options = {'REGISTER', 'UNDO'}
-		
-	def execute(self, context):
-		bpy.ops.object.add(type='EMPTY')
-		empty = bpy.context.object
-		
-		empty.name = "A3DLOD"	
-
-		#set draw type
-		empty.empty_draw_type = 'CUBE'
-
-		# give custom property type
-		empty["a3dtype"] = "A3DLOD"
-		
-		# position object at 3d-cursor
-		empty.location = bpy.context.scene.cursor_location   
-				
-		return {'FINISHED'}		
-		
-class AddBox(bpy.types.Operator):
-	bl_idname = "a3dobj.a3d_box"
-	bl_label = "Add Box"
-	bl_options = {'REGISTER', 'UNDO'}
-		
-	def execute(self, context):
-		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
-		coords=[ (1, 1, -1), (1, -1, -1), (-1, -0.9999998, -1), (-0.9999997, 1, -1), (1, 0.9999995, 1), (0.9999994, -1.000001, 1), (-1, -0.9999997, 1), (-1, 1, 1) ]
-		faces=[ (0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (4, 0, 3, 7) ]
-		
-		# create a new mesh  
-		me = bpy.data.meshes.new("A3DBox") 
-		
-		# create an object with that mesh
-		ob = bpy.data.objects.new("A3DBox", me)  
-		
-		# position object at 3d-cursor
-		ob.location = bpy.context.scene.cursor_location   
-		
-		#rotate 90 degrees so plane is upright
-		ob.rotation_euler = (1.57079633,0,1) 
-		
-		# Link object to scene
-		bpy.context.scene.objects.link(ob)  
-		
-		# give custom property type
-		ob["a3dtype"] = "A3DBox"
-
-		# Fill the mesh with verts, edges, faces 
-		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
-		me.update(calc_edges=True)    # Update mesh with new data	
-		return {'FINISHED'}		
-		
-# note to self
-# blender info on custom properties
-# http://wiki.blender.org/index.php/Doc:2.5/Manual/Extensions/Python/Properties
-
-class A3d_submenu(bpy.types.Menu):
-	bl_idname = "A3d_submenu"
-	bl_label = "Alternativa3D"
-
-	def draw(self, context):
-		layout = self.layout
-		layout.operator_context = 'INVOKE_REGION_WIN'
-		layout.operator("a3dobj.a3d_logo", text="A3D Logo", icon='MESH_TORUS')
-		#layout.operator("a3dobj.a3d_plane", text="Plane", icon='MESH_PLANE')
-		#layout.operator("a3dobj.a3d_box", text="Box", icon='MESH_CUBE')
-		layout.operator("a3dobj.a3d_sprite3d", text="Sprite3D", icon='MESH_PLANE')
-		#layout.operator("a3dobj.a3d_skybox", text="Skybox", icon='MESH_CUBE')
-		#layout.operator("a3dobj.a3d_occluder", text="Occluder", icon='MESH_CUBE')
-		#layout.operator("a3dobj.a3d_lod", text="LOD", icon='MESH_CUBE')
-		layout.separator()
-		layout.operator("a3dobj.a3d_ambientlight", text="AmbientLight", icon='OUTLINER_OB_LAMP')
-		layout.operator("a3dobj.a3d_directionallight", text="DirectionalLight", icon='OUTLINER_OB_LAMP')
-		layout.operator("a3dobj.a3d_omnilight", text="OmniLight", icon='OUTLINER_OB_LAMP')
-		layout.operator("a3dobj.a3d_spotlight", text="SpotLight", icon='OUTLINER_OB_LAMP')
 		
 #==================================
 # REGISTRATION
