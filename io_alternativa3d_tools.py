@@ -1,4 +1,4 @@
-﻿bl_info = {
+bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
 	'version': (1, 1, 6),
