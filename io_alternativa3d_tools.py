@@ -1721,17 +1721,17 @@ def A3DExport2(file,Config):
 					
 					distances = []
 					lodobjects = []
-					for obj in obj.children:
-						print(obj.name)
-						if "a3ddistance" in obj:
-							me = obj.data
+					for childobj in obj.children:
+						print(childobj.name)
+						if "a3ddistance" in childobj:
+							me = childobj.data
 							
-							ConvertQuadsToTris(obj)
+							#ConvertQuadsToTris(childobj)
 							
-							a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
+							a3dmesh = createMesh(Config,childobj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
 							
 							lodobjects.append(a3dmesh._id)
-							distances.append(int(obj["a3ddistance"]))
+							distances.append(int(childobj["a3ddistance"]))
 						
 					if Config.ExportBoundBoxes == 1:
 						a3dbox = A3D2Box(Config)
@@ -1761,13 +1761,15 @@ def A3DExport2(file,Config):
 					if Config.ExportBoundBoxes == 1:
 						a3dlod._boundBoxId = a3dbox._id
 					a3dlod._distances = distances
-					a3dlod._id = len(lods)
+					#a3dlod._id = len(lods)
+					a3dlod._id = len(mesh_objects)
 					a3dlod._name = a3dstr
 					a3dlod._objects = lodobjects
 					#a3dlod._parentId = None
 					#a3dlod._transform = a3dtrans
 					a3dlod._visible = 1
 					lods.append(a3dlod)
+					mesh_objects.append(a3dlod)
 			
 	if len(objs_lights) > 0:
 		print("Exporting lights...\n")
@@ -6932,15 +6934,15 @@ class A3D2LOD:
 		else:
 			self._optmask = self._optmask + str(1)
 		
+		print("distances")
 		print(self._distances)
 		#distances
 		arr = A3DArray()
 		arr.write(file,len(self._distances))
 		for distance in self._distances:
-			file.write(pack(">Q",int(distance)))
+			file.write(pack(">f",distance)) #8byte float
 		
 		file.write(pack(">Q",self._id))
-		#file.write(pack(">L",self._id))
 		
 		#string
 		if self._name is not None:
@@ -6950,11 +6952,12 @@ class A3D2LOD:
 			self._optmask = self._optmask + str(1)
 				
 		#objects
+		print("objects")
 		print(self._objects)
 		arr = A3DArray()
 		arr.write(file,len(self._objects))
 		for obid in self._objects:
-			file.write(pack(">L",obid))
+			file.write(pack(">Q",obid))
 		
 		#parentid
 		if self._parentId is not None:
@@ -6970,7 +6973,6 @@ class A3D2LOD:
 		else:
 			self._optmask = self._optmask + str(1)
 		
-		print(self._visible)
 		file.write(pack("B",self._visible))
 		
 class A3D2Surface:
