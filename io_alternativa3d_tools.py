@@ -1598,6 +1598,11 @@ def A3DExport2(file,Config):
 	#for ids
 	mesh_objects = []
 	
+	linkedimgdata = {}
+	linkedimg = False
+	linkeddata = {}
+	linkedmesh = False
+	
 	#a3d custom objs
 	if len(objs_a3ditems) > 0:
 		for obj in objs_a3ditems:
@@ -1714,16 +1719,19 @@ def A3DExport2(file,Config):
 				print('A3DLOD Found')
 				if Config.A3DVersionSystem <= 2:
 					
-					dummydistance = 300
 					distances = []
-					objects = []
+					lodobjects = []
 					for obj in obj.children:
-						me = obj.data
-						print(me.name)
-						#create mesh here and add id to the array						
-						#objects.append() #objids
-						distances.append(dummydistance)
-						dummydistance = dummydistance + 200
+						print(obj.name)
+						if "a3ddistance" in obj:
+							me = obj.data
+							
+							ConvertQuadsToTris(obj)
+							
+							a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
+							
+							lodobjects.append(a3dmesh._id)
+							distances.append(int(obj["a3ddistance"]))
 						
 					if Config.ExportBoundBoxes == 1:
 						a3dbox = A3D2Box(Config)
@@ -1751,13 +1759,13 @@ def A3DExport2(file,Config):
 				
 					a3dlod = A3D2LOD(Config)
 					if Config.ExportBoundBoxes == 1:
-						a3dlod._boundBoxId = a3dbox
+						a3dlod._boundBoxId = a3dbox._id
 					a3dlod._distances = distances
 					a3dlod._id = len(lods)
 					a3dlod._name = a3dstr
-					a3dlod._objects = objects
+					a3dlod._objects = lodobjects
 					#a3dlod._parentId = None
-					a3dlod._transform = a3dtrans
+					#a3dlod._transform = a3dtrans
 					a3dlod._visible = 1
 					lods.append(a3dlod)
 			
@@ -1929,325 +1937,22 @@ def A3DExport2(file,Config):
 	if len(objs_mesh) > 0:
 		print("Exporting meshes...\n")
 		#loop over every mesh and populate data
-		linkedimgdata = {}
-		linkedimg = False
-		linkeddata = {}
-		linkedmesh = False
 		for obj in objs_mesh:
 			#convert to triangles
 			ConvertQuadsToTris(obj)
-		
-			#data
-			mesh = obj.data
 			
-			if mesh.users > 1:
-				print('this has is used for other objs aka linked copy')
-				#linked mesh uses same name e.g "Cube"
-				if mesh.name in linkeddata:
-					#user already exists, retrieve ids
-					ibufid = linkeddata[mesh.name][0]
-					vbufids = linkeddata[mesh.name][1]
-					#set to true so we don't add buffers with data we don't need
-					linkedmesh=True
-				else:
-					#user doesn't exist yet
-					ibufid = len(indexBuffers)
-					vbufids = [len(vertexBuffers)]
-					#assign for other users
-					linkeddata[mesh.name] = [ibufid,vbufids]
-					linkedmesh=False
-			else:
-				print("single user mesh")
-				linkedmesh=False
-				ibufid = len(indexBuffers)
-				vbufids = [len(vertexBuffers)]
-			
-			#get raw geometry data
-			if checkBMesh() == True:
-				vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
-			else:
-				vs,uvt,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
-			#get surface data
-			start,end,mts,mats = collectSurfaces(mesh)
-			
-			#create parent object
-			if Config.ExportParentObj == 1:
-				a3dstr2 = A3DString()
-				a3dstr2.name = "obj_"+cleanupString(obj.data.name)
-				
-				#create transform/matrix
-				wtrns = getObjWorldTransform(obj)
-				a3dtrans = A3DTransform(Config)
-				a3dtrans._matrix.a = wtrns[0]
-				a3dtrans._matrix.b = wtrns[1]
-				a3dtrans._matrix.c = wtrns[2]
-				a3dtrans._matrix.d = wtrns[3]
-				a3dtrans._matrix.e = wtrns[4]
-				a3dtrans._matrix.f = wtrns[5]
-				a3dtrans._matrix.g = wtrns[6]
-				a3dtrans._matrix.h = wtrns[7]
-				a3dtrans._matrix.i = wtrns[8]
-				a3dtrans._matrix.j = wtrns[9]
-				a3dtrans._matrix.k = wtrns[10]
-				a3dtrans._matrix.l = wtrns[11]
-			
-				a3dobj = A3D2Object(Config)
-				#a3dobj._boundBoxId = 0
-				a3dobj._id = len(mesh_objects)
-				a3dobj._name = a3dstr2
-				#a3dobj._parentId = 0
-				a3dobj._transform = a3dtrans
-				a3dobj._visible = 1
-				objects.append(a3dobj)
-				mesh_objects.append(a3dobj)
-					
-			
-			if Config.ExportBoundBoxes == 1:
-				#create mesh boundbox
-				a3dbox = A3D2Box(Config)
-				a3dbox._box = bb
-				a3dbox._id = len(boxes)
-				boxes.append(a3dbox)
-			
-			#create indexbuffer
-			if linkedmesh == False:
-				a3dibuf = A3D2IndexBuffer(Config)
-				for x in range(len(ins)):
-					a3dibuf._byteBuffer.append(ins[x])
-				#a3dibuf._id = len(indexBuffers)
-				a3dibuf._id = ibufid
-				a3dibuf._indexCount = len(a3dibuf._byteBuffer)
-				indexBuffers.append(a3dibuf)
-			
-			#notes to self -taken from obj exporter
-			#for mtex in reversed(mat.texture_slots):
-			#        if mtex and mtex.texture.type == 'IMAGE':
-			#            image = mtex.texture.image
-			#            if image:
-			# texface overrides others
-			#if mtex.use_map_color_diffuse and face_img is None:
-			#	image_map["map_Kd"] = image
-			#if mtex.use_map_ambient:
-			#	image_map["map_Ka"] = image
-			#if mtex.use_map_specular:
-			#	image_map["map_Ks"] = image
-			#if mtex.use_map_alpha:
-			#	image_map["map_d"] = image
-			#if mtex.use_map_translucency:
-			#	image_map["map_Tr"] = image
-			#if mtex.use_map_normal:
-			#	image_map["map_Bump"] = image
-			#if mtex.use_map_hardness:
-			#	image_map["map_Ns"] = image
-			
-			mesh_surfaces = []
-			
-			# NOTE TO SELF
-			# Each Surface has a material/blender material
-			# a material can then have the various textures diffuse, spec, norm etc
-			
-			
-			#set surfaces
-			if len(mts) > 0:
-				for x in range(len(mts)):
-					print("mts[x]="+str(mts[x]))
-					print("mat="+str(GetMaterialTexture(mats[x])))
-					
-					difmap = int("ffffffff",16)
-					glossmap = int("ffffffff",16)
-					lighmap = int("ffffffff",16)
-					normmap = int("ffffffff",16)
-					opacmap = int("ffffffff",16)
-					specmap = int("ffffffff",16)
-					reflmap = int("ffffffff",16)
-					
-					for tex in mats[x].texture_slots:
-						if (tex is not None) and (tex.texture.type == "IMAGE"):
-							name=tex.name.lower()
-							
-							print(tex.texture.image.filepath)
-							
-							if tex.texture.image.filepath in linkedimgdata:
-								#user already exists, retrieve ids
-								imgid = linkedimgdata[tex.texture.image.filepath][0]
-								#set to true so we don't add buffers with data we don't need
-								linkedimg=True
-							else:
-								#user doesn't exist yet
-								imgid = len(images)
-								#assign for other users
-								linkedimgdata[tex.texture.image.filepath] = [imgid]
-								linkedimg = False
-	
-							#create image
-							if linkedimg == False:
-								a3dstr = A3DString()
-								a3dstr.name = os.path.basename(tex.texture.image.filepath)
-								
-								a3dimg = A3D2Image(Config)
-								a3dimg._id = imgid
-								a3dimg._url = a3dstr
-								images.append(a3dimg)
-							
-							a3dmap = A3D2Map(Config)
-							a3dmap._channel = 0
-							a3dmap._id = len(maps)
-							a3dmap._imageId = imgid
-							maps.append(a3dmap)
-							
-							if name == 'diffuse':
-								difmap = a3dmap._id
-							elif name == 'normal':
-								normmap = a3dmap._id
-							elif name == 'specular':
-								specmap = a3dmap._id
-							elif name == 'opacity':
-								opacmap = a3dmap._id
-							elif name == 'glossiness':
-								glossmap = a3dmap._id
-							elif name == 'light':
-								lighmap = a3dmap._id
-							elif name == 'reflection':
-								reflmap = a3dmap._id
-							else:
-								#just write as diffuse if no matches
-								difmap = a3dmap._id
-					
-					#matname = GetMaterialTexture(mats[x])
-					#if matname is not None:
-					#	#create images
-					#	a3dstr = A3DString()
-					#	a3dstr.name = matname
-					#	a3dimg = A3D2Image(Config)
-					#	a3dimg._id = len(images)
-					#	a3dimg._url = a3dstr
-					#	images.append(a3dimg)
-					#	#create maps
-					#	a3dmap = A3D2Map(Config)
-					#	a3dmap._channel = 0
-					#	a3dmap._id = len(maps)
-					#	a3dmap._imageId = a3dimg._id
-					#	maps.append(a3dmap)
-					
-					#create material
-					a3dmat = A3D2Material(Config)
-					#if matname is not None:
-					#	a3dmat._diffuseMapId = a3dmap._id
-					#else:
-					#	a3dmat._diffuseMapId = int("ffffffff",16)
-					a3dmat._diffuseMapId = difmap
-					a3dmat._glossinessMapId = glossmap
-					a3dmat._id = len(materials)
-					a3dmat._lightMapId = lighmap
-					a3dmat._normalMapId = normmap
-					a3dmat._opacityMapId = opacmap
-					a3dmat._reflectionCubeMapId = reflmap
-					a3dmat._specularMapId = specmap
-					materials.append(a3dmat)
-					
-					#create surface
-					a3dsurf = A3D2Surface(Config)
-					a3dsurf._indexBegin = int(start[x])
-					#a3dsurf._materialId = int("ffffffff",16)
-					a3dsurf._materialId = a3dmat._id
-					a3dsurf._numTriangles = int(end[x])
-					mesh_surfaces.append(a3dsurf)
-			else:
-				#surface for all faces
-				a3dsurf = A3D2Surface(Config)
-				a3dsurf._indexBegin = 0
-				#a3dsurf._materialId = int("ffffffff",16)
-				#a3dsurf._materialId = 0
-				a3dsurf._numTriangles = int(len(ins)/3)
-				mesh_surfaces.append(a3dsurf)
-			
-			#create transform/matrix
-			a3dtrans = A3DTransform(Config)
-			a3dtrans._matrix.a = trns[0]
-			a3dtrans._matrix.b = trns[1]
-			a3dtrans._matrix.c = trns[2]
-			a3dtrans._matrix.d = trns[3]
-			a3dtrans._matrix.e = trns[4]
-			a3dtrans._matrix.f = trns[5]
-			a3dtrans._matrix.g = trns[6]
-			a3dtrans._matrix.h = trns[7]
-			a3dtrans._matrix.i = trns[8]
-			a3dtrans._matrix.j = trns[9]
-			a3dtrans._matrix.k = trns[10]
-			a3dtrans._matrix.l = trns[11]
-			
-			#name
-			a3dstr = A3DString()
-			a3dstr.name = cleanupString(obj.data.name)
-			
-			#create mesh
-			a3dmesh = A3D2Mesh(Config)
-			
-			if Config.ExportBoundBoxes == 1:
-				a3dmesh._boundBoxId = a3dbox._id
-				
-			a3dmesh._id = len(mesh_objects)
-			#a3dmesh._indexBufferId = a3dibuf._id
-			a3dmesh._indexBufferId = ibufid
-			a3dmesh._name = a3dstr
-			if Config.ExportParentObj == 1:
-				a3dmesh._parentId = a3dobj._id
-			a3dmesh._surfaces = mesh_surfaces
-			a3dmesh._transform = a3dtrans
-			#a3dmesh._vertexBuffers = [len(vertexBuffers)] #vertex buffer ids
-			a3dmesh._vertexBuffers = vbufids #vertex buffer ids
-			a3dmesh._visible = 1
-			if obj.hide == True:
-				a3dmesh._visible = 0
-			else:
-				a3dmesh._visible = 1
-			meshes.append(a3dmesh)
-			mesh_objects.append(a3dmesh)
-			
-			if linkedmesh == False:
-				#create vertexbuffer
-				a3dvbuf = A3D2VertexBuffer(Config)
-				#POSITION = 0, NORMAL = 1, TANGENT4 = 2, JOINT = 3,TEXCOORD = 4
-				attar = []
-				if len(vs) > 0:
-					attar.append(0)
-				if (len(uvt) > 0) and (Config.ExportUV == 1):
-					attar.append(4)
-				if (len(nr) > 0) and (Config.ExportNormals == 1):
-					attar.append(1)
-				if (len(tan) > 0) and (Config.ExportTangents == 1):
-					attar.append(2)
-				#if len(jnt) > 0:
-				#	attar.append(3)
-				
-				a3dvbuf._attributes = attar
-				j=0
-				for v in vs:
-					if 0 in attar:
-						a3dvbuf._byteBuffer.append(v[0]) #vert1
-						a3dvbuf._byteBuffer.append(v[1]) #vert2
-						a3dvbuf._byteBuffer.append(v[2]) #vert3
-					if 4 in attar and (Config.ExportUV == 1):
-						a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
-						a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
-					if 1 in attar and (Config.ExportNormals == 1):
-						a3dvbuf._byteBuffer.append(nr[j][0]) #normal1
-						a3dvbuf._byteBuffer.append(nr[j][1]) #normal2
-						a3dvbuf._byteBuffer.append(nr[j][2]) #normal3
-					if 2 in attar and (Config.ExportTangents == 1):
-						a3dvbuf._byteBuffer.append(tan[j][0]) #tan1
-						a3dvbuf._byteBuffer.append(tan[j][1]) #tan2
-						a3dvbuf._byteBuffer.append(tan[j][2]) #tan3
-						a3dvbuf._byteBuffer.append(-1) #tan4 - static input handedness
-					j = j +1
-				a3dvbuf._id = len(vertexBuffers)
-				#a3dvbuf._vertexCount = int(len(ins))
-				#a3dvbuf._vertexCount = int(len(vs) * 3) 
-				a3dvbuf._vertexCount = int(len(vs)) #this works for cube
-				#a3dvbuf._vertexCount = int(len(ins)) 
-				#a3dvbuf._vertexCount = 24
-				vertexBuffers.append(a3dvbuf)
-				print("vs="+str(len(vs)))
+			#create the mesh if parent isn't lod
+			#hasparentlod = False
+			#if obj.parent != None:
+			#	parentobj = obj.parent
+			#	if "a3dtype" in parentobj:
+			#		if parentobj["a3dtype"] == 'A3DLOD':
+			#			hasparentlod = True
+			#			
+			#if hasparentlod == 0:
+			#	a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
+			#else:
+			#	print("didn't write mesh as parent is lod")
 		
 	if Config.A3DVersionSystem <= 3:
 		print("Exporting layers...\n")
@@ -2318,6 +2023,318 @@ def A3DExport2(file,Config):
 	
 	print('Export Completed...\n')
 
+def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers):
+	mesh = obj.data
+	if mesh.users > 1:
+		print('this has is used for other objs aka linked copy')
+		#linked mesh uses same name e.g "Cube"
+		if mesh.name in linkeddata:
+			#user already exists, retrieve ids
+			ibufid = linkeddata[mesh.name][0]
+			vbufids = linkeddata[mesh.name][1]
+			#set to true so we don't add buffers with data we don't need
+			linkedmesh=True
+		else:
+			#user doesn't exist yet
+			ibufid = len(indexBuffers)
+			vbufids = [len(vertexBuffers)]
+			#assign for other users
+			linkeddata[mesh.name] = [ibufid,vbufids]
+			linkedmesh=False
+	else:
+		print("single user mesh")
+		linkedmesh=False
+		ibufid = len(indexBuffers)
+		vbufids = [len(vertexBuffers)]
+	
+	#get raw geometry data
+	if checkBMesh() == True:
+		vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+	else:
+		vs,uvt,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+	#get surface data
+	start,end,mts,mats = collectSurfaces(mesh)
+	
+	#create parent object
+	if Config.ExportParentObj == 1:
+		a3dstr2 = A3DString()
+		a3dstr2.name = "obj_"+cleanupString(obj.data.name)
+		
+		#create transform/matrix
+		wtrns = getObjWorldTransform(obj)
+		a3dtrans = A3DTransform(Config)
+		a3dtrans._matrix.a = wtrns[0]
+		a3dtrans._matrix.b = wtrns[1]
+		a3dtrans._matrix.c = wtrns[2]
+		a3dtrans._matrix.d = wtrns[3]
+		a3dtrans._matrix.e = wtrns[4]
+		a3dtrans._matrix.f = wtrns[5]
+		a3dtrans._matrix.g = wtrns[6]
+		a3dtrans._matrix.h = wtrns[7]
+		a3dtrans._matrix.i = wtrns[8]
+		a3dtrans._matrix.j = wtrns[9]
+		a3dtrans._matrix.k = wtrns[10]
+		a3dtrans._matrix.l = wtrns[11]
+	
+		a3dobj = A3D2Object(Config)
+		#a3dobj._boundBoxId = 0
+		a3dobj._id = len(mesh_objects)
+		a3dobj._name = a3dstr2
+		#a3dobj._parentId = 0
+		a3dobj._transform = a3dtrans
+		a3dobj._visible = 1
+		objects.append(a3dobj)
+		mesh_objects.append(a3dobj)
+			
+	
+	if Config.ExportBoundBoxes == 1:
+		#create mesh boundbox
+		a3dbox = A3D2Box(Config)
+		a3dbox._box = bb
+		a3dbox._id = len(boxes)
+		boxes.append(a3dbox)
+	
+	#create indexbuffer
+	if linkedmesh == False:
+		a3dibuf = A3D2IndexBuffer(Config)
+		for x in range(len(ins)):
+			a3dibuf._byteBuffer.append(ins[x])
+		#a3dibuf._id = len(indexBuffers)
+		a3dibuf._id = ibufid
+		a3dibuf._indexCount = len(a3dibuf._byteBuffer)
+		indexBuffers.append(a3dibuf)
+	
+	#notes to self -taken from obj exporter
+	#for mtex in reversed(mat.texture_slots):
+	#        if mtex and mtex.texture.type == 'IMAGE':
+	#            image = mtex.texture.image
+	#            if image:
+	# texface overrides others
+	#if mtex.use_map_color_diffuse and face_img is None:
+	#	image_map["map_Kd"] = image
+	#if mtex.use_map_ambient:
+	#	image_map["map_Ka"] = image
+	#if mtex.use_map_specular:
+	#	image_map["map_Ks"] = image
+	#if mtex.use_map_alpha:
+	#	image_map["map_d"] = image
+	#if mtex.use_map_translucency:
+	#	image_map["map_Tr"] = image
+	#if mtex.use_map_normal:
+	#	image_map["map_Bump"] = image
+	#if mtex.use_map_hardness:
+	#	image_map["map_Ns"] = image
+	
+	mesh_surfaces = []
+	
+	# NOTE TO SELF
+	# Each Surface has a material/blender material
+	# a material can then have the various textures diffuse, spec, norm etc
+	
+	
+	#set surfaces
+	if len(mts) > 0:
+		for x in range(len(mts)):
+			print("mts[x]="+str(mts[x]))
+			print("mat="+str(GetMaterialTexture(mats[x])))
+			
+			difmap = int("ffffffff",16)
+			glossmap = int("ffffffff",16)
+			lighmap = int("ffffffff",16)
+			normmap = int("ffffffff",16)
+			opacmap = int("ffffffff",16)
+			specmap = int("ffffffff",16)
+			reflmap = int("ffffffff",16)
+			
+			for tex in mats[x].texture_slots:
+				if (tex is not None) and (tex.texture.type == "IMAGE"):
+					name=tex.name.lower()
+					
+					print(tex.texture.image.filepath)
+					
+					if tex.texture.image.filepath in linkedimgdata:
+						#user already exists, retrieve ids
+						imgid = linkedimgdata[tex.texture.image.filepath][0]
+						#set to true so we don't add buffers with data we don't need
+						linkedimg=True
+					else:
+						#user doesn't exist yet
+						imgid = len(images)
+						#assign for other users
+						linkedimgdata[tex.texture.image.filepath] = [imgid]
+						linkedimg = False
+
+					#create image
+					if linkedimg == False:
+						a3dstr = A3DString()
+						a3dstr.name = os.path.basename(tex.texture.image.filepath)
+						
+						a3dimg = A3D2Image(Config)
+						a3dimg._id = imgid
+						a3dimg._url = a3dstr
+						images.append(a3dimg)
+					
+					a3dmap = A3D2Map(Config)
+					a3dmap._channel = 0
+					a3dmap._id = len(maps)
+					a3dmap._imageId = imgid
+					maps.append(a3dmap)
+					
+					if name == 'diffuse':
+						difmap = a3dmap._id
+					elif name == 'normal':
+						normmap = a3dmap._id
+					elif name == 'specular':
+						specmap = a3dmap._id
+					elif name == 'opacity':
+						opacmap = a3dmap._id
+					elif name == 'glossiness':
+						glossmap = a3dmap._id
+					elif name == 'light':
+						lighmap = a3dmap._id
+					elif name == 'reflection':
+						reflmap = a3dmap._id
+					else:
+						#just write as diffuse if no matches
+						difmap = a3dmap._id
+			
+			#matname = GetMaterialTexture(mats[x])
+			#if matname is not None:
+			#	#create images
+			#	a3dstr = A3DString()
+			#	a3dstr.name = matname
+			#	a3dimg = A3D2Image(Config)
+			#	a3dimg._id = len(images)
+			#	a3dimg._url = a3dstr
+			#	images.append(a3dimg)
+			#	#create maps
+			#	a3dmap = A3D2Map(Config)
+			#	a3dmap._channel = 0
+			#	a3dmap._id = len(maps)
+			#	a3dmap._imageId = a3dimg._id
+			#	maps.append(a3dmap)
+			
+			#create material
+			a3dmat = A3D2Material(Config)
+			#if matname is not None:
+			#	a3dmat._diffuseMapId = a3dmap._id
+			#else:
+			#	a3dmat._diffuseMapId = int("ffffffff",16)
+			a3dmat._diffuseMapId = difmap
+			a3dmat._glossinessMapId = glossmap
+			a3dmat._id = len(materials)
+			a3dmat._lightMapId = lighmap
+			a3dmat._normalMapId = normmap
+			a3dmat._opacityMapId = opacmap
+			a3dmat._reflectionCubeMapId = reflmap
+			a3dmat._specularMapId = specmap
+			materials.append(a3dmat)
+			
+			#create surface
+			a3dsurf = A3D2Surface(Config)
+			a3dsurf._indexBegin = int(start[x])
+			#a3dsurf._materialId = int("ffffffff",16)
+			a3dsurf._materialId = a3dmat._id
+			a3dsurf._numTriangles = int(end[x])
+			mesh_surfaces.append(a3dsurf)
+	else:
+		#surface for all faces
+		a3dsurf = A3D2Surface(Config)
+		a3dsurf._indexBegin = 0
+		#a3dsurf._materialId = int("ffffffff",16)
+		#a3dsurf._materialId = 0
+		a3dsurf._numTriangles = int(len(ins)/3)
+		mesh_surfaces.append(a3dsurf)
+	
+	#create transform/matrix
+	a3dtrans = A3DTransform(Config)
+	a3dtrans._matrix.a = trns[0]
+	a3dtrans._matrix.b = trns[1]
+	a3dtrans._matrix.c = trns[2]
+	a3dtrans._matrix.d = trns[3]
+	a3dtrans._matrix.e = trns[4]
+	a3dtrans._matrix.f = trns[5]
+	a3dtrans._matrix.g = trns[6]
+	a3dtrans._matrix.h = trns[7]
+	a3dtrans._matrix.i = trns[8]
+	a3dtrans._matrix.j = trns[9]
+	a3dtrans._matrix.k = trns[10]
+	a3dtrans._matrix.l = trns[11]
+	
+	#name
+	a3dstr = A3DString()
+	a3dstr.name = cleanupString(obj.data.name)
+	
+	#create mesh
+	a3dmesh = A3D2Mesh(Config)
+	
+	if Config.ExportBoundBoxes == 1:
+		a3dmesh._boundBoxId = a3dbox._id
+		
+	a3dmesh._id = len(mesh_objects)
+	#a3dmesh._indexBufferId = a3dibuf._id
+	a3dmesh._indexBufferId = ibufid
+	a3dmesh._name = a3dstr
+	if Config.ExportParentObj == 1:
+		a3dmesh._parentId = a3dobj._id
+	a3dmesh._surfaces = mesh_surfaces
+	a3dmesh._transform = a3dtrans
+	#a3dmesh._vertexBuffers = [len(vertexBuffers)] #vertex buffer ids
+	a3dmesh._vertexBuffers = vbufids #vertex buffer ids
+	a3dmesh._visible = 1
+	if obj.hide == True:
+		a3dmesh._visible = 0
+	else:
+		a3dmesh._visible = 1
+	meshes.append(a3dmesh)
+	mesh_objects.append(a3dmesh)
+	
+	if linkedmesh == False:
+		#create vertexbuffer
+		a3dvbuf = A3D2VertexBuffer(Config)
+		#POSITION = 0, NORMAL = 1, TANGENT4 = 2, JOINT = 3,TEXCOORD = 4
+		attar = []
+		if len(vs) > 0:
+			attar.append(0)
+		if (len(uvt) > 0) and (Config.ExportUV == 1):
+			attar.append(4)
+		if (len(nr) > 0) and (Config.ExportNormals == 1):
+			attar.append(1)
+		if (len(tan) > 0) and (Config.ExportTangents == 1):
+			attar.append(2)
+		#if len(jnt) > 0:
+		#	attar.append(3)
+		
+		a3dvbuf._attributes = attar
+		j=0
+		for v in vs:
+			if 0 in attar:
+				a3dvbuf._byteBuffer.append(v[0]) #vert1
+				a3dvbuf._byteBuffer.append(v[1]) #vert2
+				a3dvbuf._byteBuffer.append(v[2]) #vert3
+			if 4 in attar and (Config.ExportUV == 1):
+				a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
+				a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
+			if 1 in attar and (Config.ExportNormals == 1):
+				a3dvbuf._byteBuffer.append(nr[j][0]) #normal1
+				a3dvbuf._byteBuffer.append(nr[j][1]) #normal2
+				a3dvbuf._byteBuffer.append(nr[j][2]) #normal3
+			if 2 in attar and (Config.ExportTangents == 1):
+				a3dvbuf._byteBuffer.append(tan[j][0]) #tan1
+				a3dvbuf._byteBuffer.append(tan[j][1]) #tan2
+				a3dvbuf._byteBuffer.append(tan[j][2]) #tan3
+				a3dvbuf._byteBuffer.append(-1) #tan4 - static input handedness
+			j = j +1
+		a3dvbuf._id = len(vertexBuffers)
+		#a3dvbuf._vertexCount = int(len(ins))
+		#a3dvbuf._vertexCount = int(len(vs) * 3) 
+		a3dvbuf._vertexCount = int(len(vs)) #this works for cube
+		#a3dvbuf._vertexCount = int(len(ins)) 
+		#a3dvbuf._vertexCount = 24
+		vertexBuffers.append(a3dvbuf)
+		print("vs="+str(len(vs)))
+	return a3dmesh
+	
 #==================================
 # A3D IMPORTER
 #==================================
@@ -4160,6 +4177,7 @@ class A3D2:
 			findex = findex + 1
 	
 	def writeClass(self,file,listclass):
+		#print(str(len(listclass)) + str(listclass))
 		if len(listclass) > 0:
 			arr = A3DArray()
 			arr.write(file,len(listclass))
@@ -4785,6 +4803,7 @@ class A3D2Mesh:
 		#print("write mesh\n")
 		#bbid, id, indexbufid
 		#print(self._boundBoxId)
+		
 		if self._boundBoxId is not None:
 			self._optmask = self._optmask + str(0)
 			file.write(pack(">L",self._boundBoxId))
@@ -5940,6 +5959,7 @@ class A3D2Object:
 		self._visible = unpack("B", file.read(calcsize("B")))[0]
 		
 	def write(self,file):
+		
 		#bbid, id, indexbufid
 		if self._boundBoxId is not None:
 			self._optmask = self._optmask + str(0)
@@ -6903,7 +6923,55 @@ class A3D2LOD:
 		self._mskindex = 1
 		
 	def write(self,file):
-		print("write")
+		print("write LOD")
+		
+		print(self._boundBoxId)		
+		if self._boundBoxId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(pack(">L",self._boundBoxId))
+		else:
+			self._optmask = self._optmask + str(1)
+		
+		print(self._distances)
+		#distances
+		arr = A3DArray()
+		arr.write(file,len(self._distances))
+		for distance in self._distances:
+			file.write(pack(">Q",int(distance)))
+		
+		file.write(pack(">Q",self._id))
+		#file.write(pack(">L",self._id))
+		
+		#string
+		if self._name is not None:
+			self._optmask = self._optmask + str(0)
+			self._name.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+				
+		#objects
+		print(self._objects)
+		arr = A3DArray()
+		arr.write(file,len(self._objects))
+		for obid in self._objects:
+			file.write(pack(">L",obid))
+		
+		#parentid
+		if self._parentId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(pack(">Q",self._parentId))
+		else:
+			self._optmask = self._optmask + str(1)
+		
+		#transform
+		if self._transform is not None:
+			self._optmask = self._optmask + str(0)
+			self._transform.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		
+		print(self._visible)
+		file.write(pack("B",self._visible))
 		
 class A3D2Surface:
 	def __init__(self,Config):
@@ -7083,7 +7151,7 @@ class AddSpotLight(bpy.types.Operator):
 		return {'FINISHED'}
 
 #==================================
-# CUSTOM OPERATORS
+# CUSTOM PANELS/OPERATORS
 #==================================
 
 def addlodchild(objs,distance):
@@ -7176,8 +7244,11 @@ class alternativa3DPanel(bpy.types.Panel):
 			elif obj["a3dtype"] == "A3DSprite":
 				print("spriteprops")
 				
-		if ("a3dtype" in obj.parent) and (obj.parent["a3dtype"] == "A3DLOD"):
-			l.prop(obj, '["a3ddistance"]')
+		if obj.parent != None:
+			parentobj = obj.parent
+			if "a3dtype" in parentobj:
+				if parentobj["a3dtype"] == "A3DLOD":
+					l.prop(obj, '["a3ddistance"]')
  		
 #==================================
 # REGISTRATION
