@@ -404,7 +404,7 @@ def copyImages(obj,filepath):
 				rel = bpy_extras.io_utils.path_reference(img.filepath, source_dir, dest_dir, 'COPY', "", copy_set)
 	path_reference_copy(copy_set)
 
-def writeByteArrayValues(file,verts,uvt,indices):
+def writeByteArrayValues(file,verts,uvlayers,indices):
 	file.write("\t\t\tvalues= new <uint>[")
 
 	tfile = tempfile.TemporaryFile(mode ='w+b')
@@ -416,10 +416,12 @@ def writeByteArrayValues(file,verts,uvt,indices):
 		tfile.write(pack("<f", v[2]))
 	
 	#length of uvts -short
-	tfile.write(pack("<H", len(uvt)*2))
-	for uv in uvt:
-		tfile.write(pack("<f", uv[0]))
-		tfile.write(pack("<f", uv[1]))
+	for uvname, uvdata in uvlayers.items():
+		uvt = uvdata[0]
+		tfile.write(pack("<H", len(uvt)*2))
+		for uv in uvt:
+			tfile.write(pack("<f", uv[0]))
+			tfile.write(pack("<f", uv[1]))
 	
 	#length of indices -short
 	tfile.write(pack("<H", len(indices)))
@@ -462,13 +464,42 @@ def getCommonData(obj,flipUV=1):
 	uv_coord_list = []
 	new_index = 0
 	uvtex = mesh.uv_textures.active
-		
+	
+	uvlayers={}
+	
 	if hasFaceUV:
+	
+		#update tessface cache or there is no data
+		mesh.update(calc_tessface=True)
+		
+		y=0
+		for uvlayer in mesh.tessface_uv_textures:
+			uv_coord_list = []
+			uvlayername = uvlayer.name
+			uvlayers[uvlayername] = []
+			#for face in uvlayer.data:
+			for uv_index in range(len(mesh.polygons)):	
+				#tmplist = [face.uv,face.image]
+				#uvlayers[uvlayername].append(tmplist)
+				face = uvlayer.data[uv_index]
+				uvs = face.uv1, face.uv2, face.uv3, face.uv4
+				for vertex_index, vertex_itself in enumerate(mesh.polygons[uv_index].vertices):
+					uv_coord_list.append(uvs[vertex_index])
+					if flipUV == 1:
+						uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
+					else:
+						uv = [uv_coord_list[-1][0], uv_coord_list[-1][1]]
+					uvt.append(uv)
+					y=y+1
+			#tmplist = [uvt,face.image]
+			uvlayers[uvlayername].append(uvt)
+			uvt = []
+			
+		#make the active uvlayer the first in uvlayers?
+					
 		uvtex = mesh.uv_layers[0]
 		uv_layer = mesh.uv_layers[0]
-		y=0
-		for uv_index in range(len(mesh.polygons)):
-			uvs = uv_layer.data[y].uv, uv_layer.data[y+1].uv, uv_layer.data[y+2].uv, uv_layer.data[uv_index+3].uv
+		for uv_index in range(len(mesh.polygons)):		
 			for vertex_index, vertex_itself in enumerate(mesh.polygons[uv_index].vertices):
 				vertex = mesh.vertices[vertex_itself]
 				vertices_list.append(vertex_itself)
@@ -476,19 +507,12 @@ def getCommonData(obj,flipUV=1):
 				normals_list.append(vertex.normal.xyz)
 				vertices_index_list.append(new_index)
 				new_index += 1
-				uv_coord_list.append(uvs[vertex_index])
 				vs.append([vertices_co_list[-1][0],vertices_co_list[-1][1],vertices_co_list[-1][2]])
 				if mesh.polygons[uv_index].use_smooth:
 					nr.append([normals_list[-1][0],normals_list[-1][1],normals_list[-1][2]])
 				else:
 					nr.append(mesh.polygons[uv_index].normal)
 				ins.append(vertices_index_list[-1])
-				if flipUV == 1:
-					uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
-				else:
-					uv = [uv_coord_list[-1][0], uv_coord_list[-1][1]]
-				uvt.append(uv)
-				y=y+1
 	else:
 		# if there are no image textures, output the old way
 		for face in mesh.polygons:
@@ -501,12 +525,12 @@ def getCommonData(obj,flipUV=1):
 			vs.append([v.co[0],v.co[1],v.co[2]])
 			nr.append([v.normal[0],v.normal[1],v.normal[2]])
 
-	if (len(uvt) > 0) and (len(nr) > 0):
+	if (len(uvlayers) > 0) and (len(nr) > 0):
 		tan = calculateTangents(ins,vs,uv_coord_list,nr)		
 	
 	bb = getBoundBox(obj)
 	trns = getObjTransform(obj)
-	return vs,uvt,ins,nr,tan,bb,trns
+	return vs,uvlayers,ins,nr,tan,bb,trns
 
 def getCommonDataNoBmesh(obj,flipUV=1):
 	mesh = obj.data
@@ -777,6 +801,11 @@ def WriteClass8270(file,obj,Config):
 	
 	mati = setupMaterials(file,obj,Config)
 	
+	if checkBMesh() == True:
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj)
+	else:
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+		
 	#if bytearray
 	if Config.ByClass == 1:
 		file.write("\t\tprivate var values:Vector.<uint>;\n")
@@ -784,27 +813,31 @@ def WriteClass8270(file,obj,Config):
 	
 	file.write("\t\tprivate var attributes:Array;\n\n")
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
-	file.write("\t\t\tattributes = new Array();\n")
-	file.write("\t\t\tattributes[0] = VertexAttributes.POSITION;\n")
-	file.write("\t\t\tattributes[1] = VertexAttributes.POSITION;\n")
-	file.write("\t\t\tattributes[2] = VertexAttributes.POSITION;\n")
-	file.write("\t\t\tattributes[3] = VertexAttributes.TEXCOORDS[0];\n")
-	file.write("\t\t\tattributes[4] = VertexAttributes.TEXCOORDS[0];\n")
+	file.write("\t\t\tattributes = [\n")
+
+	if len(vs) > 0:
+		file.write("\t\t\t\tVertexAttributes.POSITION,\n")
+		file.write("\t\t\t\tVertexAttributes.POSITION,\n")
+		file.write("\t\t\t\tVertexAttributes.POSITION,\n")
+	if (len(uvlayers) > 0) and (Config.ExportUV == 1):
+		j=0
+		for uvname, uvdata in uvlayers.items():
+			file.write("\t\t\t\tVertexAttributes.TEXCOORDS["+str(j)+"],\n")
+			file.write("\t\t\t\tVertexAttributes.TEXCOORDS["+str(j)+"],\n")
+			j=j+1
 	if Config.ByClass == 0:
-		file.write("\t\t\tattributes[5] = VertexAttributes.NORMAL;\n")
-		file.write("\t\t\tattributes[6] = VertexAttributes.NORMAL;\n")
-		file.write("\t\t\tattributes[7] = VertexAttributes.NORMAL;\n")
-		file.write("\t\t\tattributes[8] = VertexAttributes.TANGENT4;\n")
-		file.write("\t\t\tattributes[9] = VertexAttributes.TANGENT4;\n")
-		file.write("\t\t\tattributes[10] = VertexAttributes.TANGENT4;\n")
-		file.write("\t\t\tattributes[11] = VertexAttributes.TANGENT4;\n\n")
+		file.write("\t\t\t\tVertexAttributes.NORMAL,\n")
+		file.write("\t\t\t\tVertexAttributes.NORMAL,\n")
+		file.write("\t\t\t\tVertexAttributes.NORMAL,\n")
+		file.write("\t\t\t\tVertexAttributes.TANGENT4,\n")
+		file.write("\t\t\t\tVertexAttributes.TANGENT4,\n")
+		file.write("\t\t\t\tVertexAttributes.TANGENT4,\n")
+		file.write("\t\t\t\tVertexAttributes.TANGENT4,\n")
+	file.write("\t\t\t];\n")
+	
 	file.write("\t\t\tvar g:Geometry = new Geometry();\n")
 	file.write("\t\t\tg.addVertexStream(attributes);\n")
-	
-	if checkBMesh() == True:
-		vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
-	else:
-		vs,uvt,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+		
 			
 	file.write("\t\t\tg.numVertices = "+str(len(vs))+";\n\n")
 	
@@ -817,13 +850,17 @@ def WriteClass8270(file,obj,Config):
 		else:
 			file.write("\t\t\tvar vertices:Array = new Array();\n")
 		
-		if (len(uvt) > 0) and (Config.ExportUV == 1):
-			file.write("\t\t\tvar uvt:Array = [\n")
-			for u in uvt:
-				file.write("\t\t\t\t%.4g,%.4g,\n" % (u[0],u[1]))
-			file.write("\t\t\t];\n")
+		if (len(uvlayers) > 0) and (Config.ExportUV == 1):
+			j=0
+			for uvname, uvdata in uvlayers.items():
+				if j <= 7:
+					file.write("\t\t\tvar uvlayer"+str(j)+":Array = [\n")
+					for u in uvdata[0]:
+						file.write("\t\t\t\t%.4g,%.4g,\n" % (u[0],u[1]))
+					file.write("\t\t\t];\n")
+					j=j+1
 		else:
-			file.write("\t\t\tvar uvt:Array = new Array();\n")
+			file.write("\t\t\tvar uvlayer:Array = new Array();\n")
 		
 		if len(ins) > 0:
 			file.write("\t\t\tvar ind:Array = [\n")
@@ -857,10 +894,15 @@ def WriteClass8270(file,obj,Config):
 			file.write("\t\t\tvar tangent:Array = new Array();\n\n")
 		
 		file.write("\t\t\tg.setAttributeValues(VertexAttributes.POSITION, Vector.<Number>(vertices));\n")
-		if (len(uvt) > 0) and (Config.ExportUV == 1):
-			file.write("\t\t\tg.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")
+		if (len(uvlayers) > 0) and (Config.ExportUV == 1):
+			j=0
+			for uvname, uvdata in uvlayers.items():
+				if j <= 7:
+					#file.write("\t\t\t//%s\n" % uvname)
+					file.write("\t\t\tg.setAttributeValues(VertexAttributes.TEXCOORDS["+str(j)+"], Vector.<Number>(uvlayer"+str(j)+"));\n")
+					j=j+1
 		else:
-			file.write("\t\t\t//g.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));\n")	
+			file.write("\t\t\t//g.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvlayer));\n")	
 			
 		if (len(nr) > 0) and (Config.ExportNormals == 1):
 			file.write("\t\t\tg.setAttributeValues(VertexAttributes.NORMAL, Vector.<Number>(normals));\n")
@@ -878,13 +920,17 @@ def WriteClass8270(file,obj,Config):
 			file.write("\t\t\t//g.calculateTangents(0);\n")
 		file.write("\t\t\tthis.geometry = g;\n")
 	else:
-		writeByteArrayValues(file,vs,uvt,ins)
+		writeByteArrayValues(file,vs,uvlayers,ins)
 		file.write("\t\t\tfor each(var b:uint in values)\n")
 		file.write("\t\t\t{\n")
 		file.write("\t\t\t\tbytedata.writeByte(b);\n")
 		file.write("\t\t\t}\n")
 		file.write("\t\t\tvar vertices:Array = new Array();\n")
-		file.write("\t\t\tvar uvt:Array = new Array();\n")
+		j=0
+		for uvname, uvdata in uvlayers.items():
+			if j <= 7:
+				file.write("\t\t\tvar uvlayer"+str(j)+":Array = new Array();\n")
+				j=j+1
 		file.write("\t\t\tvar ind:Array = new Array();\n")
 		file.write("\t\t\tbytedata.endian = Endian.LITTLE_ENDIAN;\n")
 		file.write("\t\t\tbytedata.uncompress();\n")
@@ -892,12 +938,20 @@ def WriteClass8270(file,obj,Config):
 		file.write("\t\t\tvar vlen:uint = bytedata.readUnsignedShort();\n")
 		file.write("\t\t\tg.numVertices = vlen/3;\n")
 		file.write("\t\t\tfor(var i:int = 0; i < vlen; i++){vertices.push(bytedata.readFloat());}\n")
-		file.write("\t\t\tvar uvlen:uint = bytedata.readUnsignedShort();\n")
-		file.write("\t\t\tfor(var x:int = 0; x < uvlen; x++){uvt.push(bytedata.readFloat());}\n")
+		j=0
+		for uvname, uvdata in uvlayers.items():
+			if j <= 7:
+				file.write("\t\t\tvar uvlen:uint = bytedata.readUnsignedShort();\n")
+				file.write("\t\t\tfor(var x:int = 0; x < uvlen; x++){uvlayer"+str(j)+".push(bytedata.readFloat());}\n")
+				j=j+1
 		file.write("\t\t\tvar ilen:uint = bytedata.readUnsignedShort();\n")
 		file.write("\t\t\tfor(var j:int = 0; j < ilen; j++){ind.push(bytedata.readUnsignedInt());}\n")
 		file.write("\t\t\tg.setAttributeValues(VertexAttributes.POSITION, Vector.<Number>(vertices));\n")
-		file.write("\t\t\tif(uvlen > 0){g.setAttributeValues(VertexAttributes.TEXCOORDS[0], Vector.<Number>(uvt));}\n")
+		j=0
+		for uvname, uvdata in uvlayers.items():
+			if j <= 7:
+				file.write("\t\t\tif(uvlen > 0){g.setAttributeValues(VertexAttributes.TEXCOORDS["+str(j)+"], Vector.<Number>(uvlayer"+str(j)+"));}\n")
+				j=j+1
 		file.write("\t\t\tg.indices =  Vector.<uint>(ind);\n\n")
 		file.write("\t\t\tg.calculateNormals();\n")
 		file.write("\t\t\tg.calculateTangents(0);\n")
@@ -1075,9 +1129,9 @@ def WriteClass5(file,obj,Config):
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 
 	if checkBMesh() == True:
-		vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj,False)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj,False)
 	else:
-		vs,uvt,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj,False)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj,False)
 
 	if len(vs) > 0:
 		count = 0
@@ -1106,22 +1160,27 @@ def WriteClass5(file,obj,Config):
 			
 	facecount = j
 	
-	if (len(uvt) > 0) and (Config.ExportUV == 1):
+	if (len(uvlayers) > 0) and (Config.ExportUV == 1):
 		count = 0
 		file.write('\t\t\tsetUVsToFace(')
 		x=0
 		j=0
-		for u in uvt:
-			file.write('new Point(%f,%f), ' % (u[0],u[1]))
-			if x==2:
-				x=0
-				file.write('%i);\n' % j)
-				j=j+1
-				if count < len(uvt)-1:
-					file.write('\t\t\tsetUVsToFace(')
-			else:
-				x=x+1
-			count += 1
+		uvlayercount = 0
+		for uvname, uvdata in uvlayers.items():
+			if uvlayercount <= 0:
+				uvt = uvdata[0]
+				for u in uvt:
+					file.write('new Point(%f,%f), ' % (u[0],u[1]))
+					if x==2:
+						x=0
+						file.write('%i);\n' % j)
+						j=j+1
+						if count < len(uvt)-1:
+							file.write('\t\t\tsetUVsToFace(')
+					else:
+						x=x+1
+					count += 1
+				uvlayercount=uvlayercount+1
 		file.write('\n')
 		
 	x=0
@@ -1414,9 +1473,9 @@ def A3DExport1(file,Config):
 			
 			#get raw geometry data
 			if checkBMesh() == True:
-				vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+				vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj)
 			else:
-				vs,uvt,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+				vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
 			#get surface data
 			start,end,mts,mats = collectSurfaces(mesh)
 					
@@ -1652,7 +1711,8 @@ def A3DExport2(file,Config):
 							if tex.texture.image is not None:
 								name=tex.name.lower()
 								a3dstr = A3DString()
-								a3dstr.name = os.path.basename(tex.texture.image.filepath)
+								#a3dstr.name = os.path.basename(tex.texture.image.filepath)
+								a3dstr.name = os.path.basename(bpy.path.abspath(tex.texture.image.filepath))
 								a3dimg = A3D2Image(Config)
 								a3dimg._id = len(images)
 								a3dimg._url = a3dstr
@@ -1944,17 +2004,17 @@ def A3DExport2(file,Config):
 			ConvertQuadsToTris(obj)
 			
 			#create the mesh if parent isn't lod
-			#hasparentlod = False
-			#if obj.parent != None:
-			#	parentobj = obj.parent
-			#	if "a3dtype" in parentobj:
-			#		if parentobj["a3dtype"] == 'A3DLOD':
-			#			hasparentlod = True
-			#			
-			#if hasparentlod == 0:
-			#	a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
-			#else:
-			#	print("didn't write mesh as parent is lod")
+			hasparentlod = False
+			if obj.parent != None:
+				parentobj = obj.parent
+				if "a3dtype" in parentobj:
+					if parentobj["a3dtype"] == 'A3DLOD':
+						hasparentlod = True
+						
+			if hasparentlod == 0:
+				a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
+			else:
+				print("didn't write mesh as parent is lod")
 		
 	if Config.A3DVersionSystem <= 3:
 		print("Exporting layers...\n")
@@ -2051,9 +2111,9 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 	
 	#get raw geometry data
 	if checkBMesh() == True:
-		vs,uvt,ins,nr,tan,bb,trns = getCommonData(obj)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj)
 	else:
-		vs,uvt,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
 	#get surface data
 	start,end,mts,mats = collectSurfaces(mesh)
 	
@@ -2152,7 +2212,10 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 				if (tex is not None) and (tex.texture.type == "IMAGE"):
 					name=tex.name.lower()
 					
-					print(tex.texture.image.filepath)
+					print("filepath="+str(tex.texture.image.filepath))
+					print("basename="+str(os.path.basename(tex.texture.image.filepath)))
+					print(os.path.basename(bpy.path.display_name_from_filepath(tex.texture.image.filepath)))
+					print(os.path.basename(bpy.path.abspath(tex.texture.image.filepath)))
 					
 					if tex.texture.image.filepath in linkedimgdata:
 						#user already exists, retrieve ids
@@ -2169,7 +2232,8 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 					#create image
 					if linkedimg == False:
 						a3dstr = A3DString()
-						a3dstr.name = os.path.basename(tex.texture.image.filepath)
+						#a3dstr.name = os.path.basename(tex.texture.image.filepath)
+						a3dstr.name = os.path.basename(bpy.path.abspath(tex.texture.image.filepath))
 						
 						a3dimg = A3D2Image(Config)
 						a3dimg._id = imgid
@@ -2298,8 +2362,9 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 		attar = []
 		if len(vs) > 0:
 			attar.append(0)
-		if (len(uvt) > 0) and (Config.ExportUV == 1):
-			attar.append(4)
+		if (len(uvlayers) > 0) and (Config.ExportUV == 1):
+			for uvname, uvdata in uvlayers.items():
+				attar.append(4)
 		if (len(nr) > 0) and (Config.ExportNormals == 1):
 			attar.append(1)
 		if (len(tan) > 0) and (Config.ExportTangents == 1):
@@ -2315,8 +2380,10 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 				a3dvbuf._byteBuffer.append(v[1]) #vert2
 				a3dvbuf._byteBuffer.append(v[2]) #vert3
 			if 4 in attar and (Config.ExportUV == 1):
-				a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
-				a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
+				for uvname, uvdata in uvlayers.items():
+					uvt = uvdata[0]
+					a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
+					a3dvbuf._byteBuffer.append(uvt[j][1]) #uv
 			if 1 in attar and (Config.ExportNormals == 1):
 				a3dvbuf._byteBuffer.append(nr[j][0]) #normal1
 				a3dvbuf._byteBuffer.append(nr[j][1]) #normal2
@@ -4886,8 +4953,13 @@ class A3D2Mesh:
 					numflts = numflts + 2
 			flcount = int(len(vbuf._byteBuffer))
 			points = int(flcount/numflts)
+			
+			uvc = 0
+			uvlayers = {}
+			
 			i = 0
 			for p in range(points):
+				uvc = 0
 				for att in vbuf._attributes:
 					if att == 0:
 						x = vbuf._byteBuffer[i]
@@ -4927,17 +4999,21 @@ class A3D2Mesh:
 						#jointA.index, jointA.weight, jointB.index, jointB.weight
 						joints.append((ai, aw, bi, bw))
 					if att == 4:
+						if uvc not in uvlayers:
+							uvlayers[uvc] = []
 						uv1 = vbuf._byteBuffer[i]
 						i = i + 1
 						uv2 = vbuf._byteBuffer[i]
 						uv2 = 1.0 - uv2
 						i = i + 1
-						uvs.append([uv1,uv2])
-					
+						uvlayers[uvc].append([uv1,uv2])
+						uvc=uvc+1
+			
 		#print(verts)
 		#print(faces)
 		#print(uvs)
 		#print(self._name)
+		print(uvlayers)
 		
 		if self._name is not None:
 			nme = self._name
@@ -4980,9 +5056,6 @@ class A3D2Mesh:
 		
 		#me.update(calc_edges=True)    # Update mesh with new data
 		
-		#add uv layer
-		uvname = "UV1"
-		uvlayer = me.uv_textures.new(uvname)
 		diffuseimg = None
 		
 		if self._visible == False:
@@ -5021,7 +5094,7 @@ class A3D2Mesh:
 					mtex.texture = texture
 					mtex.texture_coords = 'UV'
 					mtex.use_map_color_diffuse = True
-					mtex.uv_layer = uvname
+					#mtex.uv_layer = uvname
 					
 				if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
 					#get map
@@ -5041,7 +5114,7 @@ class A3D2Mesh:
 					mtex.texture_coords = 'UV'
 					mtex.use_map_color_diffuse = False
 					mtex.use_map_raymir = True
-					mtex.uv_layer = uvname
+					#mtex.uv_layer = uvname
 					
 				if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
 					#get map
@@ -5061,7 +5134,7 @@ class A3D2Mesh:
 					mtex.texture_coords = 'UV'
 					mtex.use_map_color_diffuse = False
 					mtex.use_map_ambient = True
-					mtex.uv_layer = uvname
+					#mtex.uv_layer = uvname
 					
 				if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
 					#get map
@@ -5081,7 +5154,7 @@ class A3D2Mesh:
 					mtex.texture_coords = 'UV'
 					mtex.use_map_color_diffuse = False
 					mtex.use_map_normal = True
-					mtex.uv_layer = uvname
+					#mtex.uv_layer = uvname
 					
 				if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
 					#get map
@@ -5101,7 +5174,7 @@ class A3D2Mesh:
 					mtex.texture_coords = 'UV'
 					mtex.use_map_color_diffuse = False
 					mtex.use_map_alpha = True
-					mtex.uv_layer = uvname
+					#mtex.uv_layer = uvname
 					
 				if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
 					#get map
@@ -5120,7 +5193,7 @@ class A3D2Mesh:
 					mtex.texture = texture
 					mtex.texture_coords = 'UV'
 					mtex.use_map_color_diffuse = False
-					mtex.uv_layer = uvname
+					#mtex.uv_layer = uvname
 					
 				if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
 					#get map
@@ -5140,39 +5213,45 @@ class A3D2Mesh:
 					mtex.texture_coords = 'UV'
 					mtex.use_map_color_diffuse = False
 					mtex.use_map_specular = True
-					mtex.uv_layer = uvname
+					#mtex.uv_layer = uvname
 		
 		#set norms
 		if len(norms) > 0:
 			for i in range(len(norms)):
 				me.vertices[i].normal=norms[i]
 		
-		if len(uvs) > 0:
-			if checkBMesh() == True:
-				uv_faces = me.uv_layers[0].data
-				fcc=0
-				for fc in range(len(uv_faces)):
-					if fcc >= len(uv_faces):
-						break
-					face = faces[fc]
-					v1, v2, v3 = face
-					if diffuseimg is not None:
-						me.uv_textures[0].data[0].image = diffuseimg
-					uv_faces[fcc].uv = uvs[v1]
-					uv_faces[fcc+1].uv = uvs[v2]
-					uv_faces[fcc+2].uv = uvs[v3]
-					fcc = fcc + 3
-			else:
-				uv_faces = me.uv_textures.active.data[:]
-				for fidx, uf in enumerate(uv_faces):
-					face = faces[fidx]
-					v1, v2, v3 = face
-					if diffuseimg is not None:
-						uf.image = diffuseimg
-					uf.uv1 = uvs[v1]
-					uf.uv2 = uvs[v2]
-					uf.uv3 = uvs[v3]
-
+		
+		#add uv layer
+		if len(uvlayers) > 0:
+			for uvindex, uvdata in uvlayers.items():
+				uvname = "UV"+str(uvindex)
+				uvlayer = me.uv_textures.new(uvname)
+				uvs = uvdata
+				if checkBMesh() == True:
+					uv_faces = me.uv_layers[uvindex].data
+					fcc=0
+					for fc in range(len(uv_faces)):
+						if fcc >= len(uv_faces):
+							break
+						face = faces[fc]
+						v1, v2, v3 = face
+						if diffuseimg is not None:
+							me.uv_textures[uvindex].data[0].image = diffuseimg
+						uv_faces[fcc].uv = uvs[v1]
+						uv_faces[fcc+1].uv = uvs[v2]
+						uv_faces[fcc+2].uv = uvs[v3]
+						fcc = fcc + 3
+				else:
+					uv_faces = me.uv_textures.active.data[:]
+					for fidx, uf in enumerate(uv_faces):
+						face = faces[fidx]
+						v1, v2, v3 = face
+						if diffuseimg is not None:
+							uf.image = diffuseimg
+						uf.uv1 = uvs[v1]
+						uf.uv2 = uvs[v2]
+						uf.uv3 = uvs[v3]
+		
 		me.validate()
 		me.update(calc_edges=True)
 
@@ -7227,30 +7306,32 @@ class alternativa3DPanel(bpy.types.Panel):
 	def draw(self, context):
 		l = self.layout
 		obj = bpy.context.active_object
-		# display "foo" ID-property, of the active object
-		l.prop(obj, '["a3dtype"]')
 		
-		if "a3dtype" in obj:
-			if obj["a3dtype"] == "A3DLOD":
-				box = l.box()
-				columns = box.column()
-				header = columns.split(0.6)
-				header.label(text="Object:")
-				header.label(text="Distance:")
+		if obj != None:
+			if "a3dtype" in obj:
 				
-				for child in obj.children:
-					row = columns.split(0.6)
-					row.label(child.name)
-					row.prop(child,'["a3ddistance"]')
-					row.enabled = True
-			elif obj["a3dtype"] == "A3DSprite":
-				print("spriteprops")
-				
-		if obj.parent != None:
-			parentobj = obj.parent
-			if "a3dtype" in parentobj:
-				if parentobj["a3dtype"] == "A3DLOD":
-					l.prop(obj, '["a3ddistance"]')
+				l.prop(obj, '["a3dtype"]')
+			
+				if obj["a3dtype"] == "A3DLOD":
+					box = l.box()
+					columns = box.column()
+					header = columns.split(0.6)
+					header.label(text="Object:")
+					header.label(text="Distance:")
+					
+					for child in obj.children:
+						row = columns.split(0.6)
+						row.label(child.name)
+						row.prop(child,'["a3ddistance"]')
+						row.enabled = True
+				elif obj["a3dtype"] == "A3DSprite":
+					print("spriteprops")
+					
+			if obj.parent != None:
+				parentobj = obj.parent
+				if "a3dtype" in parentobj:
+					if parentobj["a3dtype"] == "A3DLOD":
+						l.prop(obj, '["a3ddistance"]')
  		
 #==================================
 # REGISTRATION
