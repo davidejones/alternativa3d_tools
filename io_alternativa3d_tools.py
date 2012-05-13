@@ -10,7 +10,7 @@ bl_info = {
 	'tracker_url': 'http://davidejones.com',
 	'category': 'Import-Export'}
 
-import bpy, os, time, zlib, tempfile, re
+import bpy, os, time, zlib, tempfile, re, shutil
 from binascii import hexlify
 from struct import unpack, pack, calcsize
 from math import atan, atan2
@@ -472,6 +472,9 @@ def getCommonData(obj,flipUV=1):
 		#update tessface cache or there is no data
 		mesh.update(calc_tessface=True)
 		
+		#add active layer first?
+		#uvlayer = mesh.tessface_uv_textures.active
+		
 		y=0
 		for uvlayer in mesh.tessface_uv_textures:
 			uv_coord_list = []
@@ -494,8 +497,7 @@ def getCommonData(obj,flipUV=1):
 			#tmplist = [uvt,face.image]
 			uvlayers[uvlayername].append(uvt)
 			uvt = []
-			
-		#make the active uvlayer the first in uvlayers?
+		
 					
 		uvtex = mesh.uv_layers[0]
 		uv_layer = mesh.uv_layers[0]
@@ -975,36 +977,86 @@ def collectSurfaces(mesh):
 	c=0
 	triangles = -1
 	lastmat = None
-	start,end,items,mts,mats = [],[],[],[],[]
+	lastimg = None
+	start,end,items,mts,mats,uvimgs = [],[],[],[],[],[]
 	if checkBMesh() == True:
 		mefdata = mesh.polygons
 	else:
 		mefdata = mesh.faces
 	
-	for face in mefdata:
-		triangles = triangles + 1
-		if face.material_index <= len(Materials)-1:
-			srcmat = Materials[face.material_index]
-			if srcmat not in items:
-				start.append(face.index * 3)
-				if c != 0:
-					end.append(triangles)
-					triangles = 0
-				mts.append(cleanupString(str(srcmat.name)))
-				mats.append(srcmat)
-			else:
-				if srcmat != lastmat:
+	if len(Materials) > 0:
+		for face in mefdata:
+			triangles = triangles + 1
+			if face.material_index <= len(Materials)-1:
+				srcmat = Materials[face.material_index]
+				if srcmat not in items:
 					start.append(face.index * 3)
 					if c != 0:
 						end.append(triangles)
 						triangles = 0
 					mts.append(cleanupString(str(srcmat.name)))
 					mats.append(srcmat)
-			lastmat = srcmat
-			items.append(srcmat)
-			c = c+1
-	end.append(triangles+1)
-	return start,end,mts,mats
+				else:
+					if srcmat != lastmat:
+						start.append(face.index * 3)
+						if c != 0:
+							end.append(triangles)
+							triangles = 0
+						mts.append(cleanupString(str(srcmat.name)))
+						mats.append(srcmat)
+				lastmat = srcmat
+				items.append(srcmat)
+				c = c+1
+		end.append(triangles+1)
+	else:
+		#no materials/tex slots
+		#get active uv layer, per face image
+		mesh.update(calc_tessface=True)
+		if len(mesh.tessface_uv_textures) > 0:
+			#for uvlayer in mesh.tessface_uv_textures:
+			#uvlayer = mesh.tessface_uv_textures[0]
+			uvlayer = mesh.tessface_uv_textures.active
+			fc = 0
+			for face in uvlayer.data:
+				triangles = triangles + 1
+				if face.image not in items:
+					start.append(fc * 3)
+					if c != 0:
+						end.append(triangles)
+						triangles = 0
+					uvimgs.append(face.image)
+				else:
+					if face.image != lastimg:
+						start.append(fc * 3)
+						if c != 0:
+							end.append(triangles)
+							triangles = 0
+						uvimgs.append(face.image)
+				lastimg = face.image
+				items.append(face.image)	
+				c = c+1
+				fc=fc+1
+			end.append(triangles+1)
+		
+		#mesh.update(calc_tessface=True)
+		#if len(mesh.tessface_uv_textures) > 0:
+		#	uvlayer = mesh.tessface_uv_textures[0]
+		#	fc = 0
+		#	for face in uvlayer.data:
+		#		triangles = triangles + 1
+		#		start.append(fc * 3)
+		#		end.append(triangles)
+		#		triangles = 0
+		#		uvimgs.append(face.image)
+		#		fc=fc+1
+
+	#print(start)
+	#print(end)
+	#print(mts)
+	#print(mats)
+	#print(uvimgs)
+	
+	return start,end,mts,mats,uvimgs
 	
 def WriteClass78(file,obj,Config):
 	file.write("\tpublic class "+obj.data.name+" extends Mesh {\n\n")
@@ -2104,7 +2156,7 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 			linkeddata[mesh.name] = [ibufid,vbufids]
 			linkedmesh=False
 	else:
-		print("single user mesh")
+		#print("single user mesh")
 		linkedmesh=False
 		ibufid = len(indexBuffers)
 		vbufids = [len(vertexBuffers)]
@@ -2115,7 +2167,7 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 	else:
 		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
 	#get surface data
-	start,end,mts,mats = collectSurfaces(mesh)
+	start,end,mts,mats,uvimgs = collectSurfaces(mesh)
 	
 	#create parent object
 	if Config.ExportParentObj == 1:
@@ -2192,7 +2244,6 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 	# NOTE TO SELF
 	# Each Surface has a material/blender material
 	# a material can then have the various textures diffuse, spec, norm etc
-	
 	
 	#set surfaces
 	if len(mts) > 0:
@@ -2303,6 +2354,69 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 			a3dsurf._materialId = a3dmat._id
 			a3dsurf._numTriangles = int(end[x])
 			mesh_surfaces.append(a3dsurf)
+	elif len(uvimgs) > 0:
+		#no materials, try image per face surfaces
+		
+		for x in range(len(uvimgs)):
+			difmap = int("ffffffff",16)
+			glossmap = int("ffffffff",16)
+			lighmap = int("ffffffff",16)
+			normmap = int("ffffffff",16)
+			opacmap = int("ffffffff",16)
+			specmap = int("ffffffff",16)
+			reflmap = int("ffffffff",16)
+			
+			if uvimgs[x] != None:
+				if uvimgs[x].filepath in linkedimgdata:
+					#user already exists, retrieve ids
+					imgid = linkedimgdata[uvimgs[x].filepath][0]
+					#set to true so we don't add buffers with data we don't need
+					linkedimg=True
+				else:
+					#user doesn't exist yet
+					imgid = len(images)
+					#assign for other users
+					linkedimgdata[uvimgs[x].filepath] = [imgid]
+					linkedimg = False
+				
+			#create image
+			if (linkedimg == False) and (uvimgs[x] != None):
+				a3dstr = A3DString()
+				a3dstr.name = os.path.basename(bpy.path.abspath(uvimgs[x].filepath))
+				
+				a3dimg = A3D2Image(Config)
+				a3dimg._id = imgid
+				a3dimg._url = a3dstr
+				images.append(a3dimg)
+			
+			if uvimgs[x] != None:
+				a3dmap = A3D2Map(Config)
+				a3dmap._channel = 0
+				a3dmap._id = len(maps)
+				a3dmap._imageId = imgid
+				maps.append(a3dmap)	
+				
+				#just set to diffuse
+				difmap = a3dmap._id
+			
+			a3dmat = A3D2Material(Config)
+			a3dmat._diffuseMapId = difmap
+			a3dmat._glossinessMapId = glossmap
+			a3dmat._id = len(materials)
+			a3dmat._lightMapId = lighmap
+			a3dmat._normalMapId = normmap
+			a3dmat._opacityMapId = opacmap
+			a3dmat._reflectionCubeMapId = reflmap
+			a3dmat._specularMapId = specmap
+			materials.append(a3dmat)
+			
+			#create surface
+			a3dsurf = A3D2Surface(Config)
+			a3dsurf._indexBegin = int(start[x])
+			#a3dsurf._materialId = int("ffffffff",16)
+			a3dsurf._materialId = a3dmat._id
+			a3dsurf._numTriangles = int(end[x])
+			mesh_surfaces.append(a3dsurf)
 	else:
 		#surface for all faces
 		a3dsurf = A3D2Surface(Config)
@@ -2355,6 +2469,15 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 	meshes.append(a3dmesh)
 	mesh_objects.append(a3dmesh)
 	
+	#reverse uvlayers, because a3d player loads latest uvlayer as default
+	revkeys = sorted(uvlayers.keys(), reverse=True)
+	uvlayersr = {}
+	i=0
+	for k in revkeys:
+		uvlayersr[i] = uvlayers[k]
+		i = i +1
+	uvlayers = uvlayersr
+	
 	if linkedmesh == False:
 		#create vertexbuffer
 		a3dvbuf = A3D2VertexBuffer(Config)
@@ -2379,7 +2502,7 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 				a3dvbuf._byteBuffer.append(v[0]) #vert1
 				a3dvbuf._byteBuffer.append(v[1]) #vert2
 				a3dvbuf._byteBuffer.append(v[2]) #vert3
-			if 4 in attar and (Config.ExportUV == 1):
+			if 4 in attar and (Config.ExportUV == 1):			
 				for uvname, uvdata in uvlayers.items():
 					uvt = uvdata[0]
 					a3dvbuf._byteBuffer.append(uvt[j][0]) #uv
@@ -2401,7 +2524,7 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 		#a3dvbuf._vertexCount = int(len(ins)) 
 		#a3dvbuf._vertexCount = 24
 		vertexBuffers.append(a3dvbuf)
-		print("vs="+str(len(vs)))
+		#print("vs="+str(len(vs)))
 	return a3dmesh
 	
 #==================================
@@ -3914,8 +4037,8 @@ class A3D2Null:
 	
 	def write(self,file):
 		bytelist = self.setBits()
-		print("bytelist")
-		print(bytelist)
+		#print("bytelist")
+		#print(bytelist)
 		bits = len(self._mask)
 		x=int(self._mask,2)
 		
@@ -3937,12 +4060,12 @@ class A3D2Null:
 		#print("bits="+str(bits))
 		
 		if bits <= 5:
-			print("<= 5")
+			#print("<= 5")
 			byte1 = int(rshift(temp3[0] & 255,3))
 			print(byte1)
 			file.write(pack("B",byte1))
 		elif bits > 5 and bits <= 13:
-			print("<= 13")
+			#print("<= 13")
 			byte1 = int(rshift(temp3[0] & 255,3) + INPLACE_MASK_1_BYTES)
 			byte2 = int(rshift(temp3[1] & 255,3) + (temp3[0] << 5))
 			print(byte1)
@@ -3950,7 +4073,7 @@ class A3D2Null:
 			file.write(pack("B",byte1))
 			file.write(pack("B",byte2 & 255))
 		elif bits > 13 and bits <= 21:
-			print("<= 21")
+			#print("<= 21")
 			for j in range(3):
 				if j not in temp3:
 					temp3.append(0)
@@ -3964,7 +4087,7 @@ class A3D2Null:
 			file.write(pack("B",byte2 & 255))
 			file.write(pack("B",byte3 & 255))
 		elif bits > 21 and bits <= 29:
-			print("<= 29")
+			#print("<= 29")
 			for j in range(4):
 				if j not in temp3:
 					temp3.append(0)
@@ -3982,7 +4105,7 @@ class A3D2Null:
 			file.write(pack("B",byte4 & 255))
 		else:
 			if bits <= 504:
-				print("<= 504")				
+				#print("<= 504")				
 				temp5 = len(temp3)
 				byte1 = int((temp5 & 255) + MASK_LENGTH_1_BYTE)
 				print(byte1)
@@ -4001,7 +4124,7 @@ class A3D2Null:
 					#file.write(pack("B",temp9))
 					#for y in range(len(temp3)):
 					#	file.write(pack("B",temp3[y]))
-					print("even longer")
+					#print("even longer")
 					rem = bits % 8
 					if rem == 0:
 						#if fits exactly in bytes
@@ -4022,9 +4145,9 @@ class A3D2Null:
 					byte2 = int( (lenbyte >> 8) & 255 )
 					byte3 = int( lenbyte & 255 )
 
-					print("byte1="+str(byte1))
-					print("byte2="+str(byte2))		
-					print("byte3="+str(byte3))		
+					#print("byte1="+str(byte1))
+					#print("byte2="+str(byte2))		
+					#print("byte3="+str(byte3))		
 					file.write(pack("B",byte1))
 					file.write(pack("B",byte2))
 					file.write(pack("B",byte3))
@@ -4258,9 +4381,9 @@ class A3D2:
 		else:
 			self.nullmask = self.nullmask + str(1)
 			
-	def write(self,file):
+	def write_new(self,file):
 		print("write a3d2\n")
-		
+				
 		tfile = tempfile.TemporaryFile(mode ='w+b')
 		
 		self.writeClass(tfile,self.ambientLights)	
@@ -4322,6 +4445,106 @@ class A3D2:
 		
 		#a3d2
 		tfile.seek(0)
+		#data = tfile.read()
+		#tfile2.write(data)
+		self.copyFile(tfile,tfile2)
+		tfile.flush()
+		tfile.close()
+		
+		#write package length
+		a3dpack = A3D2Package(self.Config)
+		if self.Config.CompressData == 1:
+			a3dpack._packed = 1
+			tfile2.seek(0)
+			#indata = tfile2.read()
+			#outdata = zlib.compress(indata)
+			self.copyFile(tfile,tfile2)
+			a3dpack._length = len(outdata)
+		else:
+			a3dpack._length = tfile2.tell()
+			a3dpack._packed = 0
+		a3dpack.write(file)
+		
+		#compress and write data
+		if self.Config.CompressData == 1:
+			# compressed
+			file.write(outdata)
+		else:
+			# uncompressed
+			tfile2.seek(0)
+			#data = tfile2.read()
+			#file.write(data)
+			self.copyFile(tfile2,file)
+		
+		tfile2.flush()
+		tfile2.close()
+			
+		print("done")
+		
+	def write(self,file):
+		print("write a3d2\n")
+		
+		tfile = tempfile.TemporaryFile(mode ='w+b')
+		
+		self.writeClass(tfile,self.ambientLights)	
+		self.writeClass(tfile,self.animationClips)	
+		self.writeClass(tfile,self.animationTracks)	
+		self.writeClass(tfile,self.boxes)	
+		self.writeClass(tfile,self.cubeMaps)	
+		self.writeClass(tfile,self.decals)	
+		self.writeClass(tfile,self.directionalLights)	
+		self.writeClass(tfile,self.images)	
+		self.writeClass(tfile,self.indexBuffers)	
+		self.writeClass(tfile,self.joints)	
+		self.writeClass(tfile,self.maps)	
+		self.writeClass(tfile,self.materials)	
+		self.writeClass(tfile,self.meshes)	
+		self.writeClass(tfile,self.objects)	
+		self.writeClass(tfile,self.omniLights)
+		self.writeClass(tfile,self.skins)		
+		self.writeClass(tfile,self.spotLights)	
+		self.writeClass(tfile,self.sprites)
+		self.writeClass(tfile,self.vertexBuffers)
+		if self.Config.A3DVersionSystem <= 3:
+			self.writeClass(tfile,self.layers)
+		if self.Config.A3DVersionSystem <= 2:
+			self.writeClass(tfile,self.cameras)
+			self.writeClass(tfile,self.lods)
+		
+		tfile2 = tempfile.TemporaryFile(mode ='w+b')
+		
+		#print("nullmask = "+self.nullmask)
+		
+		#nullmask
+		null = A3D2Null(self.Config)
+		null._mask = self.nullmask
+		null.write(tfile2)
+		
+		#version
+		ver = A3DVersion(self.Config)
+		
+		if self.Config.A3DVersionSystem == 5:
+			major = 1
+			minor = 0
+		elif self.Config.A3DVersionSystem == 4:
+			major = 2
+			minor = 0
+		elif self.Config.A3DVersionSystem == 3:
+			major = 2
+			minor = 4
+		elif self.Config.A3DVersionSystem == 2:
+			major = 2
+			minor = 5
+		elif self.Config.A3DVersionSystem == 1:
+			major = 2
+			minor = 6
+		
+		ver.baseversion = major
+		ver.pointversion = minor
+		ver.write(tfile2)
+		
+		#a3d2
+		tfile.seek(0)
 		data = tfile.read()
 		tfile2.write(data)
 		tfile.close()
@@ -4352,7 +4575,9 @@ class A3D2:
 			data = tfile2.read()
 			file.write(data)
 		tfile2.close()
-
+	
+	def copyFile(fin,fout,chunksz = 65536):
+		shutil.copyfileobj(fin, fout, chunksz)
 # lighting	
 	
 class A3D2AmbientLight:
@@ -5013,7 +5238,7 @@ class A3D2Mesh:
 		#print(faces)
 		#print(uvs)
 		#print(self._name)
-		print(uvlayers)
+		#print(uvlayers)
 		
 		if self._name is not None:
 			nme = self._name
@@ -6333,8 +6558,8 @@ class A3D2IndexBuffer:
 		file.write(pack('>L',self._id))
 		#write indexcount
 		file.write(pack('>L',self._indexCount))
-		print("ibuf_indexCount="+str(self._indexCount))
-		print("ibuf_byteBufferlength="+str(vbuflen))
+		#print("ibuf_indexCount="+str(self._indexCount))
+		#print("ibuf_byteBufferlength="+str(vbuflen))
 
 class A3D2VertexBuffer:
 	def __init__(self,Config):
