@@ -237,6 +237,7 @@ def WritePackageHeader(file,Config):
 	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10) or (Config.A3DVersionSystem == 11):
 		# version 8.5.0, 8.8.0, 8.12.0, 8.17.0, 8.27.0
 		file.write("\timport alternativa.engine3d.core.VertexAttributes;\n")
+		file.write("\timport alternativa.engine3d.core.BoundBox;\n")
 		file.write("\timport alternativa.engine3d.materials.FillMaterial;\n")
 		file.write("\timport alternativa.engine3d.materials.TextureMaterial;\n")
 		file.write("\timport alternativa.engine3d.resources.BitmapTextureResource;\n")
@@ -764,16 +765,19 @@ def calculateTangents(ins,verts,uvs,nrms):
 	return tangents
 		
 def getBoundBox(obj):
-	v = [list(bb) for bb in obj.bound_box]
-	bmin = min(v)
-	bmax = max(v)
-	minx = max(bmin[0] * obj.scale.x, -1e10)
-	miny = max(bmin[1] * obj.scale.y, -1e10)
-	minz = max(bmin[2] * obj.scale.z, -1e10)
-	maxx = min(bmax[0] * obj.scale.x, 1e10)
-	maxy = min(bmax[1] * obj.scale.y, 1e10)
-	maxz = min(bmax[2] * obj.scale.z, 1e10)
-	return [minx,miny,minz,maxx,maxy,maxz]
+	#v = [list(bb) for bb in obj.bound_box]
+	#bmin = min(v)
+	#bmax = max(v)
+	#minx = max(bmin[0] * obj.scale.x, -1e10)
+	#miny = max(bmin[1] * obj.scale.y, -1e10)
+	#minz = max(bmin[2] * obj.scale.z, -1e10)
+	#maxx = min(bmax[0] * obj.scale.x, 1e10)
+	#maxy = min(bmax[1] * obj.scale.y, 1e10)
+	#maxz = min(bmax[2] * obj.scale.z, 1e10)
+	#return [minx,miny,minz,maxx,maxy,maxz]
+	d = obj.bound_box
+	#return Vec((d[0])), Vec((d[6]))
+	return [d[0][0],d[0][1],d[0][2],d[6][0],d[6][1],d[6][2]]
 
 def writeTransform(file,obj,Config):
 	mesh = obj.data
@@ -792,6 +796,32 @@ def writeTransform(file,obj,Config):
 	file.write("\t\t\tthis.scaleX = %f;\n" % sca.x)
 	file.write("\t\t\tthis.scaleY = %f;\n" % sca.y)
 	file.write("\t\t\tthis.scaleZ = %f;\n" % sca.z)
+	
+def writeBoundBox(file,bb,Config):
+	file.write("\n")
+	if Config.A3DVersionSystem == 1:
+		# version 5.6.0
+		print("no boundbox for v5")
+	elif (Config.A3DVersionSystem == 2) or (Config.A3DVersionSystem == 3) or (Config.A3DVersionSystem == 4) or (Config.A3DVersionSystem == 5) or (Config.A3DVersionSystem == 6):
+		# version 7.5.0, 7.5.1, 7.6.0, 7.7.0, 7.8.0
+		file.write("\t\t\tthis.boundMaxX = %f;\n" % bb[0])
+		file.write("\t\t\tthis.boundMaxY = %f;\n" % bb[1])
+		file.write("\t\t\tthis.boundMaxZ = %f;\n" % bb[2])
+		file.write("\t\t\tthis.boundMinX = %f;\n" % bb[3])
+		file.write("\t\t\tthis.boundMinY = %f;\n" % bb[4])
+		file.write("\t\t\tthis.boundMinZ = %f;\n" % bb[5])
+	elif (Config.A3DVersionSystem == 7) or (Config.A3DVersionSystem == 8) or (Config.A3DVersionSystem == 9) or (Config.A3DVersionSystem == 10) or (Config.A3DVersionSystem == 11):
+		# version 8.5.0, 8.8.0, 8.12.0, 8.17.0, 8.27.0
+		file.write("\t\t\tvar bb:BoundBox = new BoundBox();\n")
+		file.write("\t\t\tbb.maxX = %f;\n" % bb[0])
+		file.write("\t\t\tbb.maxY = %f;\n" % bb[1])
+		file.write("\t\t\tbb.maxZ = %f;\n" % bb[2])
+		file.write("\t\t\tbb.minX = %f;\n" % bb[3])
+		file.write("\t\t\tbb.minY = %f;\n" % bb[4])
+		file.write("\t\t\tbb.minZ = %f;\n" % bb[5])
+		file.write("\t\t\tthis.boundBox = bb;\n")
+	else:
+		print("version not found")
 	
 def WriteClass8270(file,obj,Config):
 	mesh = obj.data
@@ -959,7 +989,7 @@ def WriteClass8270(file,obj,Config):
 		file.write("\t\t\tg.calculateTangents(0);\n")
 		file.write("\t\t\tthis.geometry = g;\n")
 
-	start,end,mts,mats = collectSurfaces(mesh)
+	start,end,mts,mats,uvimgs = collectSurfaces(mesh)
 	
 	if len(mts) > 0:
 		for x in range(len(mts)):
@@ -969,6 +999,7 @@ def WriteClass8270(file,obj,Config):
 	
 	file.write("\t\t\tthis.calculateBoundBox();\n")
 	writeTransform(file,obj,Config)
+	writeBoundBox(file,bb,Config)
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 
@@ -1067,11 +1098,15 @@ def WriteClass78(file,obj,Config):
 	
 	mati = setupMaterials(file,obj,Config)
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
-		
+	
 	if checkBMesh() == True:
 		mefdata = mesh.polygons
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj)
+		uvlayer = mesh.tessface_uv_textures.active
 	else:
 		mefdata = mesh.faces
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+		uvlayer = mesh.uv_textures.active
 		
 	cn=-1
 	for face in mefdata:
@@ -1081,7 +1116,8 @@ def WriteClass78(file,obj,Config):
 			for i in range(len(face.vertices)):
 				hasFaceUV = len(mesh.uv_textures) > 0
 				if (hasFaceUV) and (Config.ExportUV == 1):
-					uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
+					#uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
+					uv = [uvlayer.data[face.index].uv[i][0], uvlayer.data[face.index].uv[i][1]]
 					uv[1] = 1.0 - uv[1]
 					file.write('\t\t\t\t\taddVertex(%f, %f, %f, %f, %f),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z, uv[0], uv[1]) )
 				else:
@@ -1115,6 +1151,7 @@ def WriteClass78(file,obj,Config):
 		file.write("\t\t\tcalculateBounds();\n")
 		
 	writeTransform(file,obj,Config)
+	writeBoundBox(file,bb,Config)
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 	
@@ -1131,15 +1168,20 @@ def WriteClass75(file,obj,Config):
 	
 	if checkBMesh() == True:
 		mefdata = mesh.polygons
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj)
+		uvlayer = mesh.tessface_uv_textures.active
 	else:
 		mefdata = mesh.faces
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+		uvlayer = mesh.uv_textures.active
 		
 	for face in mefdata:
 		file.write('\t\t\t\tg.addFace(Vector.<Vertex>([\n')
 		for i in range(len(face.vertices)):
 			hasFaceUV = len(mesh.uv_textures) > 0
 			if (hasFaceUV) and (Config.ExportUV == 1):
-				uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
+				#uv = [mesh.uv_textures.active.data[face.index].uv[i][0], mesh.uv_textures.active.data[face.index].uv[i][1]]
+				uv = [uvlayer.data[face.index].uv[i][0], uvlayer.data[face.index].uv[i][1]]
 				uv[1] = 1.0 - uv[1]
 				file.write('\t\t\t\t\tg.addVertex(%f, %f, %f, %f, %f),\n' % (verts[face.vertices[i]].co.x, verts[face.vertices[i]].co.y, verts[face.vertices[i]].co.z, uv[0], uv[1]) )
 			else:
@@ -1166,6 +1208,7 @@ def WriteClass75(file,obj,Config):
 	file.write("\t\t\t//g.weldFaces();\n")
 	file.write("\t\t\tgeometry = g;\n\n")
 	writeTransform(file,obj,Config)
+	writeBoundBox(file,bb,Config)
 	file.write("\t\t}\n")
 	file.write("\t}\n")
 	
@@ -1529,7 +1572,7 @@ def A3DExport1(file,Config):
 			else:
 				vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
 			#get surface data
-			start,end,mts,mats = collectSurfaces(mesh)
+			start,end,mts,mats,uvimgs = collectSurfaces(mesh)
 					
 			#create mesh boundbox
 			a3dbox = A3DBox(Config)
@@ -1720,7 +1763,7 @@ def A3DExport2(file,Config):
 			if obj["a3dtype"] == 'A3DSprite3D':
 				print('A3DSprite3D Found')
 				mesh = obj.data
-				start,end,mts,mats = collectSurfaces(mesh)
+				start,end,mts,mats,uvimgs = collectSurfaces(mesh)
 				
 				#create material
 				if Config.ExportBoundBoxes == 1:
@@ -4255,6 +4298,10 @@ class A3D2:
 			print("id="+str(jnt._id))
 			print("pid="+str(jnt._parentId))
 			joints[jnt._id] = jnt
+			
+		meshes = {}
+		for me in self.meshes:
+			meshes[me._id] = me
 		
 		if self.Config.ImportLighting == 1:
 			for light in self.ambientLights:
@@ -4280,10 +4327,13 @@ class A3D2:
 			skin.render(ibuffers,vbuffers,materials,maps,images,joints,self.joints)
 			
 		for sprite in self.sprites:
-			sprite.render()
+			sprite.render(materials,maps,images)
 			
 		for decal in self.decals:
 			decal.render()
+			
+		for lod in self.lods:
+			lod.render(meshes)
 		
 	def read(self,file,mask,ver):
 		print("reada3d2")
@@ -7002,9 +7052,45 @@ class A3D2Sprite:
 		
 	def read(self,file,mask,mskindex):
 		print("read A3D2Sprite")
-		self._mskindex = 1
+
 		self._alwaysOnTop = unpack("B", file.read(calcsize("B")))[0]
 		
+		if mask[mskindex + self._mskindex] == "0":
+			self._boundBoxId = unpack(">L", file.read(calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		self._height = unpack(">f", file.read(calcsize(">f")))[0]
+		self._id = unpack(">Q", file.read(calcsize(">Q")))[0]
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._materialId = unpack(">L",file.read(calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			a3dstr = A3DString()
+			a3dstr.read(file)
+			self._name = a3dstr.name
+		self._mskindex = self._mskindex + 1
+		
+		self._originX = unpack(">f", file.read(calcsize(">f")))[0]
+		self._originY = unpack(">f", file.read(calcsize(">f")))[0]
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._parentId = unpack(">Q", file.read(calcsize(">Q")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		self._perspectiveScale = unpack("B", file.read(calcsize("B")))[0]
+		self._rotation = unpack(">f", file.read(calcsize(">f")))[0]
+		
+		if mask[mskindex + self._mskindex] == "0":
+			a3dtran = A3DTransform(self.Config)
+			a3dtran.read(file)
+			self._transform = a3dtran
+		self._mskindex = self._mskindex + 1
+		
+		self._visible = unpack("B", file.read(calcsize("B")))[0]
+		self._width = unpack(">f", file.read(calcsize(">f")))[0]
+	
 	def write(self,file):
 		file.write(pack("B",self._alwaysOnTop))
 		
@@ -7051,8 +7137,171 @@ class A3D2Sprite:
 		file.write(pack("B",self._visible))
 		file.write(pack(">f",self._width))
 	
-	def render(self):
-		print('add sprite3d here')
+	def render(self,materials,maps,images):
+		coords=[ (1, 1, 0), (1, -1, 0), (-1, -0.9999998, 0), (-0.9999997, 1, 0) ]
+		faces=[ (0, 3, 2, 1) ]
+		
+		me = bpy.data.meshes.new("A3DSprite3D") 
+		ob = bpy.data.objects.new("A3DSprite3D", me)  
+		
+		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
+			ob.matrix_local = self._transform.getMatrix()
+		else:
+			ob.location = bpy.context.scene.cursor_location
+			
+		ob.rotation_euler = (1.57079633,0,1) 
+		bpy.context.scene.objects.link(ob)  
+		
+		ob["a3dtype"] = "A3DSprite3D"
+
+		me.from_pydata(coords,[],faces)
+		me.update(calc_edges=True)
+		
+		mat = materials[self._materialId]
+		
+		surf_mat = bpy.data.materials.new("SpriteMaterial")
+		me.materials.append(surf_mat)
+		
+		if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
+			#get map
+			map = maps[mat._diffuseMapId]
+			#get img
+			img = images[map._imageId]
+			
+			#new image
+			texture = bpy.data.textures.new("diffuse", type='IMAGE')
+			DIR = os.path.dirname(self.Config.FilePath)
+			image = load_image(img._url, DIR)
+			texture.image = image
+			
+			#set diffuse img for uv window
+			diffuseimg = image
+		
+			#new texture
+			mtex = surf_mat.texture_slots.add()
+			mtex.texture = texture
+			mtex.texture_coords = 'UV'
+			mtex.use_map_color_diffuse = True
+			#mtex.uv_layer = uvname
+			
+		if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
+			#get map
+			map = maps[mat._glossinessMapId]
+			#get img
+			img = images[map._imageId]
+			
+			#new image
+			texture = bpy.data.textures.new("glossiness", type='IMAGE')
+			DIR = os.path.dirname(self.Config.FilePath)
+			image = load_image(img._url, DIR)
+			texture.image = image
+		
+			#new texture
+			mtex = surf_mat.texture_slots.add()
+			mtex.texture = texture
+			mtex.texture_coords = 'UV'
+			mtex.use_map_color_diffuse = False
+			mtex.use_map_raymir = True
+			#mtex.uv_layer = uvname
+			
+		if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
+			#get map
+			map = maps[mat._lightMapId]
+			#get img
+			img = images[map._imageId]
+			
+			#new image
+			texture = bpy.data.textures.new("light", type='IMAGE')
+			DIR = os.path.dirname(self.Config.FilePath)
+			image = load_image(img._url, DIR)
+			texture.image = image
+		
+			#new texture
+			mtex = surf_mat.texture_slots.add()
+			mtex.texture = texture
+			mtex.texture_coords = 'UV'
+			mtex.use_map_color_diffuse = False
+			mtex.use_map_ambient = True
+			#mtex.uv_layer = uvname
+			
+		if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
+			#get map
+			map = maps[mat._normalMapId]
+			#get img
+			img = images[map._imageId]
+			
+			#new image
+			texture = bpy.data.textures.new("normal", type='IMAGE')
+			DIR = os.path.dirname(self.Config.FilePath)
+			image = load_image(img._url, DIR)
+			texture.image = image
+		
+			#new texture
+			mtex = surf_mat.texture_slots.add()
+			mtex.texture = texture
+			mtex.texture_coords = 'UV'
+			mtex.use_map_color_diffuse = False
+			mtex.use_map_normal = True
+			#mtex.uv_layer = uvname
+			
+		if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
+			#get map
+			map = maps[mat._opacityMapId]
+			#get img
+			img = images[map._imageId]
+			
+			#new image
+			texture = bpy.data.textures.new("opacity", type='IMAGE')
+			DIR = os.path.dirname(self.Config.FilePath)
+			image = load_image(img._url, DIR)
+			texture.image = image
+		
+			#new texture
+			mtex = surf_mat.texture_slots.add()
+			mtex.texture = texture
+			mtex.texture_coords = 'UV'
+			mtex.use_map_color_diffuse = False
+			mtex.use_map_alpha = True
+			#mtex.uv_layer = uvname
+			
+		if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
+			#get map
+			map = maps[mat._reflectionCubeMapId]
+			#get img
+			img = images[map._imageId]
+			
+			#new image
+			texture = bpy.data.textures.new("reflection", type='IMAGE')
+			DIR = os.path.dirname(self.Config.FilePath)
+			image = load_image(img._url, DIR)
+			texture.image = image
+		
+			#new texture
+			mtex = surf_mat.texture_slots.add()
+			mtex.texture = texture
+			mtex.texture_coords = 'UV'
+			mtex.use_map_color_diffuse = False
+			#mtex.uv_layer = uvname
+			
+		if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
+			#get map
+			map = maps[mat._specularMapId]
+			#get img
+			img = images[map._imageId]
+			
+			#new image
+			texture = bpy.data.textures.new("specular", type='IMAGE')
+			DIR = os.path.dirname(self.Config.FilePath)
+			image = load_image(img._url, DIR)
+			texture.image = image
+		
+			#new texture
+			mtex = surf_mat.texture_slots.add()
+			mtex.texture = texture
+			mtex.texture_coords = 'UV'
+			mtex.use_map_color_diffuse = False
+			mtex.use_map_specular = True
+			#mtex.uv_layer = uvname
 	
 class A3D2Layer:
 	def __init__(self,Config):
@@ -7226,7 +7475,40 @@ class A3D2LOD:
 		
 	def read(self,file,mask,mskindex):
 		print("read A3D2LOD")
-		self._mskindex = 1
+		if mask[mskindex + self._mskindex] == "0":
+			self._boundBoxId = unpack(">L", file.read(calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		arr = A3DArray()
+		arr.read(file)
+		for a in range(arr.length):
+			self._distances.append(unpack(">f",file.read(calcsize(">f")))[0])
+			
+		self._id = unpack(">Q", file.read(calcsize(">Q")))[0]
+			
+		if mask[mskindex + self._mskindex] == "0":
+			a3dstr = A3DString()
+			a3dstr.read(file)
+			self._name = a3dstr.name
+		self._mskindex = self._mskindex + 1
+		
+		arr = A3DArray()
+		arr.read(file)
+		for a in range(arr.length):
+			self._objects.append(unpack(">Q",file.read(calcsize(">Q")))[0])
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._parentId = unpack(">Q", file.read(calcsize(">Q")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		#transform
+		if mask[mskindex + self._mskindex] == "0":
+			a3dtran = A3DTransform(self.Config)
+			a3dtran.read(file)
+			self._transform = a3dtran
+		self._mskindex = self._mskindex + 1
+		
+		self._visible = unpack("B", file.read(calcsize("B")))[0]		
 		
 	def write(self,file):
 		print("write LOD")
@@ -7278,6 +7560,29 @@ class A3D2LOD:
 			self._optmask = self._optmask + str(1)
 		
 		file.write(pack("B",self._visible))
+		
+	def render(self,meshes):
+		bpy.ops.object.add(type='EMPTY')
+		empty = bpy.context.object
+		
+		empty.name = "A3DLOD"	
+
+		#set draw type
+		empty.empty_draw_type = 'CUBE'
+
+		# give custom property type
+		empty["a3dtype"] = "A3DLOD"
+		
+		# position object at 3d-cursor
+		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
+			empty.matrix_local = self._transform.getMatrix()
+		else:
+			empty.location = bpy.context.scene.cursor_location
+			
+		for x in range(len(self._objects)):
+			obj = bpy.data.objects[meshes[self._objects[x]]._name]
+			obj.parent = empty
+			obj['a3ddistance'] = self._distances[x]
 		
 class A3D2Surface:
 	def __init__(self,Config):
@@ -7531,6 +7836,8 @@ class alternativa3DPanel(bpy.types.Panel):
 	def draw(self, context):
 		l = self.layout
 		obj = bpy.context.active_object
+		
+		#add a button for addchild child lod?
 		
 		if obj != None:
 			if "a3dtype" in obj:
