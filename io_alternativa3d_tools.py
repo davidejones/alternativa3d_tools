@@ -1926,6 +1926,10 @@ def A3DExport2(file,Config):
 					lods.append(a3dlod)
 					mesh_objects.append(a3dlod)
 			
+			elif obj["a3dtype"] == 'A3DSkybox':
+				print("skybox")
+				a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
+				
 	if len(objs_lights) > 0:
 		print("Exporting lights...\n")
 		#loop over every light
@@ -4302,21 +4306,25 @@ class A3D2:
 		meshes = {}
 		for me in self.meshes:
 			meshes[me._id] = me
+			
+		objects = {}
+		for obje in self.objects:
+			objects[obje._id] = obje
 		
 		if self.Config.ImportLighting == 1:
 			for light in self.ambientLights:
-				light.render()
+				light.render(objects)
 					
 			for light in self.directionalLights:
-				light.render()
+				light.render(objects)
 				
 			for light in self.spotLights:
-				light.render()
+				light.render(objects)
 				
 			for light in self.omniLights:
-				light.render()
+				light.render(objects)
 		
-		if self.Config.ImportLighting == 1:
+		if self.Config.ImportCameras == 1:
 			for cam in self.cameras:
 				cam.render()
 			
@@ -4430,107 +4438,7 @@ class A3D2:
 				self.nullmask = self.nullmask + cla._optmask
 		else:
 			self.nullmask = self.nullmask + str(1)
-			
-	def write_new(self,file):
-		print("write a3d2\n")
-				
-		tfile = tempfile.TemporaryFile(mode ='w+b')
-		
-		self.writeClass(tfile,self.ambientLights)	
-		self.writeClass(tfile,self.animationClips)	
-		self.writeClass(tfile,self.animationTracks)	
-		self.writeClass(tfile,self.boxes)	
-		self.writeClass(tfile,self.cubeMaps)	
-		self.writeClass(tfile,self.decals)	
-		self.writeClass(tfile,self.directionalLights)	
-		self.writeClass(tfile,self.images)	
-		self.writeClass(tfile,self.indexBuffers)	
-		self.writeClass(tfile,self.joints)	
-		self.writeClass(tfile,self.maps)	
-		self.writeClass(tfile,self.materials)	
-		self.writeClass(tfile,self.meshes)	
-		self.writeClass(tfile,self.objects)	
-		self.writeClass(tfile,self.omniLights)
-		self.writeClass(tfile,self.skins)		
-		self.writeClass(tfile,self.spotLights)	
-		self.writeClass(tfile,self.sprites)
-		self.writeClass(tfile,self.vertexBuffers)
-		if self.Config.A3DVersionSystem <= 3:
-			self.writeClass(tfile,self.layers)
-		if self.Config.A3DVersionSystem <= 2:
-			self.writeClass(tfile,self.cameras)
-			self.writeClass(tfile,self.lods)
-		
-		tfile2 = tempfile.TemporaryFile(mode ='w+b')
-		
-		print("nullmask = "+self.nullmask)
-		
-		#nullmask
-		null = A3D2Null(self.Config)
-		null._mask = self.nullmask
-		null.write(tfile2)
-		
-		#version
-		ver = A3DVersion(self.Config)
-		
-		if self.Config.A3DVersionSystem == 5:
-			major = 1
-			minor = 0
-		elif self.Config.A3DVersionSystem == 4:
-			major = 2
-			minor = 0
-		elif self.Config.A3DVersionSystem == 3:
-			major = 2
-			minor = 4
-		elif self.Config.A3DVersionSystem == 2:
-			major = 2
-			minor = 5
-		elif self.Config.A3DVersionSystem == 1:
-			major = 2
-			minor = 6
-		
-		ver.baseversion = major
-		ver.pointversion = minor
-		ver.write(tfile2)
-		
-		#a3d2
-		tfile.seek(0)
-		#data = tfile.read()
-		#tfile2.write(data)
-		self.copyFile(tfile,tfile2)
-		tfile.flush()
-		tfile.close()
-		
-		#write package length
-		a3dpack = A3D2Package(self.Config)
-		if self.Config.CompressData == 1:
-			a3dpack._packed = 1
-			tfile2.seek(0)
-			#indata = tfile2.read()
-			#outdata = zlib.compress(indata)
-			self.copyFile(tfile,tfile2)
-			a3dpack._length = len(outdata)
-		else:
-			a3dpack._length = tfile2.tell()
-			a3dpack._packed = 0
-		a3dpack.write(file)
-		
-		#compress and write data
-		if self.Config.CompressData == 1:
-			# compressed
-			file.write(outdata)
-		else:
-			# uncompressed
-			tfile2.seek(0)
-			#data = tfile2.read()
-			#file.write(data)
-			self.copyFile(tfile2,file)
-		
-		tfile2.flush()
-		tfile2.close()
-			
-		print("done")
-		
+					
 	def write(self,file):
 		print("write a3d2\n")
 		
@@ -4625,9 +4533,7 @@ class A3D2:
 			data = tfile2.read()
 			file.write(data)
 		tfile2.close()
-	
-	def copyFile(fin,fout,chunksz = 65536):
-		shutil.copyfileobj(fin, fout, chunksz)
+
 # lighting	
 	
 class A3D2AmbientLight:
@@ -4712,7 +4618,7 @@ class A3D2AmbientLight:
 			self._optmask = self._optmask + str(1)
 		file.write(pack("B",self._visible))
 	
-	def render(self):
+	def render(self,objects):
 		if self._name is not None:
 			nme = self._name
 		else:
@@ -4723,6 +4629,12 @@ class A3D2AmbientLight:
 		
 		lamp.color = self._color
 		lamp.energy = self._intensity
+		
+		if self._parentId is not None:
+			obj = objects[self._parentId]
+			if obj._transform != None:
+				print("ambient yes")
+				ob.matrix_world = obj._transform.getMatrix()
 
 		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
 			ob.matrix_local = self._transform.getMatrix()
@@ -4814,17 +4726,23 @@ class A3D2DirectionalLight:
 			self._optmask = self._optmask + str(1)
 		file.write(pack("B",self._visible))
 	
-	def render(self):
+	def render(self,objects):
 		if self._name is not None:
 			nme = self._name
 		else:
 			nme = "Lamp"
 	
-		lamp = bpy.data.lamps.new(nme,"HEMI") 
+		lamp = bpy.data.lamps.new(nme,"AREA") 
 		ob = bpy.data.objects.new(nme, lamp)
 		
 		lamp.color = self._color
 		lamp.energy = self._intensity
+		
+		if self._parentId is not None:
+			obj = objects[self._parentId]
+			if obj._transform != None:
+				print("direct yes")
+				ob.matrix_world = obj._transform.getMatrix()
 
 		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
 			ob.matrix_local = self._transform.getMatrix()
@@ -4868,7 +4786,34 @@ class A3D2OmniLight:
 		
 	def read(self,file,mask,mskindex):
 		print("read A3D2OmniLight")
-		self._mskindex = 1
+		self._attenuationBegin = unpack('>f',file.read(calcsize(">f")))[0]
+		self._attenuationEnd = unpack('>f',file.read(calcsize(">f")))[0]
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._boundBoxId = unpack(">L", file.read(calcsize(">L")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		self._color = unpack("I",file.read(calcsize("I")))[0]
+		self._id = unpack(">Q",file.read(calcsize(">Q")))[0]
+		self._intensity = unpack(">f",file.read(calcsize(">f")))[0]
+		
+		if mask[mskindex + self._mskindex] == "0":
+			a3dstr = A3DString()
+			a3dstr.read(file)
+			self._name = a3dstr.name
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			self._parentId = unpack(">Q", file.read(calcsize(">Q")))[0]
+		self._mskindex = self._mskindex + 1
+		
+		if mask[mskindex + self._mskindex] == "0":
+			a3dtran = A3DTransform(self.Config)
+			a3dtran.read(file)
+			self._transform = a3dtran
+		self._mskindex = self._mskindex + 1
+		
+		self._visible = unpack("B", file.read(calcsize("B")))[0]
 		
 	def write(self,file):
 		file.write(pack('>f',self._attenuationBegin))
@@ -4900,17 +4845,23 @@ class A3D2OmniLight:
 			self._optmask = self._optmask + str(1)
 		file.write(pack("B",self._visible))
 	
-	def render(self):
+	def render(self,objects):
 		if self._name is not None:
 			nme = self._name
 		else:
 			nme = "Lamp"
 	
-		lamp = bpy.data.lamps.new(nme,"HEMI") 
+		lamp = bpy.data.lamps.new(nme,"POINT") 
 		ob = bpy.data.objects.new(nme, lamp)
 		
 		lamp.color = self._color
 		lamp.energy = self._intensity
+		
+		if self._parentId is not None:
+			obj = objects[self._parentId]
+			if obj._transform != None:
+				print("omni yes")
+				ob.matrix_world = obj._transform.getMatrix()
 
 		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
 			ob.matrix_local = self._transform.getMatrix()
@@ -5046,17 +4997,23 @@ class A3D2SpotLight:
 			self._optmask = self._optmask + str(1)
 		file.write(pack("B",self._visible))
 	
-	def render(self):
+	def render(self,objects):
 		if self._name is not None:
 			nme = self._name
 		else:
 			nme = "Lamp"
 	
-		lamp = bpy.data.lamps.new(nme,"HEMI") 
+		lamp = bpy.data.lamps.new(nme,"SPOT") 
 		ob = bpy.data.objects.new(nme, lamp)
 		
 		lamp.color = self._color
 		lamp.energy = self._intensity
+		
+		if self._parentId is not None:
+			obj = objects[self._parentId]
+			if obj._transform != None:
+				print("spot yes")
+				ob.matrix_world = obj._transform.getMatrix()
 
 		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
 			ob.matrix_local = self._transform.getMatrix()
@@ -7635,11 +7592,13 @@ class A3d_submenu(bpy.types.Menu):
 		layout.operator_context = 'INVOKE_REGION_WIN'
 		layout.operator("a3dobj.a3d_sprite3d", text="Sprite3D", icon='MESH_PLANE')
 		layout.operator("a3dobj.a3d_lod", text="LOD", icon='MESH_CUBE')
-		layout.separator()
+		layout.operator("a3dobj.a3d_skybox", text="Skybox", icon='MESH_CUBE')
 		layout.operator("a3dobj.a3d_ambientlight", text="AmbientLight", icon='OUTLINER_OB_LAMP')
 		layout.operator("a3dobj.a3d_directionallight", text="DirectionalLight", icon='OUTLINER_OB_LAMP')
 		layout.operator("a3dobj.a3d_omnilight", text="OmniLight", icon='OUTLINER_OB_LAMP')
 		layout.operator("a3dobj.a3d_spotlight", text="SpotLight", icon='OUTLINER_OB_LAMP')
+		layout.separator()
+		layout.operator(LODSettings.bl_idname, text="Add Mesh To LOD", icon='MESH_CUBE')
 
 class AddSprite3D(bpy.types.Operator):
 	bl_idname = "a3dobj.a3d_sprite3d"
@@ -7658,6 +7617,12 @@ class AddSprite3D(bpy.types.Operator):
 		bpy.context.scene.objects.link(ob)  
 		
 		ob["a3dtype"] = "A3DSprite3D"
+		ob["a3dalwaysOnTop"] = True
+		ob["a3dheight"] = "0"
+		ob["a3dwidth"] = "0"
+		ob["a3doriginX"] = "0"
+		ob["a3doriginY"] = "0"
+		ob["a3dperspectiveScale"] = "0"
 
 		me.from_pydata(coords,[],faces)
 		me.update(calc_edges=True)
@@ -7692,6 +7657,185 @@ class AddLOD(bpy.types.Operator):
 		empty.location = bpy.context.scene.cursor_location   
 				
 		return {'FINISHED'}	
+
+class AddSkybox(bpy.types.Operator):
+	bl_idname = "a3dobj.a3d_skybox"
+	bl_label = "Add Skybox"
+	bl_options = {'REGISTER', 'UNDO'}
+		
+	def execute(self, context):
+		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
+		coords=[(1.000000,1.000000,-1.000000),(1.000000,-1.000000,-1.000000),(-1.000000,-1.000000,-1.000000),(-1.000000,1.000000,-1.000000),(1.000000,1.000000,1.000000),(0.999999,-1.000001,1.000000),(-1.000000,-1.000000,1.000000),(-1.000000,1.000000,1.000000)]
+		faces=[(0,3,2,1),(4,5,6,7),(0,1,5,4),(1,2,6,5),(2,3,7,6),(4,7,3,0)]
+		uvs=[(0.003059,0.000000),(1.000000,0.003059),(0.996942,1.000000),(0.000000,0.996941),(0.000000,0.003058),(0.996942,0.000000),(1.000000,0.996942),(0.003058,1.000000),(0.003058,0.000000),(1.000000,0.003059),(0.996942,1.000000),(0.000000,0.996942),(0.000000,0.003058),(0.996942,0.000000),(1.000000,0.996942),(0.003059,1.000000),(0.000000,0.003058),(0.996942,0.000000),(1.000000,0.996942),(0.003058,1.000000),(1.000000,0.996941),(0.003058,1.000000),(0.000000,0.003058),(0.996941,0.000000)]
+		
+		# create a new mesh  
+		me = bpy.data.meshes.new("A3DSkybox") 
+		
+		# create an object with that mesh
+		ob = bpy.data.objects.new("A3DSkybox", me)  
+				
+		# position object at 3d-cursor
+		ob.location = bpy.context.scene.cursor_location   
+		
+		# Link object to scene
+		bpy.context.scene.objects.link(ob) 
+
+		# give custom property type
+		ob["a3dtype"] = "A3DSkybox"		
+		
+		# set the skybox to active
+		bpy.context.scene.objects.active = ob
+		
+		# Fill the mesh with verts, edges, faces 
+		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
+		me.update(calc_edges=True)    # Update mesh with new data	
+		
+		#set uvs
+		if len(uvs) > 0:
+			uvlayer = me.uv_textures.new()
+			uv_faces = me.uv_layers[0].data
+			x=0
+			for vert in uv_faces:
+				vert.uv = uvs[x]
+				x=x+1
+		
+		# flip the normals as we want it inside the cube not outside
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='SELECT')
+		#bpy.ops.mesh.flip_normals()
+		bpy.ops.mesh.normals_make_consistent(inside=True)
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		#bpy.ops.object.select_all(action='DESELECT')
+		
+		#add materials for each face
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[0].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		#Assign a material to the last slot 
+		matbottom = bpy.data.materials.new("Bottom")
+		matbottom.use_shadeless = True
+		ob.material_slots[ob.material_slots.__len__() - 1].material = matbottom
+		#slot.material = matbottom
+		#me.materials.append(matbottom)
+		#new texture
+		texture = bpy.data.textures.new("Bottom", type='IMAGE')
+		mtex = matbottom.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+		
+		
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[1].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		mattop = bpy.data.materials.new("Top")
+		mattop.use_shadeless = True
+		ob.material_slots[ob.material_slots.__len__() - 1].material = mattop
+		#me.materials.append(mattop)
+		texture = bpy.data.textures.new("Top", type='IMAGE')
+		mtex = mattop.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[2].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		matback = bpy.data.materials.new("Back")
+		matback.use_shadeless = True
+		ob.material_slots[ob.material_slots.__len__() - 1].material =  matback
+		#me.materials.append(matback)
+		texture = bpy.data.textures.new("Back", type='IMAGE')
+		mtex = matback.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[3].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		matleft = bpy.data.materials.new("Left")
+		matleft.use_shadeless = True
+		ob.material_slots[ob.material_slots.__len__() - 1].material = matleft
+		#me.materials.append(matleft)
+		texture = bpy.data.textures.new("Left", type='IMAGE')
+		mtex = matleft.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+		
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[4].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		matfront = bpy.data.materials.new("Front")
+		matfront.use_shadeless = True
+		ob.material_slots[ob.material_slots.__len__() - 1].material = matfront
+		#me.materials.append(matfront)
+		texture = bpy.data.textures.new("Front", type='IMAGE')
+		mtex = matfront.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+
+		slot = bpy.ops.object.material_slot_add()
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		for face in me.polygons:
+			face.select=False
+		me.polygons[5].select=True
+		bpy.ops.object.mode_set(mode = 'EDIT')
+		bpy.ops.object.material_slot_assign()
+		matright = bpy.data.materials.new("Right")
+		matright.use_shadeless = True
+		ob.material_slots[ob.material_slots.__len__() - 1].material = matright
+		#me.materials.append(matright)
+		texture = bpy.data.textures.new("Right", type='IMAGE')
+		mtex = matright.texture_slots.add()
+		mtex.texture_coords = 'UV'
+		mtex.use_map_color_diffuse = True
+		mtex.texture = texture
+		
+		bpy.ops.mesh.select_all(action='DESELECT')
+		bpy.ops.mesh.select_all(action='SELECT')
+		bpy.ops.object.mode_set(mode = 'OBJECT')
+		
+		#add texture to each material
+		#set mapping to uv coords
+		
+		return {'FINISHED'}
 		
 class AddAmbientLight(bpy.types.Operator):
 	bl_idname = "a3dobj.a3d_ambientlight"
@@ -7848,16 +7992,51 @@ class alternativa3DPanel(bpy.types.Panel):
 					box = l.box()
 					columns = box.column()
 					header = columns.split(0.6)
-					header.label(text="Object:")
-					header.label(text="Distance:")
+					header.label(text="Object")
+					header.label(text="Distance")
 					
 					for child in obj.children:
 						row = columns.split(0.6)
 						row.label(child.name)
 						row.prop(child,'["a3ddistance"]')
 						row.enabled = True
-				elif obj["a3dtype"] == "A3DSprite":
+				elif obj["a3dtype"] == "A3DSprite3D":
 					print("spriteprops")
+					box = l.box()
+					columns = box.column()
+					header = columns.split(0.6)
+					header.label(text="Property")
+					header.label(text="Value")
+					
+					row = columns.split(0.6)
+					row.label("alwaysOnTop")
+					row.prop(obj,'["a3dalwaysOnTop"]')
+					row.enabled = True
+					
+					row = columns.split(0.6)
+					row.label("width")
+					row.prop(obj,'["a3dwidth"]')
+					row.enabled = True
+					
+					row = columns.split(0.6)
+					row.label("height")
+					row.prop(obj,'["a3dheight"]')
+					row.enabled = True					
+					
+					row = columns.split(0.6)
+					row.label("originX")
+					row.prop(obj,'["a3doriginX"]')
+					row.enabled = True
+					
+					row = columns.split(0.6)
+					row.label("originY")
+					row.prop(obj,'["a3doriginY"]')
+					row.enabled = True
+					
+					row = columns.split(0.6)
+					row.label("perspectiveScale")
+					row.prop(obj,'["a3dperspectiveScale"]')
+					row.enabled = True
 					
 			if obj.parent != None:
 				parentobj = obj.parent
