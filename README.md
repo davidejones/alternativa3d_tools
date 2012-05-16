@@ -32,6 +32,27 @@ Installation Notes
 Changelog
 ---------
 
+### 1.1.7
+- Added export and import of cameras
+- Set images with multiple users to only export one copy
+- Added option to export without boundboxes as they can be calculated in alternativa
+- Added import options to include/excluding importing of lighting, cameras
+- Added LOD to mesh menu and exporter
+- Fixed bug in a3d export, relative path filenames starting with "//" not exporting images
+- Added export multiple uv channels in actionscript v8 and a3d
+- Import all uv channels from a3d model
+- Bugfix, when exporting large files, [Error 12] Not enough space appears - fixed by removing print() which was overflowing the console
+- When exporting if there are no materialslots for mesh an attempt to export with per face uv image as diffuse
+- Import LOD, Sprites from a3d
+- Changed how boundbox data is collected
+- Output boundbox data to classes
+- Fixed not being able to export with uvs in actionscript v7 due to bmesh changes
+- Fixed import lights all showing as ambient to show correct light type
+- Add panel details for sprite import/export
+- Add menu option for converting selected mesh to a decal
+- Add Decal in to menu and exporter, with panel details for import/export
+- export materials check texture name begins with string rather than equals string as you can have diffuse diffuse.001 etc
+
 ### 1.1.6
 - Updated min version of blender to be 2.63
 - Fixed api changes relating to bmesh

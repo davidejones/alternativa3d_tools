@@ -548,10 +548,34 @@ def getCommonDataNoBmesh(obj,flipUV=1):
 	uv_coord_list = []
 	new_index = 0
 	uvtex = mesh.uv_textures.active
+	
+	uvlayers={}
+	
+	y=0
+	for uvlayer in mesh.uv_textures:
+		uv_coord_list = []
+		uvlayername = uvlayer.name
+		uvlayers[uvlayername] = []
+		#for face in uvlayer.data:
+		for uv_index in range(len(mesh.faces)):	
+			#tmplist = [face.uv,face.image]
+			#uvlayers[uvlayername].append(tmplist)
+			face = uvlayer.data[uv_index]
+			uvs = face.uv1, face.uv2, face.uv3, face.uv4
+			for vertex_index, vertex_itself in enumerate(mesh.faces[uv_index].vertices):
+				uv_coord_list.append(uvs[vertex_index])
+				if flipUV == 1:
+					uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
+				else:
+					uv = [uv_coord_list[-1][0], uv_coord_list[-1][1]]
+				uvt.append(uv)
+				y=y+1
+		#tmplist = [uvt,face.image]
+		uvlayers[uvlayername].append(uvt)
+		uvt = []
 
 	if hasFaceUV:
 		for uv_index, uv_itself in enumerate(uvtex.data):
-			uvs = uv_itself.uv1, uv_itself.uv2, uv_itself.uv3, uv_itself.uv4
 			for vertex_index, vertex_itself in enumerate(mesh.faces[uv_index].vertices):
 				vertex = mesh.vertices[vertex_itself]
 				vertices_list.append(vertex_itself)
@@ -559,18 +583,12 @@ def getCommonDataNoBmesh(obj,flipUV=1):
 				normals_list.append(vertex.normal.xyz)
 				vertices_index_list.append(new_index)
 				new_index += 1
-				uv_coord_list.append(uvs[vertex_index])
 				vs.append([vertices_co_list[-1][0],vertices_co_list[-1][1],vertices_co_list[-1][2]])
 				if mesh.faces[uv_index].use_smooth:
 					nr.append([normals_list[-1][0],normals_list[-1][1],normals_list[-1][2]])
 				else:
 					nr.append(mesh.faces[uv_index].normal)
 				ins.append(vertices_index_list[-1])
-				if flipUV == 1:
-					uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
-				else:
-					uv = [uv_coord_list[-1][0], uv_coord_list[-1][1]]
-				uvt.append(uv)
 	else:
 		# if there are no image textures, output the old way
 		for face in mesh.faces:
@@ -595,7 +613,7 @@ def getCommonDataNoBmesh(obj,flipUV=1):
 			nr.append([v.normal[0],v.normal[1],v.normal[2]])
 
 	#if we have uv's and normals then calculate tangents
-	if (len(uvt) > 0) and (len(nr) > 0):
+	if (len(uvlayers) > 0) and (len(nr) > 0):
 		tan = calculateTangents(ins,vs,uv_coord_list,nr)		
 
 	#get bound box
@@ -603,7 +621,7 @@ def getCommonDataNoBmesh(obj,flipUV=1):
 
 	trns = getObjTransform(obj)
 
-	return vs,uvt,ins,nr,tan,bb,trns
+	return vs,uvlayers,ins,nr,tan,bb,trns
 	
 def getObjTransform(obj):
 	trns = []
@@ -1819,19 +1837,19 @@ def A3DExport2(file,Config):
 								a3dmap._imageId = a3dimg._id
 								maps.append(a3dmap)
 								
-								if name == 'diffuse':
+								if name.startswith('diffuse'):
 									difmap = a3dmap._id
-								elif name == 'normal':
+								elif name.startswith('normal'):
 									normmap = a3dmap._id
-								elif name == 'specular':
+								elif name.startswith('specular'):
 									specmap = a3dmap._id
-								elif name == 'opacity':
+								elif name.startswith('opacity'):
 									opacmap = a3dmap._id
-								elif name == 'glossiness':
+								elif name.startswith('glossiness'):
 									glossmap = a3dmap._id
-								elif name == 'light':
+								elif name.startswith('light'):
 									lighmap = a3dmap._id
-								elif name == 'reflection':
+								elif name.startswith('reflection'):
 									reflmap = a3dmap._id
 								else:
 									#just write as diffuse if no matches
@@ -1851,23 +1869,23 @@ def A3DExport2(file,Config):
 				a3dmat._reflectionCubeMapId = reflmap
 				a3dmat._specularMapId = specmap
 				materials.append(a3dmat)
-				
+						
 				a3dsprite = A3D2Sprite(Config)
-				a3dsprite._alwaysOnTop = 0
+				a3dsprite._alwaysOnTop = obj["a3dalwaysOnTop"]
 				if Config.ExportBoundBoxes == 1:
 					a3dsprite._boundBoxId = a3dbox._id
-				a3dsprite._height = 500
+				a3dsprite._height = obj["a3dheight"]
 				a3dsprite._id = len(sprites)
 				a3dsprite._materialId = a3dmat._id
 				a3dsprite._name = a3dstr
-				a3dsprite._originX = 0.5
-				a3dsprite._originY = 0.5
+				a3dsprite._originX = obj["a3doriginX"]
+				a3dsprite._originY = obj["a3doriginY"]
 				#a3dsprite._parentId = None
-				a3dsprite._perspectiveScale = 1
+				a3dsprite._perspectiveScale = obj["a3dperspectiveScale"]
 				a3dsprite._rotation = 0
 				a3dsprite._transform = a3dtrans
 				a3dsprite._visible = 1
-				a3dsprite._width = 500
+				a3dsprite._width = obj["a3dwidth"]
 				sprites.append(a3dsprite)
 				
 			elif obj["a3dtype"] == 'A3DLOD':
@@ -1883,7 +1901,7 @@ def A3DExport2(file,Config):
 							
 							#ConvertQuadsToTris(childobj)
 							
-							a3dmesh = createMesh(Config,childobj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
+							a3dmesh = createMesh(Config,childobj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
 							
 							lodobjects.append(a3dmesh._id)
 							distances.append(int(childobj["a3ddistance"]))
@@ -1928,7 +1946,10 @@ def A3DExport2(file,Config):
 			
 			elif obj["a3dtype"] == 'A3DSkybox':
 				print("skybox")
-				a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
+				a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
+			elif obj["a3dtype"] == 'A3DDecal':
+				print("decal")
+				a3ddecal = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers,True)
 				
 	if len(objs_lights) > 0:
 		print("Exporting lights...\n")
@@ -2111,7 +2132,7 @@ def A3DExport2(file,Config):
 						hasparentlod = True
 						
 			if hasparentlod == 0:
-				a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
+				a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
 			else:
 				print("didn't write mesh as parent is lod")
 		
@@ -2184,7 +2205,7 @@ def A3DExport2(file,Config):
 	
 	print('Export Completed...\n')
 
-def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers):
+def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers,isdecal=False):
 	mesh = obj.data
 	if mesh.users > 1:
 		print('this has is used for other objs aka linked copy')
@@ -2344,19 +2365,19 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 					a3dmap._imageId = imgid
 					maps.append(a3dmap)
 					
-					if name == 'diffuse':
+					if name.startswith('diffuse'):
 						difmap = a3dmap._id
-					elif name == 'normal':
+					elif name.startswith('normal'):
 						normmap = a3dmap._id
-					elif name == 'specular':
+					elif name.startswith('specular'):
 						specmap = a3dmap._id
-					elif name == 'opacity':
+					elif name.startswith('opacity'):
 						opacmap = a3dmap._id
-					elif name == 'glossiness':
+					elif name.startswith('glossiness'):
 						glossmap = a3dmap._id
-					elif name == 'light':
+					elif name.startswith('light'):
 						lighmap = a3dmap._id
-					elif name == 'reflection':
+					elif name.startswith('reflection'):
 						reflmap = a3dmap._id
 					else:
 						#just write as diffuse if no matches
@@ -2492,38 +2513,60 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 	a3dstr = A3DString()
 	a3dstr.name = cleanupString(obj.data.name)
 	
-	#create mesh
-	a3dmesh = A3D2Mesh(Config)
 	
-	if Config.ExportBoundBoxes == 1:
-		a3dmesh._boundBoxId = a3dbox._id
+	if isdecal == False:
+		#create mesh
+		a3dmesh = A3D2Mesh(Config)
 		
-	a3dmesh._id = len(mesh_objects)
-	#a3dmesh._indexBufferId = a3dibuf._id
-	a3dmesh._indexBufferId = ibufid
-	a3dmesh._name = a3dstr
-	if Config.ExportParentObj == 1:
-		a3dmesh._parentId = a3dobj._id
-	a3dmesh._surfaces = mesh_surfaces
-	a3dmesh._transform = a3dtrans
-	#a3dmesh._vertexBuffers = [len(vertexBuffers)] #vertex buffer ids
-	a3dmesh._vertexBuffers = vbufids #vertex buffer ids
-	a3dmesh._visible = 1
-	if obj.hide == True:
-		a3dmesh._visible = 0
-	else:
+		if Config.ExportBoundBoxes == 1:
+			a3dmesh._boundBoxId = a3dbox._id
+			
+		a3dmesh._id = len(mesh_objects)
+		#a3dmesh._indexBufferId = a3dibuf._id
+		a3dmesh._indexBufferId = ibufid
+		a3dmesh._name = a3dstr
+		if Config.ExportParentObj == 1:
+			a3dmesh._parentId = a3dobj._id
+		a3dmesh._surfaces = mesh_surfaces
+		a3dmesh._transform = a3dtrans
+		#a3dmesh._vertexBuffers = [len(vertexBuffers)] #vertex buffer ids
+		a3dmesh._vertexBuffers = vbufids #vertex buffer ids
 		a3dmesh._visible = 1
-	meshes.append(a3dmesh)
-	mesh_objects.append(a3dmesh)
+		if obj.hide == True:
+			a3dmesh._visible = 0
+		else:
+			a3dmesh._visible = 1
+		meshes.append(a3dmesh)
+		mesh_objects.append(a3dmesh)
+	else:
+		a3ddecal = A3D2Decal(Config)
+		if Config.ExportBoundBoxes == 1:
+			a3ddecal._boundBoxId = a3dbox._id
+		a3ddecal._id = len(mesh_objects)
+		a3ddecal._indexBufferId = ibufid
+		a3ddecal._name = a3dstr
+		a3ddecal._offset = 1
+		if Config.ExportParentObj == 1:
+			a3ddecal._parentId = a3dobj._id
+		a3ddecal._surfaces = mesh_surfaces
+		a3ddecal._transform = a3dtrans
+		a3ddecal._vertexBuffers = vbufids
+		a3ddecal._visible = 1
+		if obj.hide == True:
+			a3ddecal._visible = 0
+		else:
+			a3ddecal._visible = 1
+		decals.append(a3ddecal)
+		mesh_objects.append(a3ddecal)
 	
 	#reverse uvlayers, because a3d player loads latest uvlayer as default
-	revkeys = sorted(uvlayers.keys(), reverse=True)
-	uvlayersr = {}
-	i=0
-	for k in revkeys:
-		uvlayersr[i] = uvlayers[k]
-		i = i +1
-	uvlayers = uvlayersr
+	#revkeys = sorted(uvlayers.keys(), reverse=True)
+	#uvlayersr = {}
+	#i=0
+	#for k in revkeys:
+	#	uvlayersr[i] = uvlayers[k]
+	#	i = i +1
+	#uvlayers = uvlayersr
 	
 	if linkedmesh == False:
 		#create vertexbuffer
@@ -2571,8 +2614,11 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,meshes,o
 		#a3dvbuf._vertexCount = int(len(ins)) 
 		#a3dvbuf._vertexCount = 24
 		vertexBuffers.append(a3dvbuf)
-		#print("vs="+str(len(vs)))
-	return a3dmesh
+		#print("vs="+str(len(vs)))	
+	if isdecal == False:
+		return a3dmesh
+	else:
+		return a3ddecal
 	
 #==================================
 # A3D IMPORTER
@@ -3587,13 +3633,13 @@ class A3DMaterial:
 			self._specularMapId = unpack(">L",file.read(calcsize(">L")))[0]
 		self._mskindex = self._mskindex + 1
 		
-		print("diffuseMapId="+str(self._diffuseMapId))
-		print("glossinessMapId="+str(self._glossinessMapId))
-		print("id="+str(self._id))
-		print("lightMapId="+str(self._lightMapId))
-		print("normalMapId="+str(self._normalMapId))
-		print("opacityMapId="+str(self._opacityMapId))
-		print("specularMapId="+str(self._specularMapId))
+		#print("diffuseMapId="+str(self._diffuseMapId))
+		#print("glossinessMapId="+str(self._glossinessMapId))
+		#print("id="+str(self._id))
+		#print("lightMapId="+str(self._lightMapId))
+		#print("normalMapId="+str(self._normalMapId))
+		#print("opacityMapId="+str(self._opacityMapId))
+		#print("specularMapId="+str(self._specularMapId))
 		
 	def write(self,file):
 		print("write A3dMaterial")
@@ -4338,7 +4384,7 @@ class A3D2:
 			sprite.render(materials,maps,images)
 			
 		for decal in self.decals:
-			decal.render()
+			decal.render(ibuffers,vbuffers,materials,maps,images)
 			
 		for lod in self.lods:
 			lod.render(meshes)
@@ -6735,9 +6781,9 @@ class A3D2Decal:
 		self._id = 0
 		self._indexBufferId = 0
 		self._name = None
-		self._offset = None
+		self._offset = 1
 		self._parentId = None
-		self._surfaces = 0
+		self._surfaces = []
 		self._transform = None
 		self._vertexBuffers = 0
 		self._visible = 1
@@ -6752,9 +6798,9 @@ class A3D2Decal:
 		self._id = 0
 		self._indexBufferId = 0
 		self._name = None
-		self._offset = None
+		self._offset = 1
 		self._parentId = None
-		self._surfaces = 0
+		self._surfaces = []
 		self._transform = None
 		self._vertexBuffers = 0
 		self._visible = 1
@@ -6776,9 +6822,7 @@ class A3D2Decal:
 			self._name = a3dstr.name
 		self._mskindex = self._mskindex + 1
 		
-		if mask[mskindex + self._mskindex] == "0":
-			self._offset = unpack(">f", file.read(calcsize(">f")))[0]
-		self._mskindex = self._mskindex + 1
+		self._offset = unpack(">f", file.read(calcsize(">f")))[0]
 		
 		if mask[mskindex + self._mskindex] == "0":
 			self._parentId = unpack("Q", file.read(calcsize("Q")))[0]
@@ -6805,10 +6849,395 @@ class A3D2Decal:
 		self._visible = unpack("B", file.read(calcsize("B")))[0]
 		
 	def write(self,file):
-		print("write")
+		print("write a3ddecal")
+		if self._boundBoxId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(pack(">L",self._boundBoxId))
+		else:
+			self._optmask = self._optmask + str(1)
+			
+		file.write(pack(">Q",self._id))
+		file.write(pack(">L",self._indexBufferId))
+		
+		#string
+		if self._name is not None:
+			self._optmask = self._optmask + str(0)
+			self._name.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		
+		file.write(pack(">f",self._offset))
+			
+		#parentid
+		if self._parentId is not None:
+			self._optmask = self._optmask + str(0)
+			file.write(pack(">Q",self._parentId))
+		else:
+			self._optmask = self._optmask + str(1)
+		#surfaces
+		arr = A3DArray()
+		arr.write(file,len(self._surfaces))
+		for surf in self._surfaces:
+			surf.write(file)
+			self._optmask = self._optmask + surf._optmask
+		#transform
+		if self._transform is not None:
+			self._optmask = self._optmask + str(0)
+			self._transform.write(file)
+		else:
+			self._optmask = self._optmask + str(1)
+		#vbuffers
+		arr = A3DArray()
+		arr.write(file,len(self._vertexBuffers))
+		for x in range(len(self._vertexBuffers)):
+			file.write(pack(">L",self._vertexBuffers[x]))
+		#visible
+		file.write(pack("B",self._visible))
 
-	def render():
+	def render(self,ibuffers,vbuffers,materials,maps,images):
 		print('render decal')
+		verts = []
+		faces = []
+		uvs = []
+		norms = []
+		tans = []
+		joints = []
+	
+		#index buff
+		ibuf = ibuffers[self._indexBufferId]
+		i=0
+		for x in range(int(len(ibuf._byteBuffer)/3)):
+			temp = (ibuf._byteBuffer[i],ibuf._byteBuffer[i+1],ibuf._byteBuffer[i+2])
+			faces.append(temp)
+			i=i+3
+		
+		#vert buff
+		for v in self._vertexBuffers:
+			vbuf = vbuffers[v]
+			print("Attributes:"+str(vbuf._attributes))
+			numflts = 0
+			for att in vbuf._attributes:
+				if att == 0:
+					#position
+					numflts = numflts + 3
+				if att == 1:
+					#normal
+					numflts = numflts + 3
+				if att == 2:
+					#tangent
+					numflts = numflts + 4
+				if att == 3:
+					#joint
+					numflts = numflts + 4
+				if att == 4:
+					#uv
+					numflts = numflts + 2
+			flcount = int(len(vbuf._byteBuffer))
+			points = int(flcount/numflts)
+			
+			uvc = 0
+			uvlayers = {}
+			
+			i = 0
+			for p in range(points):
+				uvc = 0
+				for att in vbuf._attributes:
+					if att == 0:
+						x = vbuf._byteBuffer[i]
+						i = i + 1
+						y = vbuf._byteBuffer[i]
+						i = i + 1
+						z = vbuf._byteBuffer[i]
+						i = i + 1
+						verts.append((x, y, z))
+					if att == 1:
+						x = vbuf._byteBuffer[i]
+						i = i + 1
+						y = vbuf._byteBuffer[i]
+						i = i + 1
+						z = vbuf._byteBuffer[i]
+						i = i + 1
+						norms.append((x, y, z))
+					if att == 2:
+						a = vbuf._byteBuffer[i]
+						i = i + 1
+						b = vbuf._byteBuffer[i]
+						i = i + 1
+						c = vbuf._byteBuffer[i]
+						i = i + 1
+						d = vbuf._byteBuffer[i]
+						i = i + 1
+						tans.append((a,b,c,d))
+					if att == 3:
+						ai = vbuf._byteBuffer[i]
+						i = i + 1
+						aw = vbuf._byteBuffer[i]
+						i = i + 1
+						bi = vbuf._byteBuffer[i]
+						i = i + 1
+						bw = vbuf._byteBuffer[i]
+						i = i + 1
+						#jointA.index, jointA.weight, jointB.index, jointB.weight
+						joints.append((ai, aw, bi, bw))
+					if att == 4:
+						if uvc not in uvlayers:
+							uvlayers[uvc] = []
+						uv1 = vbuf._byteBuffer[i]
+						i = i + 1
+						uv2 = vbuf._byteBuffer[i]
+						uv2 = 1.0 - uv2
+						i = i + 1
+						uvlayers[uvc].append([uv1,uv2])
+						uvc=uvc+1
+			
+		#print(verts)
+		#print(faces)
+		#print(uvs)
+		#print(self._name)
+		#print(uvlayers)
+		
+		if self._name is not None:
+			nme = self._name
+		else:
+			nme = "Mesh"
+		
+		# create a new mesh  
+		me = bpy.data.meshes.new(nme) 
+		
+		# create an object with that mesh
+		ob = bpy.data.objects.new(nme, me)  
+		
+		if (self._transform is not None) and (self.Config.ApplyTransforms == True):
+			ob.matrix_local = self._transform.getMatrix()
+		else:
+			# position object at 3d-cursor
+			ob.location = bpy.context.scene.cursor_location
+		
+		# Link object to scene
+		bpy.context.scene.objects.link(ob)  
+		
+		# Fill the mesh with verts, edges, faces 
+		# from_pydata doesn't work correctly, it swaps vertices in some triangles 
+		me.from_pydata(verts,[],faces)   # edges or faces should be [], or you ask for problems
+		
+		#me.vertices.add(len(verts))
+		#me.faces.add(len(faces))
+		
+		#for i in range(len(verts)):
+		#	me.vertices[i].co=verts[i]
+			
+		#for i in range(len(faces)):
+		#	me.faces[i].vertices=faces[i]
+		
+		#select object
+		for object in bpy.data.objects:
+			object.select = False
+		ob.select = True
+		bpy.context.scene.objects.active = ob
+		
+		#me.update(calc_edges=True)    # Update mesh with new data
+		
+		ob["a3dtype"] = "A3DDecal"
+		ob["a3doffset"] = self._offset
+		
+		diffuseimg = None
+		
+		if self._visible == False:
+			ob.hide = True
+		
+		for surf in self._surfaces:
+			#surf._indexBegin
+			#surf._materialId
+			#surf._numTriangles
+			
+			if surf._materialId is not None:
+				#get material
+				mat = materials[surf._materialId]
+				
+				#new material
+				surf_mat = bpy.data.materials.new("Material")
+				me.materials.append(surf_mat)
+				
+				if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._diffuseMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("diffuse", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+					
+					#set diffuse img for uv window
+					diffuseimg = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = True
+					#mtex.uv_layer = uvname
+					
+				if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._glossinessMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("glossiness", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_raymir = True
+					#mtex.uv_layer = uvname
+					
+				if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._lightMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("light", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_ambient = True
+					#mtex.uv_layer = uvname
+					
+				if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._normalMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("normal", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_normal = True
+					#mtex.uv_layer = uvname
+					
+				if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._opacityMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("opacity", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_alpha = True
+					#mtex.uv_layer = uvname
+					
+				if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._reflectionCubeMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("reflection", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					#mtex.uv_layer = uvname
+					
+				if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
+					#get map
+					map = maps[mat._specularMapId]
+					#get img
+					img = images[map._imageId]
+					
+					#new image
+					texture = bpy.data.textures.new("specular", type='IMAGE')
+					DIR = os.path.dirname(self.Config.FilePath)
+					image = load_image(img._url, DIR)
+					texture.image = image
+				
+					#new texture
+					mtex = surf_mat.texture_slots.add()
+					mtex.texture = texture
+					mtex.texture_coords = 'UV'
+					mtex.use_map_color_diffuse = False
+					mtex.use_map_specular = True
+					#mtex.uv_layer = uvname
+		
+		#set norms
+		if len(norms) > 0:
+			for i in range(len(norms)):
+				me.vertices[i].normal=norms[i]
+		
+		
+		#add uv layer
+		if len(uvlayers) > 0:
+			for uvindex, uvdata in uvlayers.items():
+				uvname = "UV"+str(uvindex)
+				uvlayer = me.uv_textures.new(uvname)
+				uvs = uvdata
+				if checkBMesh() == True:
+					uv_faces = me.uv_layers[uvindex].data
+					fcc=0
+					for fc in range(len(uv_faces)):
+						if fcc >= len(uv_faces):
+							break
+						face = faces[fc]
+						v1, v2, v3 = face
+						if diffuseimg is not None:
+							me.uv_textures[uvindex].data[0].image = diffuseimg
+						uv_faces[fcc].uv = uvs[v1]
+						uv_faces[fcc+1].uv = uvs[v2]
+						uv_faces[fcc+2].uv = uvs[v3]
+						fcc = fcc + 3
+				else:
+					uv_faces = me.uv_textures.active.data[:]
+					for fidx, uf in enumerate(uv_faces):
+						face = faces[fidx]
+						v1, v2, v3 = face
+						if diffuseimg is not None:
+							uf.image = diffuseimg
+						uf.uv1 = uvs[v1]
+						uf.uv2 = uvs[v2]
+						uf.uv3 = uvs[v3]
+		
+		me.validate()
+		me.update(calc_edges=True)
 		
 class A3D2Image:
 	def __init__(self,Config):
@@ -7110,6 +7539,12 @@ class A3D2Sprite:
 		bpy.context.scene.objects.link(ob)  
 		
 		ob["a3dtype"] = "A3DSprite3D"
+		ob["a3dalwaysOnTop"] = self._alwaysOnTop
+		ob["a3dheight"] = self._height
+		ob["a3dwidth"] = self._width
+		ob["a3doriginX"] = self._originX
+		ob["a3doriginY"] = self._originY
+		ob["a3dperspectiveScale"] = self._perspectiveScale
 
 		me.from_pydata(coords,[],faces)
 		me.update(calc_edges=True)
@@ -7593,12 +8028,17 @@ class A3d_submenu(bpy.types.Menu):
 		layout.operator("a3dobj.a3d_sprite3d", text="Sprite3D", icon='MESH_PLANE')
 		layout.operator("a3dobj.a3d_lod", text="LOD", icon='MESH_CUBE')
 		layout.operator("a3dobj.a3d_skybox", text="Skybox", icon='MESH_CUBE')
+		layout.operator("a3dobj.a3d_decal", text="Decal", icon='MESH_PLANE')
+		layout.operator("a3dobj.a3d_occluder", text="Occluder", icon='MESH_CUBE')
+		layout.separator()
 		layout.operator("a3dobj.a3d_ambientlight", text="AmbientLight", icon='OUTLINER_OB_LAMP')
 		layout.operator("a3dobj.a3d_directionallight", text="DirectionalLight", icon='OUTLINER_OB_LAMP')
 		layout.operator("a3dobj.a3d_omnilight", text="OmniLight", icon='OUTLINER_OB_LAMP')
 		layout.operator("a3dobj.a3d_spotlight", text="SpotLight", icon='OUTLINER_OB_LAMP')
 		layout.separator()
 		layout.operator(LODSettings.bl_idname, text="Add Mesh To LOD", icon='MESH_CUBE')
+		layout.operator(ConvertMeshToDecal.bl_idname, text="Convert Selected Mesh to Decal", icon='MESH_CUBE')
+		layout.operator(ConvertMeshToOccluder.bl_idname, text="Convert Selected Mesh to Occluder", icon='MESH_CUBE')
 
 class AddSprite3D(bpy.types.Operator):
 	bl_idname = "a3dobj.a3d_sprite3d"
@@ -7618,11 +8058,11 @@ class AddSprite3D(bpy.types.Operator):
 		
 		ob["a3dtype"] = "A3DSprite3D"
 		ob["a3dalwaysOnTop"] = True
-		ob["a3dheight"] = "0"
-		ob["a3dwidth"] = "0"
-		ob["a3doriginX"] = "0"
-		ob["a3doriginY"] = "0"
-		ob["a3dperspectiveScale"] = "0"
+		ob["a3dheight"] = 100
+		ob["a3dwidth"] = 100
+		ob["a3doriginX"] = 0.5
+		ob["a3doriginY"] = 0.5
+		ob["a3dperspectiveScale"] = 1
 
 		me.from_pydata(coords,[],faces)
 		me.update(calc_edges=True)
@@ -7836,6 +8276,45 @@ class AddSkybox(bpy.types.Operator):
 		#set mapping to uv coords
 		
 		return {'FINISHED'}
+
+class AddDecal(bpy.types.Operator):
+	bl_idname = "a3dobj.a3d_decal"
+	bl_label = "Add Decal"
+	bl_options = {'REGISTER', 'UNDO'}
+		
+	def execute(self, context):
+		#obj["a3dtype"] = "A3DDecal"
+		return {'FINISHED'}
+
+class AddOccluder(bpy.types.Operator):
+	bl_idname = "a3dobj.a3d_occluder"
+	bl_label = "Add Occluder"
+	bl_options = {'REGISTER', 'UNDO'}
+		
+	def execute(self, context):
+		# Define the coordinates of the vertices. Each vertex is defined by 3 consecutive floats.
+		coords=[ (1, 1, -1), (1, -1, -1), (-1, -0.9999998, -1), (-0.9999997, 1, -1), (1, 0.9999995, 1), (0.9999994, -1.000001, 1), (-1, -0.9999997, 1), (-1, 1, 1) ]
+		faces=[ (0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (4, 0, 3, 7) ]
+		
+		# create a new mesh  
+		me = bpy.data.meshes.new("A3DOccluder") 
+		
+		# create an object with that mesh
+		ob = bpy.data.objects.new("A3DOccluder", me)  		
+		
+		# position object at 3d-cursor
+		ob.location = bpy.context.scene.cursor_location   
+		
+		# Link object to scene
+		bpy.context.scene.objects.link(ob)  
+		
+		# give custom property type
+		ob["a3dtype"] = "A3DOccluder"
+
+		# Fill the mesh with verts, edges, faces 
+		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
+		me.update(calc_edges=True)    # Update mesh with new data	
+		return {'FINISHED'}
 		
 class AddAmbientLight(bpy.types.Operator):
 	bl_idname = "a3dobj.a3d_ambientlight"
@@ -7909,9 +8388,58 @@ class AddSpotLight(bpy.types.Operator):
 # CUSTOM PANELS/OPERATORS
 #==================================
 
+class ConvertMeshToDecal(bpy.types.Operator):
+	bl_idname = "a3dobj.mesh_to_decal"
+	bl_label = "Convert Mesh to Decal"
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	@classmethod
+	def poll(cls, context):
+		obj = context.active_object
+		if obj != None:
+			if obj.type == "MESH":
+				return True
+			else:
+				return False
+		else:
+			return False
+						
+	def execute(self, context):
+		obj = context.active_object
+		obj["a3dtype"] = "A3DDecal"
+		obj["a3doffset"] = 1
+		return {'FINISHED'}
+		
+class ConvertMeshToOccluder(bpy.types.Operator):
+	bl_idname = "a3dobj.mesh_to_occluder"
+	bl_label = "Convert Mesh to Occluder"
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	@classmethod
+	def poll(cls, context):
+		obj = context.active_object
+		if obj != None:
+			if obj.type == "MESH":
+				return True
+			else:
+				return False
+		else:
+			return False
+						
+	def execute(self, context):
+		obj = context.active_object
+		obj["a3dtype"] = "A3DOccluder"
+		return {'FINISHED'}
+
 def addlodchild(objs,distance):
-	mesh = objs[0]
-	lodcont = objs[1]
+
+	if "a3dtype" in objs[0]:
+		if objs[0]["a3dtype"] == "A3DLOD":
+			lodcont = objs[0]
+			mesh = objs[1]
+	else:
+		lodcont = objs[1]
+		mesh = objs[0]
 	
 	#set parent to lodcontainer
 	mesh.parent = lodcont
@@ -8036,6 +8564,16 @@ class alternativa3DPanel(bpy.types.Panel):
 					row = columns.split(0.6)
 					row.label("perspectiveScale")
 					row.prop(obj,'["a3dperspectiveScale"]')
+					row.enabled = True
+				elif obj["a3dtype"] == "A3DDecal":
+					box = l.box()
+					columns = box.column()
+					header = columns.split(0.6)
+					header.label(text="Property")
+					header.label(text="Value")
+					row = columns.split(0.6)
+					row.label("offset")
+					row.prop(obj,'["a3doffset"]')
 					row.enabled = True
 					
 			if obj.parent != None:
