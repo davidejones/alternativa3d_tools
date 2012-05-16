@@ -8027,9 +8027,9 @@ class A3d_submenu(bpy.types.Menu):
 		layout.operator_context = 'INVOKE_REGION_WIN'
 		layout.operator("a3dobj.a3d_sprite3d", text="Sprite3D", icon='MESH_PLANE')
 		layout.operator("a3dobj.a3d_lod", text="LOD", icon='MESH_CUBE')
-		layout.operator("a3dobj.a3d_skybox", text="Skybox", icon='MESH_CUBE')
+		#layout.operator("a3dobj.a3d_skybox", text="Skybox", icon='MESH_CUBE')
 		layout.operator("a3dobj.a3d_decal", text="Decal", icon='MESH_PLANE')
-		layout.operator("a3dobj.a3d_occluder", text="Occluder", icon='MESH_CUBE')
+		#layout.operator("a3dobj.a3d_occluder", text="Occluder", icon='MESH_CUBE')
 		layout.separator()
 		layout.operator("a3dobj.a3d_ambientlight", text="AmbientLight", icon='OUTLINER_OB_LAMP')
 		layout.operator("a3dobj.a3d_directionallight", text="DirectionalLight", icon='OUTLINER_OB_LAMP')
@@ -8038,7 +8038,7 @@ class A3d_submenu(bpy.types.Menu):
 		layout.separator()
 		layout.operator(LODSettings.bl_idname, text="Add Mesh To LOD", icon='MESH_CUBE')
 		layout.operator(ConvertMeshToDecal.bl_idname, text="Convert Selected Mesh to Decal", icon='MESH_CUBE')
-		layout.operator(ConvertMeshToOccluder.bl_idname, text="Convert Selected Mesh to Occluder", icon='MESH_CUBE')
+		#layout.operator(ConvertMeshToOccluder.bl_idname, text="Convert Selected Mesh to Occluder", icon='MESH_CUBE')
 
 class AddSprite3D(bpy.types.Operator):
 	bl_idname = "a3dobj.a3d_sprite3d"
