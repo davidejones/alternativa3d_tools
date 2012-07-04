@@ -32,6 +32,15 @@ Installation Notes
 Changelog
 ---------
 
+### 1.1.8
+- Fixed error when key not found in materials list
+- Add option to exclude hidden items from a3d file, to reduce filesize if needed
+- Add option to export all uvlayers or only active/first uv layer
+- Fixed context bug when exporting, failing to poll context
+- Fixed bug in exporting nullmask in very large files taking value as float instead of int
+- Add export option to copy images, as with export make work with per face uv diffuse images
+- Fix export of lod not converting quads to tris.
+
 ### 1.1.7
 - Added export and import of cameras
 - Set images with multiple users to only export one copy

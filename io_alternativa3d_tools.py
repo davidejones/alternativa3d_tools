@@ -1,7 +1,7 @@
 bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
-	'version': (1, 1, 7),
+	'version': (1, 1, 8),
 	'blender': (2, 6, 3),
 	'location': 'File > Import/Export;',
 	'description': 'Importer and exporter for Alternativa3D engine. Supports A3D and Actionscript"',
@@ -15,7 +15,7 @@ from binascii import hexlify
 from struct import unpack, pack, calcsize
 from math import atan, atan2
 from mathutils import Vector, Matrix, Quaternion
-from bpy_extras.io_utils import path_reference_copy
+from bpy_extras.io_utils import path_reference,path_reference_copy
 from bpy_extras.image_utils import load_image
 from bpy.props import *
 
@@ -57,11 +57,17 @@ def cleanupString(input):
 	output = re.sub(reg,"",output)
 	return output
 
-def ConvertQuadsToTris(obj):
+def ConvertQuadsToTris(obj):	
+	for object in bpy.data.objects:
+			object.select = False
+	obj.select = True
+	bpy.context.scene.objects.active = obj
+
 	bpy.ops.object.mode_set(mode="OBJECT", toggle = False)
 	bpy.ops.object.mode_set(mode="EDIT", toggle = True)
 	bpy.ops.mesh.select_all(action='DESELECT')
 	bpy.ops.mesh.select_all(action='SELECT')
+	
 	mesh = obj.data
 	if checkBMesh() == True:
 		mefdata = mesh.polygons
@@ -73,13 +79,39 @@ def ConvertQuadsToTris(obj):
 	#Return to object mode
 	bpy.ops.object.mode_set(mode="EDIT", toggle = False)
 	bpy.ops.object.mode_set(mode="OBJECT", toggle = True)
+
+def copyImages(obj,filepath):
+	mesh = obj.data
+	source_dir = bpy.data.filepath
+	dest_dir = os.path.dirname(filepath)
+	copy_set = set()
 	
+	#print("filepath="+str(filepath))
+	#print("source_dir="+str(source_dir))
+	#print("dest_dir="+str(dest_dir))
+	
+	if len(mesh.materials) > 0:
+		for mat in mesh.materials:
+			tex = mat.active_texture
+			if tex is not None:
+				if "image" in tex:
+					img = tex.image
+					rel = path_reference(bpy.path.abspath(img.filepath), source_dir, dest_dir, 'COPY', "", copy_set)
+	else:
+		start,end,mts,mats,uvimgs = collectSurfaces(mesh)
+		#os.path.basename(bpy.path.abspath(uvimgs[x].filepath))
+		if len(uvimgs) > 0:
+			for x in range(len(uvimgs)):
+				if uvimgs[x] != None:
+					rel = path_reference(bpy.path.abspath(uvimgs[x].filepath), source_dir, dest_dir, 'COPY', "", copy_set)
+	
+	path_reference_copy(copy_set)
 #==================================
 # AS EXPORTER
 #==================================
 
 class ASExporterSettings:
-	def __init__(self,A3DVersionSystem=1,CompilerOption=1,ExportMode=1,DocClass=False,CopyImgs=True,ByClass=False,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1):
+	def __init__(self,A3DVersionSystem=1,CompilerOption=1,ExportMode=1,DocClass=False,CopyImgs=True,ByClass=False,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1,ExportUVLayer=2):
 		self.A3DVersionSystem = int(A3DVersionSystem)
 		self.CompilerOption = int(CompilerOption)
 		self.ExportMode = int(ExportMode)
@@ -90,6 +122,7 @@ class ASExporterSettings:
 		self.ExportUV = int(ExportUV)
 		self.ExportNormals = int(ExportNormals)
 		self.ExportTangents = int(ExportTangents)
+		self.ExportUVLayer = int(ExportUVLayer)
 
 class ASExporter(bpy.types.Operator):
 	bl_idname = "ops.asexporter"
@@ -129,6 +162,11 @@ class ASExporter(bpy.types.Operator):
 	ExportNormals = BoolProperty(name="Include Normals", description="Normals", default=True)
 	ExportTangents = BoolProperty(name="Include Tangents", description="Tangents", default=True)
 	
+	ExportUVLayers = []
+	ExportUVLayers.append(("1", "Active UV Layer Only", ""))
+	ExportUVLayers.append(("2", "All UV Layers", ""))
+	ExportUVLayer = EnumProperty(name="UV Layers", description="Select which UV Layers to export", items=ExportUVLayers, default="2")
+		
 	filepath = bpy.props.StringProperty()
 
 	def execute(self, context):
@@ -140,7 +178,7 @@ class ASExporter(bpy.types.Operator):
 			time1 = time.clock()
 			print('Output file : %s' %filePath)
 			file = open(filePath, 'w')
-			Config = ASExporterSettings(A3DVersionSystem=self.A3DVersionSystem,CompilerOption=self.CompilerOption,ExportMode=self.ExportMode, DocClass=self.DocClass,CopyImgs=self.CopyImgs,ByClass=self.ByClass,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents)
+			Config = ASExporterSettings(A3DVersionSystem=self.A3DVersionSystem,CompilerOption=self.CompilerOption,ExportMode=self.ExportMode, DocClass=self.DocClass,CopyImgs=self.CopyImgs,ByClass=self.ByClass,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents,ExportUVLayer=self.ExportUVLayer)
 			ASExport(file,Config,fp)
 			
 			file.close()
@@ -387,24 +425,6 @@ def GetMaterialTexture(Material):
             return ImageFiles[0]
     return None
 
-def copyImages(obj,filepath):
-	mesh = obj.data
-	source_dir = bpy.data.filepath
-	dest_dir = os.path.dirname(filepath)
-	copy_set = set()
-	
-	#print("filepath="+str(filepath))
-	#print("source_dir="+str(source_dir))
-	#print("dest_dir="+str(dest_dir))
-	
-	for mat in mesh.materials:
-		tex = mat.active_texture
-		if tex is not None:
-			if "image" in tex:
-				img = tex.image
-				rel = bpy_extras.io_utils.path_reference(img.filepath, source_dir, dest_dir, 'COPY', "", copy_set)
-	path_reference_copy(copy_set)
-
 def writeByteArrayValues(file,verts,uvlayers,indices):
 	file.write("\t\t\tvalues= new <uint>[")
 
@@ -452,7 +472,7 @@ def writeByteArrayValues(file,verts,uvlayers,indices):
 		
 	file.write("];\n")
 
-def getCommonData(obj,flipUV=1):
+def getCommonData(Config,obj,flipUV=1):
 	mesh = obj.data
 	verts = mesh.vertices
 	Materials = mesh.materials
@@ -467,6 +487,8 @@ def getCommonData(obj,flipUV=1):
 	uvtex = mesh.uv_textures.active
 	
 	uvlayers={}
+	uvprocess=True
+	
 	
 	if hasFaceUV:
 	
@@ -477,27 +499,41 @@ def getCommonData(obj,flipUV=1):
 		#uvlayer = mesh.tessface_uv_textures.active
 		
 		y=0
+		uc = 0
 		for uvlayer in mesh.tessface_uv_textures:
-			uv_coord_list = []
-			uvlayername = uvlayer.name
-			uvlayers[uvlayername] = []
-			#for face in uvlayer.data:
-			for uv_index in range(len(mesh.polygons)):	
-				#tmplist = [face.uv,face.image]
-				#uvlayers[uvlayername].append(tmplist)
-				face = uvlayer.data[uv_index]
-				uvs = face.uv1, face.uv2, face.uv3, face.uv4
-				for vertex_index, vertex_itself in enumerate(mesh.polygons[uv_index].vertices):
-					uv_coord_list.append(uvs[vertex_index])
-					if flipUV == 1:
-						uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
-					else:
-						uv = [uv_coord_list[-1][0], uv_coord_list[-1][1]]
-					uvt.append(uv)
-					y=y+1
-			#tmplist = [uvt,face.image]
-			uvlayers[uvlayername].append(uvt)
-			uvt = []
+		
+			if Config.ExportUVLayer != None:
+				if Config.ExportUVLayer == 1:
+					if uc > 0:
+						uvprocess=False
+				elif Config.ExportUVLayer == 2:
+					uvprocess=True
+			else:
+				uvprocess=True
+		
+			if uvprocess == True:
+				uv_coord_list = []
+				uvlayername = uvlayer.name
+				uvlayers[uvlayername] = []
+					
+				#for face in uvlayer.data:
+				for uv_index in range(len(mesh.polygons)):	
+					#tmplist = [face.uv,face.image]
+					#uvlayers[uvlayername].append(tmplist)
+					face = uvlayer.data[uv_index]
+					uvs = face.uv1, face.uv2, face.uv3, face.uv4
+					for vertex_index, vertex_itself in enumerate(mesh.polygons[uv_index].vertices):
+						uv_coord_list.append(uvs[vertex_index])
+						if flipUV == 1:
+							uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
+						else:
+							uv = [uv_coord_list[-1][0], uv_coord_list[-1][1]]
+						uvt.append(uv)
+						y=y+1
+				#tmplist = [uvt,face.image]
+				uvlayers[uvlayername].append(uvt)
+				uvt = []
+			uc=uc+1
 		
 					
 		uvtex = mesh.uv_layers[0]
@@ -535,7 +571,7 @@ def getCommonData(obj,flipUV=1):
 	trns = getObjTransform(obj)
 	return vs,uvlayers,ins,nr,tan,bb,trns
 
-def getCommonDataNoBmesh(obj,flipUV=1):
+def getCommonDataNoBmesh(Config,obj,flipUV=1):
 	mesh = obj.data
 	verts = mesh.vertices
 	Materials = mesh.materials
@@ -550,31 +586,45 @@ def getCommonDataNoBmesh(obj,flipUV=1):
 	uvtex = mesh.uv_textures.active
 	
 	uvlayers={}
+	uvprocess=True
 	
-	y=0
-	for uvlayer in mesh.uv_textures:
-		uv_coord_list = []
-		uvlayername = uvlayer.name
-		uvlayers[uvlayername] = []
-		#for face in uvlayer.data:
-		for uv_index in range(len(mesh.faces)):	
-			#tmplist = [face.uv,face.image]
-			#uvlayers[uvlayername].append(tmplist)
-			face = uvlayer.data[uv_index]
-			uvs = face.uv1, face.uv2, face.uv3, face.uv4
-			for vertex_index, vertex_itself in enumerate(mesh.faces[uv_index].vertices):
-				uv_coord_list.append(uvs[vertex_index])
-				if flipUV == 1:
-					uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
-				else:
-					uv = [uv_coord_list[-1][0], uv_coord_list[-1][1]]
-				uvt.append(uv)
-				y=y+1
-		#tmplist = [uvt,face.image]
-		uvlayers[uvlayername].append(uvt)
-		uvt = []
-
 	if hasFaceUV:
+		y=0
+		uc=0
+		for uvlayer in mesh.uv_textures:
+		
+			if Config.ExportUVLayer != None:
+				if Config.ExportUVLayer == 1:
+					if uc > 0:
+						uvprocess=False
+				elif Config.ExportUVLayer == 2:
+					uvprocess=True
+			else:
+				uvprocess=True
+			
+			if uvprocess == True:			
+				uv_coord_list = []
+				uvlayername = uvlayer.name
+				uvlayers[uvlayername] = []
+				#for face in uvlayer.data:
+				for uv_index in range(len(mesh.faces)):	
+					#tmplist = [face.uv,face.image]
+					#uvlayers[uvlayername].append(tmplist)
+					face = uvlayer.data[uv_index]
+					uvs = face.uv1, face.uv2, face.uv3, face.uv4
+					for vertex_index, vertex_itself in enumerate(mesh.faces[uv_index].vertices):
+						uv_coord_list.append(uvs[vertex_index])
+						if flipUV == 1:
+							uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
+						else:
+							uv = [uv_coord_list[-1][0], uv_coord_list[-1][1]]
+						uvt.append(uv)
+						y=y+1
+				#tmplist = [uvt,face.image]
+				uvlayers[uvlayername].append(uvt)
+				uvt = []
+			uc=uc+1
+
 		for uv_index, uv_itself in enumerate(uvtex.data):
 			for vertex_index, vertex_itself in enumerate(mesh.faces[uv_index].vertices):
 				vertex = mesh.vertices[vertex_itself]
@@ -852,9 +902,9 @@ def WriteClass8270(file,obj,Config):
 	mati = setupMaterials(file,obj,Config)
 	
 	if checkBMesh() == True:
-		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(Config,obj)
 	else:
-		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(Config,obj)
 		
 	#if bytearray
 	if Config.ByClass == 1:
@@ -1119,11 +1169,11 @@ def WriteClass78(file,obj,Config):
 	
 	if checkBMesh() == True:
 		mefdata = mesh.polygons
-		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(Config,obj)
 		uvlayer = mesh.tessface_uv_textures.active
 	else:
 		mefdata = mesh.faces
-		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(Config,obj)
 		uvlayer = mesh.uv_textures.active
 		
 	cn=-1
@@ -1186,11 +1236,11 @@ def WriteClass75(file,obj,Config):
 	
 	if checkBMesh() == True:
 		mefdata = mesh.polygons
-		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(Config,obj)
 		uvlayer = mesh.tessface_uv_textures.active
 	else:
 		mefdata = mesh.faces
-		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(Config,obj)
 		uvlayer = mesh.uv_textures.active
 		
 	for face in mefdata:
@@ -1242,9 +1292,9 @@ def WriteClass5(file,obj,Config):
 	file.write("\t\tpublic function "+obj.data.name+"() {\n\n")
 
 	if checkBMesh() == True:
-		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj,False)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(Config,obj,False)
 	else:
-		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj,False)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(Config,obj,False)
 
 	if len(vs) > 0:
 		count = 0
@@ -1489,9 +1539,11 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 #==================================
 
 class A3DExporterSettings:
-	def __init__(self,A3DVersionSystem=4,ExportMode=1,CompressData=1,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1,ExportParentObj=0,ExportBoundBoxes=1):
+	def __init__(self,filePath="",A3DVersionSystem=4,ExportMode=1,ExportUVLayer=2,CompressData=1,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1,ExportParentObj=0,ExportBoundBoxes=1,ExportHiddenItems=1,CopyImgs=1):
+		self.filePath = filePath
 		self.A3DVersionSystem = int(A3DVersionSystem)
 		self.ExportMode = int(ExportMode)
+		self.ExportUVLayer = int(ExportUVLayer)
 		self.CompressData = int(CompressData)
 		self.ExportAnim = int(ExportAnim)
 		self.ExportUV = int(ExportUV)
@@ -1499,6 +1551,8 @@ class A3DExporterSettings:
 		self.ExportTangents = int(ExportTangents)
 		self.ExportParentObj = int(ExportParentObj)
 		self.ExportBoundBoxes = int(ExportBoundBoxes)
+		self.ExportHiddenItems = int(ExportHiddenItems)
+		self.CopyImgs = int(CopyImgs)
 
 class A3DExporter(bpy.types.Operator):
 	bl_idname = "ops.a3dexporter"
@@ -1518,19 +1572,29 @@ class A3DExporter(bpy.types.Operator):
 	ExportModes.append(("2", "All Objects", ""))
 	ExportMode = EnumProperty(name="Export", description="Select which objects to export", items=ExportModes, default="1")
 	
+	ExportUVLayers = []
+	ExportUVLayers.append(("1", "Active UV Layer Only", ""))
+	ExportUVLayers.append(("2", "All UV Layers", ""))
+	ExportUVLayer = EnumProperty(name="UV Layers", description="Select which UV Layers to export", items=ExportUVLayers, default="2")
+	
 	CompressData = BoolProperty(name="Compress Data", description="Zlib Compress data as per .a3d spec", default=True)
 	
 	#ExportAnim = BoolProperty(name="Animation", description="Animation", default=False)
-	ExportUV = BoolProperty(name="Include UVs", description="Normals", default=True)
+	ExportUV = BoolProperty(name="Include UVs", description="UV", default=True)
+	
 	ExportNormals = BoolProperty(name="Include Normals", description="Normals", default=True)
 	ExportTangents = BoolProperty(name="Include Tangents", description="Tangents", default=True)
 	ExportParentObj = BoolProperty(name="Include Pivot Objects", description="Export meshes with parent objects which contain pivot transformation data", default=False)
 	ExportBoundBoxes = BoolProperty(name="Include Bound Boxes", description="Export with boundbox data", default=True)
+	ExportHiddenItems = BoolProperty(name="Include Hidden Objects", description="Export with hidden item data", default=True)
+	
+	CopyImgs = BoolProperty(name="Copy Images", description="Copy images to destination folder of export", default=True)
 	
 	filepath = bpy.props.StringProperty()
 
 	def execute(self, context):
 		filePath = self.properties.filepath
+		fp = self.properties.filepath
 		if not filePath.lower().endswith('.a3d'):
 			filePath += '.a3d'
 		try:
@@ -1538,8 +1602,8 @@ class A3DExporter(bpy.types.Operator):
 			print('Output file : %s' %filePath)
 			file = open(filePath, 'wb')
 			file.close()
+			Config = A3DExporterSettings(fp,A3DVersionSystem=self.A3DVersionSystem,ExportMode=self.ExportMode,ExportUVLayer=self.ExportUVLayer,CompressData=self.CompressData,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents,ExportParentObj=self.ExportParentObj,ExportBoundBoxes=self.ExportBoundBoxes,ExportHiddenItems=self.ExportHiddenItems,CopyImgs=self.CopyImgs)
 			file = open(filePath, 'ab')
-			Config = A3DExporterSettings(A3DVersionSystem=self.A3DVersionSystem,ExportMode=self.ExportMode,CompressData=self.CompressData,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents,ExportParentObj=self.ExportParentObj,ExportBoundBoxes=self.ExportBoundBoxes)
 			
 			if self.A3DVersionSystem == "5":
 				A3DExport1(file,Config)
@@ -1586,9 +1650,9 @@ def A3DExport1(file,Config):
 			
 			#get raw geometry data
 			if checkBMesh() == True:
-				vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj)
+				vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(Config,obj)
 			else:
-				vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+				vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(Config,obj)
 			#get surface data
 			start,end,mts,mats,uvimgs = collectSurfaces(mesh)
 					
@@ -1743,6 +1807,8 @@ def A3DExport2(file,Config):
 			if obj.type == 'EMPTY':
 				objs_empties.append(obj)
 	
+	#now we have objs, set first selected object to active, so we have some context
+	bpy.context.scene.objects.active = bpy.context.selected_objects[0]
 	
 	ambientLights = []
 	animationClips = []
@@ -1886,8 +1952,8 @@ def A3DExport2(file,Config):
 				a3dsprite._transform = a3dtrans
 				a3dsprite._visible = 1
 				a3dsprite._width = obj["a3dwidth"]
-				sprites.append(a3dsprite)
 				
+				sprites.append(a3dsprite)				
 			elif obj["a3dtype"] == 'A3DLOD':
 				print('A3DLOD Found')
 				if Config.A3DVersionSystem <= 2:
@@ -1899,7 +1965,9 @@ def A3DExport2(file,Config):
 						if "a3ddistance" in childobj:
 							me = childobj.data
 							
-							#ConvertQuadsToTris(childobj)
+							childobj.select = True
+							bpy.context.scene.objects.active = childobj
+							ConvertQuadsToTris(childobj)
 							
 							a3dmesh = createMesh(Config,childobj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
 							
@@ -1940,10 +2008,19 @@ def A3DExport2(file,Config):
 					a3dlod._objects = lodobjects
 					#a3dlod._parentId = None
 					#a3dlod._transform = a3dtrans
-					a3dlod._visible = 1
-					lods.append(a3dlod)
-					mesh_objects.append(a3dlod)
-			
+					if obj.hide == 1:
+						a3dlod._visible = 0
+					else:
+						a3dlod._visible = 1
+					
+					if obj.hide == 1:
+						if Config.ExportHiddenItems == 1:
+							lods.append(a3dlod)
+							mesh_objects.append(a3dlod)
+					else:
+						lods.append(a3dlod)
+						mesh_objects.append(a3dlod)
+					
 			elif obj["a3dtype"] == 'A3DSkybox':
 				print("skybox")
 				a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
@@ -1995,9 +2072,16 @@ def A3DExport2(file,Config):
 				a3damb._name = a3dstr
 				#a3damb._parentId = None
 				a3damb._transform = a3dtrans
-				a3damb._visible = 1
+				if obj.hide == 1:
+					a3damb._visible = 0
+				else:
+					a3damb._visible = 1
 				
-				ambientLights.append(a3damb)
+				if obj.hide == 1:
+					if Config.ExportHiddenItems == 1:
+						ambientLights.append(a3damb)
+				else:
+					ambientLights.append(a3damb)
 			elif light.type == 'POINT':
 				#omniLights
 				print("omniLight")
@@ -2014,9 +2098,17 @@ def A3DExport2(file,Config):
 				a3domn._name = a3dstr
 				#a3domn._parentId = None
 				a3domn._transform = a3dtrans
-				a3domn._visible = 1
+				if obj.hide == 1:
+					a3domn._visible = 0
+				else:
+					a3domn._visible = 1
 				
-				omniLights.append(a3domn)
+				if obj.hide == 1:
+					if Config.ExportHiddenItems == 1:
+						omniLights.append(a3domn)
+				else:
+					omniLights.append(a3domn)
+				
 			elif light.type == 'SPOT':
 				print("spotlight")
 				#spotLights
@@ -2035,10 +2127,16 @@ def A3DExport2(file,Config):
 				a3dspot._name = a3dstr
 				#a3dspot._parentId = None
 				a3dspot._transform = a3dtrans
-				a3dspot._visible = 1
+				if obj.hide == 1:
+					a3dspot._visible = 0
+				else:
+					a3dspot._visible = 1
 				
-				#skip spotlights for now because seems to cause problem
-				#spotLights.append(a3dspot)
+				#if obj.hide == 1:
+				#	if Config.ExportHiddenItems == 1:
+				#		spotLights.append(a3dspot)
+				#else:
+				#	spotLights.append(a3dspot)
 			elif light.type == 'AREA':
 				#directionalLights
 				print("directional")
@@ -2053,9 +2151,16 @@ def A3DExport2(file,Config):
 				a3ddir._name = a3dstr
 				#a3ddir._parentId = None
 				a3ddir._transform = a3dtrans
-				a3ddir._visible = 1
+				if obj.hide == 1:
+					a3ddir._visible = 0
+				else:
+					a3ddir._visible = 1
 				
-				directionalLights.append(a3ddir)
+				if obj.hide == 1:
+					if Config.ExportHiddenItems == 1:
+						directionalLights.append(a3ddir)
+				else:
+					directionalLights.append(a3ddir)
 			else:
 				print("light type not supported")
 	
@@ -2119,6 +2224,7 @@ def A3DExport2(file,Config):
 	if len(objs_mesh) > 0:
 		print("Exporting meshes...\n")
 		#loop over every mesh and populate data
+		print(objs_mesh)
 		for obj in objs_mesh:
 			#convert to triangles
 			ConvertQuadsToTris(obj)
@@ -2132,6 +2238,11 @@ def A3DExport2(file,Config):
 						hasparentlod = True
 						
 			if hasparentlod == 0:
+			
+				if Config.CopyImgs:
+					print("copy images...\n")
+					copyImages(obj,Config.filePath)
+					
 				a3dmesh = createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
 			else:
 				print("didn't write mesh as parent is lod")
@@ -2194,9 +2305,13 @@ def A3DExport2(file,Config):
 				else:
 					a3dcam._visible = 0
 				
-				cameras.append(a3dcam)
+				if obj.hide == 1:
+					if Config.ExportHiddenItems == 1:
+						cameras.append(a3dcam)
+				else:
+					cameras.append(a3dcam)
 		print("Exporting Lods...\n")
-				
+		
 	# create a3d2 object from data
 	a3d2 = A3D2(ambientLights,animationClips,animationTracks,boxes,cubeMaps,decals,directionalLights,images,indexBuffers,joints,maps,materials,meshes,objects,omniLights,spotLights,sprites,skins,vertexBuffers,layers,cameras,lods,Config)
 	
@@ -2231,9 +2346,9 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,m
 	
 	#get raw geometry data
 	if checkBMesh() == True:
-		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(obj)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonData(Config,obj)
 	else:
-		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(obj)
+		vs,uvlayers,ins,nr,tan,bb,trns = getCommonDataNoBmesh(Config,obj)
 	#get surface data
 	start,end,mts,mats,uvimgs = collectSurfaces(mesh)
 	
@@ -2331,10 +2446,10 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,m
 				if (tex is not None) and (tex.texture.type == "IMAGE"):
 					name=tex.name.lower()
 					
-					print("filepath="+str(tex.texture.image.filepath))
-					print("basename="+str(os.path.basename(tex.texture.image.filepath)))
-					print(os.path.basename(bpy.path.display_name_from_filepath(tex.texture.image.filepath)))
-					print(os.path.basename(bpy.path.abspath(tex.texture.image.filepath)))
+					#print("filepath="+str(tex.texture.image.filepath))
+					#print("basename="+str(os.path.basename(tex.texture.image.filepath)))
+					#print(os.path.basename(bpy.path.display_name_from_filepath(tex.texture.image.filepath)))
+					#print(os.path.basename(bpy.path.abspath(tex.texture.image.filepath)))
 					
 					if tex.texture.image.filepath in linkedimgdata:
 						#user already exists, retrieve ids
@@ -2536,8 +2651,14 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,m
 			a3dmesh._visible = 0
 		else:
 			a3dmesh._visible = 1
-		meshes.append(a3dmesh)
-		mesh_objects.append(a3dmesh)
+			
+		if obj.hide == 1:
+			if Config.ExportHiddenItems == 1:
+				meshes.append(a3dmesh)
+				mesh_objects.append(a3dmesh)
+		else:
+			meshes.append(a3dmesh)
+			mesh_objects.append(a3dmesh)
 	else:
 		a3ddecal = A3D2Decal(Config)
 		if Config.ExportBoundBoxes == 1:
@@ -2556,17 +2677,23 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,m
 			a3ddecal._visible = 0
 		else:
 			a3ddecal._visible = 1
-		decals.append(a3ddecal)
-		mesh_objects.append(a3ddecal)
-	
+			
+		if obj.hide == 1:
+			if Config.ExportHiddenItems == 1:
+				decals.append(a3ddecal)
+				mesh_objects.append(a3ddecal)
+		else:
+			decals.append(a3ddecal)
+			mesh_objects.append(a3ddecal)
+
 	#reverse uvlayers, because a3d player loads latest uvlayer as default
-	#revkeys = sorted(uvlayers.keys(), reverse=True)
-	#uvlayersr = {}
-	#i=0
-	#for k in revkeys:
-	#	uvlayersr[i] = uvlayers[k]
-	#	i = i +1
-	#uvlayers = uvlayersr
+	revkeys = sorted(uvlayers.keys(), reverse=True)
+	uvlayersr = {}
+	i=0
+	for k in revkeys:
+		uvlayersr[i] = uvlayers[k]
+		i = i +1
+	uvlayers = uvlayersr
 	
 	if linkedmesh == False:
 		#create vertexbuffer
@@ -2861,9 +2988,43 @@ class A3DTransform:
 		
 	def getMatrix(self):	
 		matrx = Matrix()
+				
+		#row major (row then column in array)
 		matrx[0][0], matrx[0][1], matrx[0][2], matrx[0][3] = self._matrix.a, self._matrix.b, self._matrix.c, self._matrix.d
 		matrx[1][0], matrx[1][1], matrx[1][2], matrx[1][3] = self._matrix.e, self._matrix.f, self._matrix.g, self._matrix.h
 		matrx[2][0], matrx[2][1], matrx[2][2], matrx[2][3] = self._matrix.i, self._matrix.j, self._matrix.k, self._matrix.l
+		matrx[3][0], matrx[3][1], matrx[3][2], matrx[3][3] = 0, 0, 0, 1
+		
+		#column major (column then row in array)
+		#matrx[0][0], matrx[1][0], matrx[2][0], matrx[3][0] = self._matrix.a, self._matrix.e, self._matrix.i, 0
+		#matrx[0][1], matrx[1][1], matrx[2][1], matrx[3][1] = self._matrix.b, self._matrix.f, self._matrix.j, 0
+		#matrx[0][2], matrx[1][2], matrx[2][2], matrx[3][2] = self._matrix.c, self._matrix.g, self._matrix.k, 0
+		#matrx[0][3], matrx[1][3], matrx[2][3], matrx[3][3] = self._matrix.d, self._matrix.h, self._matrix.l, 1
+		
+		#matrx.to_4x4()
+		
+		return matrx
+		
+	def getNewMatrix(self):
+		matrx = Matrix()
+		#each row
+		matrx[0] = Vector((self._matrix.a, self._matrix.e, self._matrix.i, 0))
+		matrx[1] = Vector((self._matrix.b, self._matrix.f, self._matrix.j, 0))
+		matrx[2] = Vector((self._matrix.c, self._matrix.g, self._matrix.k, 0))
+		matrx[3] = Vector((self._matrix.d, self._matrix.h, self._matrix.l, 1))
+		return matrx
+		
+	def decomposeTransformation(self):
+		loc = Vector((self._matrix.a, self._matrix.e, self._matrix.i))
+		rot = Vector((self._matrix.b, self._matrix.f, self._matrix.j))
+		scale = Vector((self._matrix.c, self._matrix.g, self._matrix.k))
+		return loc, rot, scale
+		
+	def decomposeBindTransformation(self):
+		matrx = Matrix()
+		matrx[0] = Vector((self._matrix.a, self._matrix.b, self._matrix.c, self._matrix.d))
+		matrx[1] = Vector((self._matrix.e, self._matrix.f, self._matrix.g, self._matrix.h))
+		matrx[2] = Vector((self._matrix.i, self._matrix.j, self._matrix.k, self._matrix.l))
 		return matrx
 		
 	def read(self,file):
@@ -4207,6 +4368,7 @@ class A3D2Null:
 					file.write(pack("B",temp3[y]))
 			else:
 				if bits <= 33554432:
+					#print("<= 33554432")			
 					#temp5 = len(temp3)
 					#temp7 = temp5 + MASK_LEGTH_3_BYTE
 					#temp6 = int((temp7 & 16711680) >> 16)
@@ -4221,7 +4383,7 @@ class A3D2Null:
 					rem = bits % 8
 					if rem == 0:
 						#if fits exactly in bytes
-						bytenum = bits/8
+						bytenum = int(bits/8)
 					else:
 						#if doesn't fit exactly round up
 						bytenum = int((bits+(8-rem))/8)
@@ -4378,7 +4540,7 @@ class A3D2:
 			mesh.render(ibuffers,vbuffers,materials,maps,images)
 			
 		for skin in self.skins:
-			skin.render(ibuffers,vbuffers,materials,maps,images,joints,self.joints)
+			skin.render(ibuffers,vbuffers,materials,maps,images,joints,self.joints,self.animationClips,self.animationTracks)
 			
 		for sprite in self.sprites:
 			sprite.render(materials,maps,images)
@@ -4516,8 +4678,6 @@ class A3D2:
 			self.writeClass(tfile,self.lods)
 		
 		tfile2 = tempfile.TemporaryFile(mode ='w+b')
-		
-		#print("nullmask = "+self.nullmask)
 		
 		#nullmask
 		null = A3D2Null(self.Config)
@@ -5345,153 +5505,155 @@ class A3D2Mesh:
 			#surf._numTriangles
 			
 			if surf._materialId is not None:
-				#get material
-				mat = materials[surf._materialId]
 				
-				#new material
-				surf_mat = bpy.data.materials.new("Material")
-				me.materials.append(surf_mat)
-				
-				if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._diffuseMapId]
-					#get img
-					img = images[map._imageId]
+				if surf._materialId in materials:
+					#get material
+					mat = materials[surf._materialId]
 					
-					#new image
-					texture = bpy.data.textures.new("diffuse", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
+					#new material
+					surf_mat = bpy.data.materials.new("Material")
+					me.materials.append(surf_mat)
 					
-					#set diffuse img for uv window
-					diffuseimg = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = True
-					#mtex.uv_layer = uvname
+					if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._diffuseMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("diffuse", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
+						
+						#set diffuse img for uv window
+						diffuseimg = image
 					
-				if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._glossinessMapId]
-					#get img
-					img = images[map._imageId]
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = True
+						#mtex.uv_layer = uvname
+						
+					if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._glossinessMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("glossiness", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-					#new image
-					texture = bpy.data.textures.new("glossiness", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_raymir = True
-					#mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_raymir = True
+						#mtex.uv_layer = uvname
+						
+					if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._lightMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("light", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-				if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._lightMapId]
-					#get img
-					img = images[map._imageId]
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_ambient = True
+						#mtex.uv_layer = uvname
+						
+					if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._normalMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("normal", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-					#new image
-					texture = bpy.data.textures.new("light", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_ambient = True
-					#mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_normal = True
+						#mtex.uv_layer = uvname
+						
+					if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._opacityMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("opacity", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-				if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._normalMapId]
-					#get img
-					img = images[map._imageId]
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_alpha = True
+						#mtex.uv_layer = uvname
+						
+					if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._reflectionCubeMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("reflection", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-					#new image
-					texture = bpy.data.textures.new("normal", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_normal = True
-					#mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						#mtex.uv_layer = uvname
+						
+					if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._specularMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("specular", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-				if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._opacityMapId]
-					#get img
-					img = images[map._imageId]
-					
-					#new image
-					texture = bpy.data.textures.new("opacity", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_alpha = True
-					#mtex.uv_layer = uvname
-					
-				if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._reflectionCubeMapId]
-					#get img
-					img = images[map._imageId]
-					
-					#new image
-					texture = bpy.data.textures.new("reflection", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					#mtex.uv_layer = uvname
-					
-				if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._specularMapId]
-					#get img
-					img = images[map._imageId]
-					
-					#new image
-					texture = bpy.data.textures.new("specular", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_specular = True
-					#mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_specular = True
+						#mtex.uv_layer = uvname
 		
 		#set norms
 		if len(norms) > 0:
@@ -5629,7 +5791,7 @@ class A3D2Skin:
 	def write(self,file):
 		print("write")
 	
-	def render(self,ibuffers,vbuffers,materials,maps,images,indexedJoints,joints):
+	def render(self,ibuffers,vbuffers,materials,maps,images,indexedJoints,joints,animationClips,animationTracks):
 		verts = []
 		faces = []
 		uvs = []
@@ -5776,153 +5938,155 @@ class A3D2Skin:
 			#surf._numTriangles
 			
 			if surf._materialId is not None:
-				#get material
-				mat = materials[surf._materialId]
-				
-				#new material
-				surf_mat = bpy.data.materials.new("Material")
-				me.materials.append(surf_mat)
-				
-				if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._diffuseMapId]
-					#get img
-					img = images[map._imageId]
+			
+				if surf._materialId in materials:
+					#get material
+					mat = materials[surf._materialId]
 					
-					#new image
-					texture = bpy.data.textures.new("diffuse", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
+					#new material
+					surf_mat = bpy.data.materials.new("Material")
+					me.materials.append(surf_mat)
 					
-					#set diffuse img for uv window
-					diffuseimg = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = True
-					mtex.uv_layer = uvname
+					if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._diffuseMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("diffuse", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
+						
+						#set diffuse img for uv window
+						diffuseimg = image
 					
-				if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._glossinessMapId]
-					#get img
-					img = images[map._imageId]
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = True
+						mtex.uv_layer = uvname
+						
+					if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._glossinessMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("glossiness", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-					#new image
-					texture = bpy.data.textures.new("glossiness", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_raymir = True
-					mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_raymir = True
+						mtex.uv_layer = uvname
+						
+					if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._lightMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("light", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-				if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._lightMapId]
-					#get img
-					img = images[map._imageId]
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_ambient = True
+						mtex.uv_layer = uvname
+						
+					if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._normalMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("normal", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-					#new image
-					texture = bpy.data.textures.new("light", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_ambient = True
-					mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_normal = True
+						mtex.uv_layer = uvname
+						
+					if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._opacityMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("opacity", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-				if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._normalMapId]
-					#get img
-					img = images[map._imageId]
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_alpha = True
+						mtex.uv_layer = uvname
+						
+					if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._reflectionCubeMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("reflection", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-					#new image
-					texture = bpy.data.textures.new("normal", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_normal = True
-					mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.uv_layer = uvname
+						
+					if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._specularMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("specular", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-				if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._opacityMapId]
-					#get img
-					img = images[map._imageId]
-					
-					#new image
-					texture = bpy.data.textures.new("opacity", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_alpha = True
-					mtex.uv_layer = uvname
-					
-				if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._reflectionCubeMapId]
-					#get img
-					img = images[map._imageId]
-					
-					#new image
-					texture = bpy.data.textures.new("reflection", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.uv_layer = uvname
-					
-				if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._specularMapId]
-					#get img
-					img = images[map._imageId]
-					
-					#new image
-					texture = bpy.data.textures.new("specular", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_specular = True
-					mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_specular = True
+						mtex.uv_layer = uvname
 		
 		#set norms
 		if len(norms) > 0:
@@ -5995,11 +6159,7 @@ class A3D2Skin:
 			
 		#self.skinMesh(ob,arm)
 		
-		#bpy.ops.object.armature_add()
-		#obj = bpy.context.scene.objects.active
-		#obj.name = "Armature"
-		#arm = obj.data
-		
+			
 		
 		#create bonetable
 		boneTable1 = []
@@ -6008,30 +6168,53 @@ class A3D2Skin:
 			if j._parentId in indexedJoints:
 				nameparent = indexedJoints[j._parentId]._name
 			else:
-				nameparent=None
+				nameparent=None			
 			mat = j._transform.getMatrix()
-			(pos, rot, scale) = mat.decompose()
-			tmp = (j._name,nameparent,pos,mat)
+			tmp = (j._name,nameparent,j._transform)
 			boneTable1.append(tmp)
-		rig = self.createRig('Rig', (0,0,0), boneTable1)
+			#print(j._name)
+			#print(mat)
+			#l1,r1,s1 = mat.decompose()
+			#print(l1)
+			#print(r1)
+			#print(r1.to_euler())
+			#print("---")
+		rig = self.createRig('Rig', (0,0,0), boneTable1)	
 		
-		
+		self.createAnimation(rig,animationClips,animationTracks)
 				
 		# New Armatures include a default bone, remove it.
 		#bones.remove(bones[0])
+		
+		#bpy.ops.object.armature_add()
+		#obj = bpy.context.scene.objects.active
+		#obj.name = "Armature"
+		#arm = obj.data
 
 		#make bones
 		#bpy.ops.object.mode_set(mode='EDIT')
 		#for j in joints:
+		#	print(j._name)
+		#	#print(j._transform.getMatrix())
+		#	m1 = j._transform.getMatrix()
+		#	m2 = j._transform.getNewMatrix()
+		#	l1,r1,s1 = m1.decompose()
+		#	l2,r2,s2 = m2.decompose()
+		#	print(m1)
+		#	print(l1)
+		#	print(r1)
+		#	print(m2)
+		#	print(l2)
+		#	print(r2)
+		#	print("---")
+		#	
 		#	bone = arm.edit_bones.new(j._name)
 		#	bone.head = (0,0,0)
-		#	bone.tail = (0,0,1)
+		#	bone.tail = (0,1,0)
 		#bpy.context.scene.update()
 		
 		#make bone parents
 		#for j in joints:
-		#	print(j._name)
-		#	print(j._transform.getMatrix())
 		#	nameparent=None
 		#	if j._parentId in indexedJoints:
 		#		nameparent = indexedJoints[j._parentId]._name
@@ -6039,9 +6222,38 @@ class A3D2Skin:
 		#		bone = arm.edit_bones[j._name]
 		#		parentbone = arm.edit_bones[nameparent]
 		#		bone.parent = parentbone
-		#		#bone.head = parentbone.tail
-		#		bone.use_connect = True
+		#		bone.head = parentbone.tail
+		#		bone.use_connect = False
 		#bpy.context.scene.update()
+		
+		#for bone in arm.edit_bones:
+		#	# object-space
+	#		obmat = Matrix()
+		#	for bo in bone.children:
+		#		obmat = self.mult_m4_m4m4(obmat, bo.matrix)
+
+			#get world space
+		#	wmat = Matrix()
+		#	if bone.parent != None:
+		#		wmat = self.mult_m4_m4m4(bone.parent.matrix, obmat)
+		#	else:
+		#		wmat = obmat
+				
+			#print(obmat)
+			#print(wmat)
+		
+		#make position
+		#for j in joints:
+		#	if bone.parent != None:
+		#		#convert parent from global to local
+		#		mW = bone.parent.matrix #armature space
+		#		imW = mW.copy() #copy 
+		#		imW.invert() #create inverted
+		#		m1 = mW * imW
+		#		(trans, rot, scale) = m1.decompose()
+		#		bone.transform(m1)
+		#	else:
+		#		bone.transform(j._transform.getMatrix())
 		
 		#for j in joints:
 		#	#parented bone transform
@@ -6191,7 +6403,32 @@ class A3D2Skin:
 		#	vertgroup = obj.vertex_groups.new(name=bone.name)
 	
 		bpy.ops.object.mode_set(mode='OBJECT')
-	
+
+	def mult_m4_m4m4(self, m3, m2):
+		#m1=mat, m3=parent_mat, m2=obmat
+		# matrix product: m1[j][k] = m2[j][i].m3[i][k]
+		m1 = Matrix()
+		m1[0][0] = m2[0][0]*m3[0][0] + m2[0][1]*m3[1][0] + m2[0][2]*m3[2][0] + m2[0][3]*m3[3][0]
+		m1[0][1] = m2[0][0]*m3[0][1] + m2[0][1]*m3[1][1] + m2[0][2]*m3[2][1] + m2[0][3]*m3[3][1]
+		m1[0][2] = m2[0][0]*m3[0][2] + m2[0][1]*m3[1][2] + m2[0][2]*m3[2][2] + m2[0][3]*m3[3][2]
+		m1[0][3] = m2[0][0]*m3[0][3] + m2[0][1]*m3[1][3] + m2[0][2]*m3[2][3] + m2[0][3]*m3[3][3]
+
+		m1[1][0] = m2[1][0]*m3[0][0] + m2[1][1]*m3[1][0] + m2[1][2]*m3[2][0] + m2[1][3]*m3[3][0]
+		m1[1][1] = m2[1][0]*m3[0][1] + m2[1][1]*m3[1][1] + m2[1][2]*m3[2][1] + m2[1][3]*m3[3][1]
+		m1[1][2] = m2[1][0]*m3[0][2] + m2[1][1]*m3[1][2] + m2[1][2]*m3[2][2] + m2[1][3]*m3[3][2]
+		m1[1][3] = m2[1][0]*m3[0][3] + m2[1][1]*m3[1][3] + m2[1][2]*m3[2][3] + m2[1][3]*m3[3][3]
+
+		m1[2][0] = m2[2][0]*m3[0][0] + m2[2][1]*m3[1][0] + m2[2][2]*m3[2][0] + m2[2][3]*m3[3][0]
+		m1[2][1] = m2[2][0]*m3[0][1] + m2[2][1]*m3[1][1] + m2[2][2]*m3[2][1] + m2[2][3]*m3[3][1]
+		m1[2][2] = m2[2][0]*m3[0][2] + m2[2][1]*m3[1][2] + m2[2][2]*m3[2][2] + m2[2][3]*m3[3][2]
+		m1[2][3] = m2[2][0]*m3[0][3] + m2[2][1]*m3[1][3] + m2[2][2]*m3[2][3] + m2[2][3]*m3[3][3]
+
+		m1[3][0] = m2[3][0]*m3[0][0] + m2[3][1]*m3[1][0] + m2[3][2]*m3[2][0] + m2[3][3]*m3[3][0]
+		m1[3][1] = m2[3][0]*m3[0][1] + m2[3][1]*m3[1][1] + m2[3][2]*m3[2][1] + m2[3][3]*m3[3][1]
+		m1[3][2] = m2[3][0]*m3[0][2] + m2[3][1]*m3[1][2] + m2[3][2]*m3[2][2] + m2[3][3]*m3[3][2]
+		m1[3][3] = m2[3][0]*m3[0][3] + m2[3][1]*m3[1][3] + m2[3][2]*m3[2][3] + m2[3][3]*m3[3][3]
+		return m1
+		
 	def getRollFromMatrix(self,mat):
 		newmat = mat.to_3x3()
 		quat = newmat.to_quaternion()
@@ -6238,32 +6475,155 @@ class A3D2Skin:
 		amt = ob.data
 		amt.name = name+'Amt'
 		amt.show_axes = True
+		
+		#ob.matrix_world.inverted()*(Matrix.Translation(globalVector)+mw.to_3x3().to_4x4())
+		
+		#mat = Matrix(ob.matrix_world) * Matrix(bone.matrix_local)
+		
+		#object-space, obmat is armature
+		obmat = ob.matrix_world
 	 
 		# Create bones
 		bpy.ops.object.mode_set(mode='EDIT')
-		for (bname, pname, vector, matrix) in boneTable:        
+		
+		for (bname, pname, transform) in boneTable:
 			bone = amt.edit_bones.new(bname)
+			
+			# object-space
+			obmat = Matrix()
+			for b in bone.children:
+				obmat = self.mult_m4_m4m4(obmat, b.matrix)
+
+			#get world space
+			wmat = Matrix()
+			
+			mat = transform.getMatrix()
+			loc,rot,scale = mat.decompose()
+			
+			#rotationx, rotationy, rotationz
+			#as is in actionscript
+			#eu = rot.to_euler()
+			#rot = Matrix.Translation((eu.x,eu.y,eu.z))
 			
 			if pname:
 				parent = amt.edit_bones[pname]
 				bone.parent = parent
 				bone.head = parent.tail
-				bone.use_connect = False
-				(trans, rot, scale) = parent.matrix.decompose()
-				
-				#convert parent from global to local
-				mW = parent.matrix #armature space
-				imW = mW.copy() #copy 
-				imW.invert() #create inverted
-				m1 = mW * imW
-				(trans, rot, scale) = m1.decompose()
+				bone.use_connect = True
+				wmat = self.mult_m4_m4m4(bone.parent.matrix, obmat)
+				#convert location from global to local
 			else:
-				bone.head = (0,0,0)
-				rot = Matrix.Translation((0,0,0))	# identity matrix
-			bone.tail = rot * Vector(vector) + bone.head
-		bpy.ops.object.mode_set(mode='OBJECT')
+				wmat = obmat
+				print("rootbone")
+				bone.head = loc
+				#bone.head = (0,0,0)
+				#rot = Matrix.Translation((0,0,0))
+				#eu = rot.to_euler()
+				#rot = Matrix.Translation((eu.x,eu.y,eu.z))
+			
+			bone.tail = rot * Vector(loc) + bone.head
+			bpy.context.scene.update()
+			
+			bpy.ops.object.mode_set(mode='OBJECT')
+			if pname:
+				mat = transform.getMatrix()
+			else:
+				mat = ob.matrix_world * amt.bones[bname].matrix_local
+			amt.bones[bname].matrix = mat.to_3x3()
+			bpy.ops.object.mode_set(mode='EDIT')
+			
+			
+
+			#mat4_to_loc_rot_size( loc, rot, size, obmat);
+			#mat3_to_vec_roll(rot, NULL, &angle );
+			#bone->roll=angle;
+			#// set head
+			#copy_v3_v3(bone->head, mat[3]);
+
+			#// set tail, don't set it to head because 0-length bones are not allowed
+			#float vec[3] = {0.0f, 0.5f, 0.0f};
+			#add_v3_v3v3(bone->tail, bone->head, vec);
+		
+		#for (bname, pname, transform) in boneTable:        
+		#	bone = amt.edit_bones.new(bname)
+		#	
+		#	#loc, rot, scale = matrix.decompose()
+		#	matrix = transform.getMatrix()
+		#	loc,rot,sca = matrix.decompose()
+		#	#loc,rot,sca = transform.decomposeTransformation()
+		#	
+		#	if pname:
+		#		parent = amt.edit_bones[pname]
+		#		bone.parent = parent
+		#		bone.head = parent.tail
+		#		bone.use_connect = False
+		#		
+		#		#set head
+		#		#bone.head = loc
+		#		#set tail
+		#		#bone.tail = Vector((loc[0],loc[1]+0.5,loc[2]))
+		#		#set parent tail
+		#		#parent.tail = bone.head
+		#		
+		#		
+		#		#print(matrix)
+		#		#m1 = self.mult_m4_m4m4(bone.parent.matrix, obmat)
+		#		m1 = matrix + bone.parent.matrix
+		#		print(bname)
+		#		print(m1)
+		#		
+		#		#trans, rot, scale = matrix.decompose()
+		#		
+		#		#trans, rot, scale = parent.matrix.decompose()
+		#		
+		#		#convert parent from global to local
+		#		#mW = parent.matrix #armature space
+		#		#mW = parent.matrix #armature space
+		#		#imW = mW.copy() #copy 
+		#		#imW.invert() #create inverted
+		#		#m1 = mW * imW
+		#		#(trans, rot, scale) = m1.decompose()
+		#		
+		#		m1 = ob.matrix_world.inverted()*(Matrix.Translation(loc)+matrix.to_3x3().to_4x4())
+		#		trans,rot,scale = m1.decompose()				
+		#	else:
+		#		print("test")
+		#		#matrix = obmat
+		#		bone.head = (0,0,0)
+		#		rot = Matrix.Translation((0,0,0))	# identity matrix
+		#	bone.tail = rot * Vector(loc) + bone.head
+		#bpy.ops.object.mode_set(mode='OBJECT')
+				
 		return ob
 
+	def createAnimation(self,arm_ob,animationClips,animationTracks):
+		
+		for animclip in animationClips:
+			if animclip._name != None:
+				nme = animclip._name
+			else:
+				nme = "Action"
+			arm_ob.animation_data_create()
+			arm_ob.animation_data.action = bpy.data.actions.new(nme)
+		
+			#for track in tracks:
+			#	for keyframe in track._keyframes:
+				
+			for track in animationTracks:
+				#print(track._objectName)
+				#print(len(track._keyframes))
+				pose_bone = arm_ob.pose.bones[track._objectName]
+				for x in range(len(track._keyframes)):
+					bpy.context.scene.frame_set(x)
+					pose_bone.keyframe_insert("location")
+			
+			#for x in range(100):
+			#	bpy.context.scene.frame_set(x)
+			#	for pose_bone in arm_ob.pose.bones:
+			#		pose_bone.keyframe_insert("location")
+		
+		bpy.context.scene.update()
+		
 class A3D2Object:
 	def __init__(self,Config):
 		self._boundBoxId = None
@@ -7051,153 +7411,155 @@ class A3D2Decal:
 			#surf._numTriangles
 			
 			if surf._materialId is not None:
-				#get material
-				mat = materials[surf._materialId]
-				
-				#new material
-				surf_mat = bpy.data.materials.new("Material")
-				me.materials.append(surf_mat)
-				
-				if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._diffuseMapId]
-					#get img
-					img = images[map._imageId]
+			
+				if surf._materialId in materials:
+					#get material
+					mat = materials[surf._materialId]
 					
-					#new image
-					texture = bpy.data.textures.new("diffuse", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
+					#new material
+					surf_mat = bpy.data.materials.new("Material")
+					me.materials.append(surf_mat)
 					
-					#set diffuse img for uv window
-					diffuseimg = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = True
-					#mtex.uv_layer = uvname
+					if (mat._diffuseMapId is not None) and (mat._diffuseMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._diffuseMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("diffuse", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
+						
+						#set diffuse img for uv window
+						diffuseimg = image
 					
-				if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._glossinessMapId]
-					#get img
-					img = images[map._imageId]
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = True
+						#mtex.uv_layer = uvname
+						
+					if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._glossinessMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("glossiness", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-					#new image
-					texture = bpy.data.textures.new("glossiness", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_raymir = True
-					#mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_raymir = True
+						#mtex.uv_layer = uvname
+						
+					if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._lightMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("light", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-				if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._lightMapId]
-					#get img
-					img = images[map._imageId]
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_ambient = True
+						#mtex.uv_layer = uvname
+						
+					if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._normalMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("normal", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-					#new image
-					texture = bpy.data.textures.new("light", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_ambient = True
-					#mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_normal = True
+						#mtex.uv_layer = uvname
+						
+					if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._opacityMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("opacity", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-				if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._normalMapId]
-					#get img
-					img = images[map._imageId]
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_alpha = True
+						#mtex.uv_layer = uvname
+						
+					if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._reflectionCubeMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("reflection", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-					#new image
-					texture = bpy.data.textures.new("normal", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_normal = True
-					#mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						#mtex.uv_layer = uvname
+						
+					if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
+						#get map
+						map = maps[mat._specularMapId]
+						#get img
+						img = images[map._imageId]
+						
+						#new image
+						texture = bpy.data.textures.new("specular", type='IMAGE')
+						DIR = os.path.dirname(self.Config.FilePath)
+						image = load_image(img._url, DIR)
+						texture.image = image
 					
-				if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._opacityMapId]
-					#get img
-					img = images[map._imageId]
-					
-					#new image
-					texture = bpy.data.textures.new("opacity", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_alpha = True
-					#mtex.uv_layer = uvname
-					
-				if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._reflectionCubeMapId]
-					#get img
-					img = images[map._imageId]
-					
-					#new image
-					texture = bpy.data.textures.new("reflection", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					#mtex.uv_layer = uvname
-					
-				if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
-					#get map
-					map = maps[mat._specularMapId]
-					#get img
-					img = images[map._imageId]
-					
-					#new image
-					texture = bpy.data.textures.new("specular", type='IMAGE')
-					DIR = os.path.dirname(self.Config.FilePath)
-					image = load_image(img._url, DIR)
-					texture.image = image
-				
-					#new texture
-					mtex = surf_mat.texture_slots.add()
-					mtex.texture = texture
-					mtex.texture_coords = 'UV'
-					mtex.use_map_color_diffuse = False
-					mtex.use_map_specular = True
-					#mtex.uv_layer = uvname
+						#new texture
+						mtex = surf_mat.texture_slots.add()
+						mtex.texture = texture
+						mtex.texture_coords = 'UV'
+						mtex.use_map_color_diffuse = False
+						mtex.use_map_specular = True
+						#mtex.uv_layer = uvname
 		
 		#set norms
 		if len(norms) > 0:
