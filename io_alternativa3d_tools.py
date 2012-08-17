@@ -1,7 +1,7 @@
 bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
-	'version': (1, 1, 8),
+	'version': (1, 1, 9),
 	'blender': (2, 6, 3),
 	'location': 'File > Import/Export;',
 	'description': 'Importer and exporter for Alternativa3D engine. Supports A3D and Actionscript"',
@@ -6500,6 +6500,13 @@ class A3D2Skin:
 			mat = transform.getMatrix()
 			loc,rot,scale = mat.decompose()
 			
+			#pos = mat.to_translation()
+			#axis, roll = mat3_to_vec_roll(mat.to_3x3())
+			
+			#bone.head = pos
+			#bone.tail = pos + axis
+			#bone.roll = roll
+			
 			#rotationx, rotationy, rotationz
 			#as is in actionscript
 			#eu = rot.to_euler()
@@ -6531,8 +6538,6 @@ class A3D2Skin:
 				mat = ob.matrix_world * amt.bones[bname].matrix_local
 			amt.bones[bname].matrix = mat.to_3x3()
 			bpy.ops.object.mode_set(mode='EDIT')
-			
-			
 
 			#mat4_to_loc_rot_size( loc, rot, size, obmat);
 			#mat3_to_vec_roll(rot, NULL, &angle );
@@ -6623,6 +6628,39 @@ class A3D2Skin:
 			#		pose_bone.keyframe_insert("location")
 		
 		bpy.context.scene.update()
+
+
+# usage
+# 
+#pos = transform.to_translation()
+#axis, roll = mat3_to_vec_roll(transform.to_3x3())
+#
+#bone.head = pos
+#bone.tail = pos + axis
+#bone.roll = roll
+		
+def vec_roll_to_mat3(vec, roll):
+	target = Vector((0,1,0))
+	nor = vec.normalized()
+	axis = target.cross(nor)
+	if axis.dot(axis) > 0.0000000001: # this seems to be the problem for some bones, no idea how to fix
+		axis.normalize()
+		theta = target.angle(nor)
+		bMatrix = Matrix.Rotation(theta, 3, axis)
+	else:
+		updown = 1 if target.dot(nor) > 0 else -1
+		bMatrix = Matrix.Scale(updown, 3)
+	rMatrix = Matrix.Rotation(roll, 3, nor)
+	mat = rMatrix * bMatrix
+	return mat
+
+def mat3_to_vec_roll(mat):
+	vec = mat.col[1]
+	vecmat = vec_roll_to_mat3(mat.col[1], 0)
+	vecmatinv = vecmat.inverted()
+	rollmat = vecmatinv * mat
+	roll = atan2(rollmat[0][2], rollmat[2][2])
+	return vec, roll
 		
 class A3D2Object:
 	def __init__(self,Config):
@@ -8810,8 +8848,11 @@ def addlodchild(objs,distance):
 	mesh.select = False
 	lodcont.select = True
 	
-	#snap, cursor to active
+	#kennylerma ~ snap, cursor to active
+	original_type = bpy.context.area.type
+	bpy.context.area.type = "VIEW_3D"
 	bpy.ops.view3d.snap_cursor_to_active()
+	bpy.context.area.type = original_type
 	
 	#select lodobj
 	mesh.select = True

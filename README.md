@@ -32,6 +32,10 @@ Installation Notes
 Changelog
 ---------
 
+### 1.1.9
+- Fixed context error with add mesh to lod (kennylerma)
+- Check object isn't selected in list and hidden
+
 ### 1.1.8
 - Fixed error when key not found in materials list
 - Add option to exclude hidden items from a3d file, to reduce filesize if needed
