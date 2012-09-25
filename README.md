@@ -32,6 +32,11 @@ Installation Notes
 Changelog
 ---------
 
+### 1.2.0
+- Fixed certain classes not assigning read transform
+- Added a3d export Hierachy and included option to disable
+- Fixed incorrect uv export when using bmesh data
+
 ### 1.1.9
 - Fixed context error with add mesh to lod (kennylerma)
 - Check object isn't selected in list and hidden

@@ -1,7 +1,7 @@
 bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
-	'version': (1, 1, 9),
+	'version': (1, 2, 0),
 	'blender': (2, 6, 3),
 	'location': 'File > Import/Export;',
 	'description': 'Importer and exporter for Alternativa3D engine. Supports A3D and Actionscript"',
@@ -493,7 +493,7 @@ def getCommonData(Config,obj,flipUV=1):
 	if hasFaceUV:
 	
 		#update tessface cache or there is no data
-		mesh.update(calc_tessface=True)
+		mesh.update(calc_edges=True, calc_tessface=True)
 		
 		#add active layer first?
 		#uvlayer = mesh.tessface_uv_textures.active
@@ -517,12 +517,15 @@ def getCommonData(Config,obj,flipUV=1):
 				uvlayers[uvlayername] = []
 					
 				#for face in uvlayer.data:
-				for uv_index in range(len(mesh.polygons)):	
+				#for uv_index in range(len(mesh.polygons)):	
+				for uv_index in range(len(mesh.tessfaces)):
 					#tmplist = [face.uv,face.image]
 					#uvlayers[uvlayername].append(tmplist)
 					face = uvlayer.data[uv_index]
+					#face = mesh.uv_textures.active.data[uv_index]
 					uvs = face.uv1, face.uv2, face.uv3, face.uv4
-					for vertex_index, vertex_itself in enumerate(mesh.polygons[uv_index].vertices):
+					#for vertex_index, vertex_itself in enumerate(mesh.polygons[uv_index].vertices):
+					for vertex_index, vertex_itself in enumerate(mesh.tessfaces[uv_index].vertices):
 						uv_coord_list.append(uvs[vertex_index])
 						if flipUV == 1:
 							uv = [uv_coord_list[-1][0], 1.0 - uv_coord_list[-1][1]]
@@ -538,8 +541,10 @@ def getCommonData(Config,obj,flipUV=1):
 					
 		uvtex = mesh.uv_layers[0]
 		uv_layer = mesh.uv_layers[0]
-		for uv_index in range(len(mesh.polygons)):		
-			for vertex_index, vertex_itself in enumerate(mesh.polygons[uv_index].vertices):
+		#for uv_index in range(len(mesh.polygons)):		
+		for uv_index in range(len(mesh.tessfaces)):		
+			#for vertex_index, vertex_itself in enumerate(mesh.polygons[uv_index].vertices):
+			for vertex_index, vertex_itself in enumerate(mesh.tessfaces[uv_index].vertices):
 				vertex = mesh.vertices[vertex_itself]
 				vertices_list.append(vertex_itself)
 				vertices_co_list.append(vertex.co.xyz)
@@ -547,14 +552,17 @@ def getCommonData(Config,obj,flipUV=1):
 				vertices_index_list.append(new_index)
 				new_index += 1
 				vs.append([vertices_co_list[-1][0],vertices_co_list[-1][1],vertices_co_list[-1][2]])
-				if mesh.polygons[uv_index].use_smooth:
+				#if mesh.polygons[uv_index].use_smooth:
+				if mesh.tessfaces[uv_index].use_smooth:
 					nr.append([normals_list[-1][0],normals_list[-1][1],normals_list[-1][2]])
 				else:
-					nr.append(mesh.polygons[uv_index].normal)
+					#nr.append(mesh.polygons[uv_index].normal)
+					nr.append(mesh.tessfaces[uv_index].normal)
 				ins.append(vertices_index_list[-1])
 	else:
 		# if there are no image textures, output the old way
-		for face in mesh.polygons:
+		#for face in mesh.polygons:
+		for face in mesh.tessfaces:
 			if len(face.vertices) > 0:
 				ins.append(face.vertices[0])
 				ins.append(face.vertices[1])
@@ -682,6 +690,8 @@ def getObjTransform(obj):
 		for y in x:
 			if j == 3 and c != 3:
 				trns.append(obj.location[c])
+				#t = obj.matrix_local.translation()
+				#trns.append(t[c])
 			else:
 				trns.append(y)
 			j=j+1
@@ -1539,7 +1549,7 @@ def WriteDocuClass(ofile,objs,aobjs,Config,fp):
 #==================================
 
 class A3DExporterSettings:
-	def __init__(self,filePath="",A3DVersionSystem=4,ExportMode=1,ExportUVLayer=2,CompressData=1,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1,ExportParentObj=0,ExportBoundBoxes=1,ExportHiddenItems=1,CopyImgs=1):
+	def __init__(self,filePath="",A3DVersionSystem=4,ExportMode=1,ExportUVLayer=2,CompressData=1,ExportAnim=0,ExportUV=1,ExportNormals=1,ExportTangents=1,ExportParentObj=0,ExportBoundBoxes=1,ExportHiddenItems=1,CopyImgs=1,ExportHierarchy=1):
 		self.filePath = filePath
 		self.A3DVersionSystem = int(A3DVersionSystem)
 		self.ExportMode = int(ExportMode)
@@ -1552,6 +1562,7 @@ class A3DExporterSettings:
 		self.ExportParentObj = int(ExportParentObj)
 		self.ExportBoundBoxes = int(ExportBoundBoxes)
 		self.ExportHiddenItems = int(ExportHiddenItems)
+		self.ExportHierarchy = int(ExportHierarchy)
 		self.CopyImgs = int(CopyImgs)
 
 class A3DExporter(bpy.types.Operator):
@@ -1590,6 +1601,8 @@ class A3DExporter(bpy.types.Operator):
 	
 	CopyImgs = BoolProperty(name="Copy Images", description="Copy images to destination folder of export", default=True)
 	
+	ExportHierarchy = BoolProperty(name="Include Hierarchy", description="Export data hierarchically", default=True)
+	
 	filepath = bpy.props.StringProperty()
 
 	def execute(self, context):
@@ -1602,7 +1615,7 @@ class A3DExporter(bpy.types.Operator):
 			print('Output file : %s' %filePath)
 			file = open(filePath, 'wb')
 			file.close()
-			Config = A3DExporterSettings(fp,A3DVersionSystem=self.A3DVersionSystem,ExportMode=self.ExportMode,ExportUVLayer=self.ExportUVLayer,CompressData=self.CompressData,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents,ExportParentObj=self.ExportParentObj,ExportBoundBoxes=self.ExportBoundBoxes,ExportHiddenItems=self.ExportHiddenItems,CopyImgs=self.CopyImgs)
+			Config = A3DExporterSettings(fp,A3DVersionSystem=self.A3DVersionSystem,ExportMode=self.ExportMode,ExportUVLayer=self.ExportUVLayer,CompressData=self.CompressData,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents,ExportParentObj=self.ExportParentObj,ExportBoundBoxes=self.ExportBoundBoxes,ExportHiddenItems=self.ExportHiddenItems,CopyImgs=self.CopyImgs,ExportHierarchy=self.ExportHierarchy)
 			file = open(filePath, 'ab')
 			
 			if self.A3DVersionSystem == "5":
@@ -1829,6 +1842,7 @@ def A3DExport2(file,Config):
 	spotLights = []
 	sprites = []
 	skins = []
+	tracks = []
 	vertexBuffers = []
 	layers = []
 	cameras = []
@@ -2171,33 +2185,103 @@ def A3DExport2(file,Config):
 			bones = arm.bones
 			
 			bonedict = {}
+			jntdict = {}
 			
-			#taken from .x exporter
-			ParentList = [Bone for Bone in arm.bones if Bone.parent is None]
-			PoseBones = obj.pose.bones
-			
-			for Bone in ParentList:
-			
-				bonedict[Bone] = len(joints)
-			
+			#create all bones/joints
+			for bone in bones:
+				#bone name
 				a3dstr = A3DString()
-				a3dstr.name = Bone.name
+				a3dstr.name = bone.name
+				
+				#bone bounding box
+				#a3dbox = A3D2Box(Config)
+				#a3dbox._box = getBoundBox(bone)
+				#a3dbox._id = len(boxes)
+				
+				#create transform/matrix
+				a3dtrans = A3DTransform(Config)
+				#trns = getObjTransform(bone)
+				#a3dtrans._matrix.a = trns[0]
+				#a3dtrans._matrix.b = trns[1]
+				#a3dtrans._matrix.c = trns[2]
+				#a3dtrans._matrix.d = trns[3]
+				#a3dtrans._matrix.e = trns[4]
+				#a3dtrans._matrix.f = trns[5]
+				#a3dtrans._matrix.g = trns[6]
+				#a3dtrans._matrix.h = trns[7]
+				#a3dtrans._matrix.i = trns[8]
+				#a3dtrans._matrix.j = trns[9]
+				#a3dtrans._matrix.k = trns[10]
+				#a3dtrans._matrix.l = trns[11]
 				
 				a3djnt = A3D2Joint(Config)
+				#a3djnt._boundBoxId = a3dbox._id
 				a3djnt._id = len(joints)
 				a3djnt._name = a3dstr
+				#a3djnt._parentId = None
+				a3djnt._transform = a3dtrans
 				a3djnt._visible = 1
+				
+				joints.append(a3djnt)
+				
+				#add bone to dict bone => boneid
+				bonedict[bone] = a3djnt._id
+				jntdict[bone] = a3djnt
+			
+			#set parents
+			for bone in bones:
+				if bone.parent != None:
+					jntdict[bone]._parentId = bonedict[bone.parent]
 
-				PoseBone = PoseBones[Bone.name]
-				if Bone.parent:
-					jnt._parentId = bonedict[Bone.parent]
-					BoneMatrix = PoseBone.parent.matrix.inverted()
-				else:
-					BoneMatrix = Matrix()
-				BoneMatrix *= PoseBone.matrix
+			#Create anim track for each bone
+			for bone in bones:
+				a3dstr = A3DString()
+				a3dstr.name = bone.name
+				
+				a3dtrack = A3D2Track(Config)
+				a3dtrack._id = len(tracks)
+				
+				keyfrms = []
+				for x in range(5):
+					a3dkeyframe = A3D2Keyframe(Config)
+					a3dkeyframe._time = 0
+					a3dkeyframe._transform = None
+					keyfrms.append(a3dkeyframe)
+				
+				a3dtrack._keyframes = keyfrms
+				a3dtrack._objectname = a3dstr
+				tracks.append(a3dtrack)
+				
+			
+			
+			#bonedict = {}
+			
+			#taken from .x exporter
+			#ParentList = [Bone for Bone in arm.bones if Bone.parent is None]
+			#PoseBones = obj.pose.bones
+			
+			#for Bone in ParentList:
+			#
+			#	bonedict[Bone] = len(joints)
+			#
+			#	a3dstr = A3DString()
+			#	a3dstr.name = Bone.name
+			#	
+			#	a3djnt = A3D2Joint(Config)
+			#	a3djnt._id = len(joints)
+			#	a3djnt._name = a3dstr
+			#	a3djnt._visible = 1
+#
+#				PoseBone = PoseBones[Bone.name]
+#				if Bone.parent:
+#					jnt._parentId = bonedict[Bone.parent]
+#					BoneMatrix = PoseBone.parent.matrix.inverted()
+#				else:
+#					BoneMatrix = Matrix()
+#				BoneMatrix *= PoseBone.matrix
 				
 				#a3djnt._transform = [BoneMatrix[0][0],BoneMatrix[0][1],BoneMatrix[0][2],BoneMatrix[1][0],BoneMatrix[1][1],BoneMatrix[1][2],BoneMatrix[2][0],BoneMatrix[2][1],BoneMatrix[2][2],BoneMatrix[3][0],BoneMatrix[3][1],BoneMatrix[3][2]]
-				joints.append(a3djnt)
+#				joints.append(a3djnt)
 				
 				#now do same as above for bone children
 				#Bone.children
@@ -2320,6 +2404,37 @@ def A3DExport2(file,Config):
 	
 	print('Export Completed...\n')
 
+def createObject(Config,obj,objects,mesh_objects):
+	a3dstr2 = A3DString()
+	a3dstr2.name = "obj_"+cleanupString(obj.data.name)
+	
+	#create transform/matrix
+	wtrns = getObjWorldTransform(obj)
+	a3dtrans = A3DTransform(Config)
+	a3dtrans._matrix.a = wtrns[0]
+	a3dtrans._matrix.b = wtrns[1]
+	a3dtrans._matrix.c = wtrns[2]
+	a3dtrans._matrix.d = wtrns[3]
+	a3dtrans._matrix.e = wtrns[4]
+	a3dtrans._matrix.f = wtrns[5]
+	a3dtrans._matrix.g = wtrns[6]
+	a3dtrans._matrix.h = wtrns[7]
+	a3dtrans._matrix.i = wtrns[8]
+	a3dtrans._matrix.j = wtrns[9]
+	a3dtrans._matrix.k = wtrns[10]
+	a3dtrans._matrix.l = wtrns[11]
+
+	a3dobj = A3D2Object(Config)
+	#a3dobj._boundBoxId = 0
+	a3dobj._id = len(mesh_objects)
+	a3dobj._name = a3dstr2
+	#a3dobj._parentId = 0
+	a3dobj._transform = a3dtrans
+	a3dobj._visible = 1
+	objects.append(a3dobj)
+	mesh_objects.append(a3dobj)
+	return a3dobj
+	
 def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers,isdecal=False):
 	mesh = obj.data
 	if mesh.users > 1:
@@ -2352,37 +2467,15 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,m
 	#get surface data
 	start,end,mts,mats,uvimgs = collectSurfaces(mesh)
 	
-	#create parent object
-	if Config.ExportParentObj == 1:
-		a3dstr2 = A3DString()
-		a3dstr2.name = "obj_"+cleanupString(obj.data.name)
-		
-		#create transform/matrix
-		wtrns = getObjWorldTransform(obj)
-		a3dtrans = A3DTransform(Config)
-		a3dtrans._matrix.a = wtrns[0]
-		a3dtrans._matrix.b = wtrns[1]
-		a3dtrans._matrix.c = wtrns[2]
-		a3dtrans._matrix.d = wtrns[3]
-		a3dtrans._matrix.e = wtrns[4]
-		a3dtrans._matrix.f = wtrns[5]
-		a3dtrans._matrix.g = wtrns[6]
-		a3dtrans._matrix.h = wtrns[7]
-		a3dtrans._matrix.i = wtrns[8]
-		a3dtrans._matrix.j = wtrns[9]
-		a3dtrans._matrix.k = wtrns[10]
-		a3dtrans._matrix.l = wtrns[11]
-	
-		a3dobj = A3D2Object(Config)
-		#a3dobj._boundBoxId = 0
-		a3dobj._id = len(mesh_objects)
-		a3dobj._name = a3dstr2
-		#a3dobj._parentId = 0
-		a3dobj._transform = a3dtrans
-		a3dobj._visible = 1
-		objects.append(a3dobj)
-		mesh_objects.append(a3dobj)
+	a3dobj = None
+	#create parent object if hierarchy and no parent
+	if Config.ExportHierarchy == 1:
+		if obj.parent == None:
+			a3dobj = createObject(Config,obj,objects,mesh_objects)
 			
+	#create parent object if no hierarchy
+	if Config.ExportParentObj == 1 and Config.ExportHierarchy == 0:
+		a3dobj = createObject(Config,obj,objects,mesh_objects)
 	
 	if Config.ExportBoundBoxes == 1:
 		#create mesh boundbox
@@ -2640,7 +2733,8 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,m
 		#a3dmesh._indexBufferId = a3dibuf._id
 		a3dmesh._indexBufferId = ibufid
 		a3dmesh._name = a3dstr
-		if Config.ExportParentObj == 1:
+		#if Config.ExportParentObj == 1 or Config.ExportHierarchy == 1:
+		if a3dobj != None:
 			a3dmesh._parentId = a3dobj._id
 		a3dmesh._surfaces = mesh_surfaces
 		a3dmesh._transform = a3dtrans
@@ -2667,7 +2761,8 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,m
 		a3ddecal._indexBufferId = ibufid
 		a3ddecal._name = a3dstr
 		a3ddecal._offset = 1
-		if Config.ExportParentObj == 1:
+		#if Config.ExportParentObj == 1 or Config.ExportHierarchy == 1:
+		if a3dobj != None: 
 			a3ddecal._parentId = a3dobj._id
 		a3ddecal._surfaces = mesh_surfaces
 		a3ddecal._transform = a3dtrans
@@ -5156,6 +5251,7 @@ class A3D2SpotLight:
 		if mask[mskindex + self._mskindex] == "0":
 			a3dtran = A3DTransform(self.Config)
 			a3dtran.read(file)
+			self._transform = a3dtran
 		self._mskindex = self._mskindex + 1
 		
 		file.write(pack("B",self._visible))
@@ -6619,14 +6715,14 @@ class A3D2Skin:
 				#print(len(track._keyframes))
 				pose_bone = arm_ob.pose.bones[track._objectName]
 				for x in range(len(track._keyframes)):
+					keyframe = track._keyframes[x]
 					bpy.context.scene.frame_set(x)
+					
+					mat = keyframe._transform.getMatrix()
+					pose_bone.matrix = mat
+					
 					pose_bone.keyframe_insert("location")
 			
-			#for x in range(100):
-			#	bpy.context.scene.frame_set(x)
-			#	for pose_bone in arm_ob.pose.bones:
-			#		pose_bone.keyframe_insert("location")
-		
 		bpy.context.scene.update()
 
 
@@ -6711,6 +6807,7 @@ class A3D2Object:
 		if mask[mskindex + self._mskindex] == "0":
 			a3dtran = A3DTransform(self.Config)
 			a3dtran.read(file)
+			self._transform = a3dtran
 		self._mskindex = self._mskindex + 1
 				
 		self._visible = unpack("B", file.read(calcsize("B")))[0]
@@ -6832,7 +6929,13 @@ class A3D2Track:
 		print(self._objectName)
 		
 	def write(self,file):
-		print("write")
+		print("write A3D2Track")
+		file.write(pack("Q",self._id))
+		arr = A3DArray()
+		arr.write(file,len(self._keyframes))
+		for kframe in self._keyframes:
+			kframe.write(file)
+		self._objectName.write(file)
 
 class A3D2Joint:
 	def __init__(self,Config):
@@ -6962,10 +7065,13 @@ class A3D2Keyframe:
 		self._time = unpack(">f",file.read(calcsize(">f")))[0]
 		a3dtran = A3DTransform(self.Config)
 		a3dtran.read(file)
+		self._transform = a3dtran
 		return self
 		
 	def write(self,file):
 		print("write")
+		file.write(pack('>f',self._time))
+		self._transform.write(file)
 
 # Buffers
 		
@@ -7236,6 +7342,7 @@ class A3D2Decal:
 		if mask[mskindex + self._mskindex] == "0":
 			a3dtran = A3DTransform(self.Config)
 			a3dtran.read(file)
+			self._transform = a3dtran
 		self._mskindex = self._mskindex + 1
 		
 		arr = A3DArray()
