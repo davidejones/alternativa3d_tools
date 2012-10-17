@@ -504,8 +504,7 @@ def getCommonData(Config,obj,flipUV=1):
 		
 			if Config.ExportUVLayer != None:
 				if Config.ExportUVLayer == 1:
-					if uc > 0:
-						uvprocess=False
+					uvprocess=uvlayer.active
 				elif Config.ExportUVLayer == 2:
 					uvprocess=True
 			else:
