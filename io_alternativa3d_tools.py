@@ -3937,7 +3937,7 @@ class A3DObject:
 		self._boundBoxId = 0
 		self._geometryId = 0
 		self._id = 0
-		self._name = 0
+		self._name = ""
 		self._parentId = 0
 		self._surfaces = []
 		self._transformation = 0
@@ -3950,7 +3950,7 @@ class A3DObject:
 		self._boundBoxId = 0
 		self._geometryId = 0
 		self._id = 0
-		self._name = 0
+		self._name = ""
 		self._parentId = 0
 		self._surfaces = []
 		self._transformation = 0
