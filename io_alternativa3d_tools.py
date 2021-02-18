@@ -3996,9 +3996,9 @@ class A3DObject:
 			self._transformation = a3dtran
 		self._mskindex = self._mskindex + 1
 		
-		#if mask[mskindex + self._mskindex] == "0":
-		self._visible = unpack("B", file.read(calcsize("B")))[0]
-		#self._mskindex = self._mskindex + 1
+		if mask[mskindex + self._mskindex] == "0":
+			self._visible = unpack("B", file.read(calcsize("B")))[0]
+		self._mskindex = self._mskindex + 1
 			
 		print("boundBoxId="+str(self._boundBoxId))
 		print("geometryId="+str(self._geometryId))
