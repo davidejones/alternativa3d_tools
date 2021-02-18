@@ -414,16 +414,20 @@ def WriteMaterial(file,id,Config,Material=None):
 			Specular = list(Material.specular_color)
 
 			file.write('\t\tprivate var '+id+':FillMaterial = new FillMaterial('+rgb2hex((Diffuse[0], Diffuse[1], Diffuse[2]))+');\n\n')
-	
+
+
 def GetMaterialTexture(Material):
-    if Material:
-        #Create a list of Textures that have type "IMAGE"
-        ImageTextures = [Material.texture_slots[TextureSlot].texture for TextureSlot in Material.texture_slots.keys() if Material.texture_slots[TextureSlot].texture.type == "IMAGE"]
-        #Refine a new list with only image textures that have a file source
-        ImageFiles = [os.path.basename(Texture.image.filepath) for Texture in ImageTextures if Texture.image.source == "FILE"]
-        if ImageFiles:
-            return ImageFiles[0]
-    return None
+	img_files = []
+	if Material:
+		# Create a list of Textures that have type "IMAGE"
+		ImageTextures = [Material.texture_slots[TextureSlot].texture for TextureSlot in Material.texture_slots.keys() if Material.texture_slots[TextureSlot].texture.type == "IMAGE"]
+		# Refine a new list with only image textures that have a file source.
+		for Texture in ImageTextures:
+			if Texture.image and Texture.image.source == "FILE":
+				if Texture.image.filepath:
+					img_files.append(os.path.basename(Texture.image.filepath))
+	return img_files[0] if len(img_files) > 0 else None
+
 
 def writeByteArrayValues(file,verts,uvlayers,indices):
 	file.write("\t\t\tvalues= new <uint>[")
@@ -1904,7 +1908,7 @@ def A3DExport2(file,Config):
 								name=tex.name.lower()
 								a3dstr = A3DString()
 								#a3dstr.name = os.path.basename(tex.texture.image.filepath)
-								a3dstr.name = os.path.basename(bpy.path.abspath(tex.texture.image.filepath))
+								a3dstr.name = os.path.basename(bpy.path.abspath(tex.texture.image.filepath)) if tex.texture.image and tex.texture.image.filepath else ""
 								a3dimg = A3D2Image(Config)
 								a3dimg._id = len(images)
 								a3dimg._url = a3dstr
@@ -2543,7 +2547,7 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,m
 					#print(os.path.basename(bpy.path.display_name_from_filepath(tex.texture.image.filepath)))
 					#print(os.path.basename(bpy.path.abspath(tex.texture.image.filepath)))
 					
-					if tex.texture.image.filepath in linkedimgdata:
+					if tex.texture.image and tex.texture.image.filepath in linkedimgdata:
 						#user already exists, retrieve ids
 						imgid = linkedimgdata[tex.texture.image.filepath][0]
 						#set to true so we don't add buffers with data we don't need
@@ -2552,14 +2556,14 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,m
 						#user doesn't exist yet
 						imgid = len(images)
 						#assign for other users
-						linkedimgdata[tex.texture.image.filepath] = [imgid]
+						linkedimgdata[tex.texture.image.filepath if tex.texture.image and tex.texture.image.filepath else ""] = [imgid]
 						linkedimg = False
 
 					#create image
 					if linkedimg == False:
 						a3dstr = A3DString()
 						#a3dstr.name = os.path.basename(tex.texture.image.filepath)
-						a3dstr.name = os.path.basename(bpy.path.abspath(tex.texture.image.filepath))
+						a3dstr.name = os.path.basename(bpy.path.abspath(tex.texture.image.filepath)) if tex.texture.image and tex.texture.image.filepath else ""
 						
 						a3dimg = A3D2Image(Config)
 						a3dimg._id = imgid
