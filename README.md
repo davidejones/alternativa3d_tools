@@ -36,6 +36,7 @@ Changelog
 - Fixed a bug with importing a3d version 1 files
 - Fixed a bug with the a3d1 object parsing to read visibility from mask
 - Fix `error embedded null character` when loading images
+- Use object names when converting a3d1 to 2, previously used the same name for all
 
 ### 1.2.0
 - Fixed certain classes not assigning read transform

@@ -3355,6 +3355,8 @@ class A3D:
 
 		if len(self.objects) > 0:
 			for x in range(len(self.objects)):
+
+				name = self.objects[x]._name[:]
 			
 				#get geometry
 				geom = geoindex[self.objects[x]._geometryId]
@@ -3444,7 +3446,7 @@ class A3D:
 				a3dmesh._boundBoxId = self.objects[x]._boundBoxId
 				a3dmesh._id = len(a3d2meshes)
 				a3dmesh._indexBufferId = a3dibuf._id
-				a3dmesh._name = self.objects[x]._name
+				a3dmesh._name = name
 				a3dmesh._parentId = self.objects[x]._parentId
 				a3dmesh._surfaces = self.objects[x]._surfaces
 				a3dmesh._transform = None
