@@ -1,7 +1,7 @@
 bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
-	'version': (1, 2, 0),
+	'version': (1, 2, 1),
 	'blender': (2, 6, 3),
 	'location': 'File > Import/Export;',
 	'description': 'Importer and exporter for Alternativa3D engine. Supports A3D and Actionscript"',
@@ -414,16 +414,20 @@ def WriteMaterial(file,id,Config,Material=None):
 			Specular = list(Material.specular_color)
 
 			file.write('\t\tprivate var '+id+':FillMaterial = new FillMaterial('+rgb2hex((Diffuse[0], Diffuse[1], Diffuse[2]))+');\n\n')
-	
+
+
 def GetMaterialTexture(Material):
-    if Material:
-        #Create a list of Textures that have type "IMAGE"
-        ImageTextures = [Material.texture_slots[TextureSlot].texture for TextureSlot in Material.texture_slots.keys() if Material.texture_slots[TextureSlot].texture.type == "IMAGE"]
-        #Refine a new list with only image textures that have a file source
-        ImageFiles = [os.path.basename(Texture.image.filepath) for Texture in ImageTextures if Texture.image.source == "FILE"]
-        if ImageFiles:
-            return ImageFiles[0]
-    return None
+	img_files = []
+	if Material:
+		# Create a list of Textures that have type "IMAGE"
+		ImageTextures = [Material.texture_slots[TextureSlot].texture for TextureSlot in Material.texture_slots.keys() if Material.texture_slots[TextureSlot].texture.type == "IMAGE"]
+		# Refine a new list with only image textures that have a file source.
+		for Texture in ImageTextures:
+			if Texture.image and Texture.image.source == "FILE":
+				if Texture.image.filepath:
+					img_files.append(os.path.basename(Texture.image.filepath))
+	return img_files[0] if len(img_files) > 0 else None
+
 
 def writeByteArrayValues(file,verts,uvlayers,indices):
 	file.write("\t\t\tvalues= new <uint>[")
@@ -1904,7 +1908,7 @@ def A3DExport2(file,Config):
 								name=tex.name.lower()
 								a3dstr = A3DString()
 								#a3dstr.name = os.path.basename(tex.texture.image.filepath)
-								a3dstr.name = os.path.basename(bpy.path.abspath(tex.texture.image.filepath))
+								a3dstr.name = os.path.basename(bpy.path.abspath(tex.texture.image.filepath)) if tex.texture.image and tex.texture.image.filepath else ""
 								a3dimg = A3D2Image(Config)
 								a3dimg._id = len(images)
 								a3dimg._url = a3dstr
@@ -2543,7 +2547,7 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,m
 					#print(os.path.basename(bpy.path.display_name_from_filepath(tex.texture.image.filepath)))
 					#print(os.path.basename(bpy.path.abspath(tex.texture.image.filepath)))
 					
-					if tex.texture.image.filepath in linkedimgdata:
+					if tex.texture.image and tex.texture.image.filepath in linkedimgdata:
 						#user already exists, retrieve ids
 						imgid = linkedimgdata[tex.texture.image.filepath][0]
 						#set to true so we don't add buffers with data we don't need
@@ -2552,14 +2556,14 @@ def createMesh(Config,obj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,m
 						#user doesn't exist yet
 						imgid = len(images)
 						#assign for other users
-						linkedimgdata[tex.texture.image.filepath] = [imgid]
+						linkedimgdata[tex.texture.image.filepath if tex.texture.image and tex.texture.image.filepath else ""] = [imgid]
 						linkedimg = False
 
 					#create image
 					if linkedimg == False:
 						a3dstr = A3DString()
 						#a3dstr.name = os.path.basename(tex.texture.image.filepath)
-						a3dstr.name = os.path.basename(bpy.path.abspath(tex.texture.image.filepath))
+						a3dstr.name = os.path.basename(bpy.path.abspath(tex.texture.image.filepath)) if tex.texture.image and tex.texture.image.filepath else ""
 						
 						a3dimg = A3D2Image(Config)
 						a3dimg._id = imgid
@@ -3355,6 +3359,8 @@ class A3D:
 
 		if len(self.objects) > 0:
 			for x in range(len(self.objects)):
+
+				name = self.objects[x]._name[:]
 			
 				#get geometry
 				geom = geoindex[self.objects[x]._geometryId]
@@ -3444,7 +3450,7 @@ class A3D:
 				a3dmesh._boundBoxId = self.objects[x]._boundBoxId
 				a3dmesh._id = len(a3d2meshes)
 				a3dmesh._indexBufferId = a3dibuf._id
-				a3dmesh._name = self.objects[x]._name
+				a3dmesh._name = name
 				a3dmesh._parentId = self.objects[x]._parentId
 				a3dmesh._surfaces = self.objects[x]._surfaces
 				a3dmesh._transform = None
@@ -3937,7 +3943,7 @@ class A3DObject:
 		self._boundBoxId = 0
 		self._geometryId = 0
 		self._id = 0
-		self._name = 0
+		self._name = ""
 		self._parentId = 0
 		self._surfaces = []
 		self._transformation = 0
@@ -3950,7 +3956,7 @@ class A3DObject:
 		self._boundBoxId = 0
 		self._geometryId = 0
 		self._id = 0
-		self._name = 0
+		self._name = ""
 		self._parentId = 0
 		self._surfaces = []
 		self._transformation = 0
@@ -3996,9 +4002,9 @@ class A3DObject:
 			self._transformation = a3dtran
 		self._mskindex = self._mskindex + 1
 		
-		#if mask[mskindex + self._mskindex] == "0":
-		self._visible = unpack("B", file.read(calcsize("B")))[0]
-		#self._mskindex = self._mskindex + 1
+		if mask[mskindex + self._mskindex] == "0":
+			self._visible = unpack("B", file.read(calcsize("B")))[0]
+		self._mskindex = self._mskindex + 1
 			
 		print("boundBoxId="+str(self._boundBoxId))
 		print("geometryId="+str(self._geometryId))
@@ -5618,7 +5624,7 @@ class A3D2Mesh:
 						#new image
 						texture = bpy.data.textures.new("diffuse", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 						
 						#set diffuse img for uv window
@@ -5640,7 +5646,7 @@ class A3D2Mesh:
 						#new image
 						texture = bpy.data.textures.new("glossiness", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -5660,7 +5666,7 @@ class A3D2Mesh:
 						#new image
 						texture = bpy.data.textures.new("light", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -5680,7 +5686,7 @@ class A3D2Mesh:
 						#new image
 						texture = bpy.data.textures.new("normal", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -5700,7 +5706,7 @@ class A3D2Mesh:
 						#new image
 						texture = bpy.data.textures.new("opacity", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -5720,7 +5726,7 @@ class A3D2Mesh:
 						#new image
 						texture = bpy.data.textures.new("reflection", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -5739,7 +5745,7 @@ class A3D2Mesh:
 						#new image
 						texture = bpy.data.textures.new("specular", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -6051,7 +6057,7 @@ class A3D2Skin:
 						#new image
 						texture = bpy.data.textures.new("diffuse", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 						
 						#set diffuse img for uv window
@@ -6073,7 +6079,7 @@ class A3D2Skin:
 						#new image
 						texture = bpy.data.textures.new("glossiness", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -6093,7 +6099,7 @@ class A3D2Skin:
 						#new image
 						texture = bpy.data.textures.new("light", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -6113,7 +6119,7 @@ class A3D2Skin:
 						#new image
 						texture = bpy.data.textures.new("normal", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -6133,7 +6139,7 @@ class A3D2Skin:
 						#new image
 						texture = bpy.data.textures.new("opacity", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -6153,7 +6159,7 @@ class A3D2Skin:
 						#new image
 						texture = bpy.data.textures.new("reflection", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -6172,7 +6178,7 @@ class A3D2Skin:
 						#new image
 						texture = bpy.data.textures.new("specular", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -7573,7 +7579,7 @@ class A3D2Decal:
 						#new image
 						texture = bpy.data.textures.new("diffuse", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 						
 						#set diffuse img for uv window
@@ -7595,7 +7601,7 @@ class A3D2Decal:
 						#new image
 						texture = bpy.data.textures.new("glossiness", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -7615,7 +7621,7 @@ class A3D2Decal:
 						#new image
 						texture = bpy.data.textures.new("light", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -7635,7 +7641,7 @@ class A3D2Decal:
 						#new image
 						texture = bpy.data.textures.new("normal", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -7655,7 +7661,7 @@ class A3D2Decal:
 						#new image
 						texture = bpy.data.textures.new("opacity", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -7675,7 +7681,7 @@ class A3D2Decal:
 						#new image
 						texture = bpy.data.textures.new("reflection", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -7694,7 +7700,7 @@ class A3D2Decal:
 						#new image
 						texture = bpy.data.textures.new("specular", type='IMAGE')
 						DIR = os.path.dirname(self.Config.FilePath)
-						image = load_image(img._url, DIR)
+						image = load_image(img._url.rstrip('\0'), DIR)
 						texture.image = image
 					
 						#new texture
@@ -8069,7 +8075,7 @@ class A3D2Sprite:
 			#new image
 			texture = bpy.data.textures.new("diffuse", type='IMAGE')
 			DIR = os.path.dirname(self.Config.FilePath)
-			image = load_image(img._url, DIR)
+			image = load_image(img._url.rstrip('\0'), DIR)
 			texture.image = image
 			
 			#set diffuse img for uv window
@@ -8091,7 +8097,7 @@ class A3D2Sprite:
 			#new image
 			texture = bpy.data.textures.new("glossiness", type='IMAGE')
 			DIR = os.path.dirname(self.Config.FilePath)
-			image = load_image(img._url, DIR)
+			image = load_image(img._url.rstrip('\0'), DIR)
 			texture.image = image
 		
 			#new texture
@@ -8111,7 +8117,7 @@ class A3D2Sprite:
 			#new image
 			texture = bpy.data.textures.new("light", type='IMAGE')
 			DIR = os.path.dirname(self.Config.FilePath)
-			image = load_image(img._url, DIR)
+			image = load_image(img._url.rstrip('\0'), DIR)
 			texture.image = image
 		
 			#new texture
@@ -8131,7 +8137,7 @@ class A3D2Sprite:
 			#new image
 			texture = bpy.data.textures.new("normal", type='IMAGE')
 			DIR = os.path.dirname(self.Config.FilePath)
-			image = load_image(img._url, DIR)
+			image = load_image(img._url.rstrip('\0'), DIR)
 			texture.image = image
 		
 			#new texture
@@ -8151,7 +8157,7 @@ class A3D2Sprite:
 			#new image
 			texture = bpy.data.textures.new("opacity", type='IMAGE')
 			DIR = os.path.dirname(self.Config.FilePath)
-			image = load_image(img._url, DIR)
+			image = load_image(img._url.rstrip('\0'), DIR)
 			texture.image = image
 		
 			#new texture
@@ -8171,7 +8177,7 @@ class A3D2Sprite:
 			#new image
 			texture = bpy.data.textures.new("reflection", type='IMAGE')
 			DIR = os.path.dirname(self.Config.FilePath)
-			image = load_image(img._url, DIR)
+			image = load_image(img._url.rstrip('\0'), DIR)
 			texture.image = image
 		
 			#new texture
@@ -8190,7 +8196,7 @@ class A3D2Sprite:
 			#new image
 			texture = bpy.data.textures.new("specular", type='IMAGE')
 			DIR = os.path.dirname(self.Config.FilePath)
-			image = load_image(img._url, DIR)
+			image = load_image(img._url.rstrip('\0'), DIR)
 			texture.image = image
 		
 			#new texture
