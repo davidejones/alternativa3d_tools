@@ -2,7 +2,7 @@ bl_info = {
 	'name': 'Export: Alternativa3d Tools',
 	'author': 'David E Jones, http://davidejones.com',
 	'version': (1, 2, 1),
-	'blender': (2, 6, 3),
+	'blender': (2, 80, 0),
 	'location': 'File > Import/Export;',
 	'description': 'Importer and exporter for Alternativa3D engine. Supports A3D and Actionscript"',
 	'warning': '',
@@ -10,7 +10,7 @@ bl_info = {
 	'tracker_url': 'http://davidejones.com',
 	'category': 'Import-Export'}
 
-import bpy, os, time, zlib, tempfile, re, shutil
+import bpy, os, zlib, tempfile, re, shutil
 from binascii import hexlify
 from struct import unpack, pack, calcsize
 from math import atan, atan2
@@ -59,9 +59,9 @@ def cleanupString(input):
 
 def ConvertQuadsToTris(obj):	
 	for object in bpy.data.objects:
-			object.select = False
-	obj.select = True
-	bpy.context.scene.objects.active = obj
+			object.select_set(False)
+	obj.select_set(True)
+	bpy.context.view_layer.objects.active = obj
 
 	bpy.ops.object.mode_set(mode="OBJECT", toggle = False)
 	bpy.ops.object.mode_set(mode="EDIT", toggle = True)
@@ -74,7 +74,7 @@ def ConvertQuadsToTris(obj):
 	else:
 		mefdata = mesh.faces
 	for f in mefdata:
-		f.select = True	
+		f.select_set(True)	
 	bpy.ops.mesh.quads_convert_to_tris()
 	#Return to object mode
 	bpy.ops.object.mode_set(mode="EDIT", toggle = False)
@@ -141,33 +141,33 @@ class ASExporter(bpy.types.Operator):
 	A3DVersions.append(("9", "8.12.0", ""))
 	A3DVersions.append(("10", "8.17.0", ""))
 	A3DVersions.append(("11", "8.27.0", ""))
-	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D to export to", items=A3DVersions, default="11")
+	A3DVersionSystem: EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D to export to", items=A3DVersions, default="11")
 
 	Compilers = []
 	Compilers.append(("1", "Flex", ""))
 	Compilers.append(("2", "Flash", ""))
-	CompilerOption = EnumProperty(name="Use With", description="Select the compiler you will be using", items=Compilers, default="1")
+	CompilerOption: EnumProperty(name="Use With", description="Select the compiler you will be using", items=Compilers, default="1")
 
 	ExportModes = []
 	ExportModes.append(("1", "Selected Objects", ""))
 	ExportModes.append(("2", "All Objects", ""))
-	ExportMode = EnumProperty(name="Export", description="Select which objects to export", items=ExportModes, default="1")
+	ExportMode: EnumProperty(name="Export", description="Select which objects to export", items=ExportModes, default="1")
 
-	DocClass = BoolProperty(name="Create Document Class", description="Create document class that makes use of exported data", default=False)
-	CopyImgs = BoolProperty(name="Copy Images", description="Copy images to destination folder of export", default=True)
-	ByClass = BoolProperty(name="Use ByteArray Data (v8.27+)", description="Exports mesh data to compressed bytearray in as3", default=False)
+	DocClass: BoolProperty(name="Create Document Class", description="Create document class that makes use of exported data", default=False)
+	CopyImgs: BoolProperty(name="Copy Images", description="Copy images to destination folder of export", default=True)
+	ByClass: BoolProperty(name="Use ByteArray Data (v8.27+)", description="Exports mesh data to compressed bytearray in as3", default=False)
 	
-	#ExportAnim = BoolProperty(name="Animation", description="Animation", default=False)
-	ExportUV = BoolProperty(name="Include UVs", description="Normals", default=True)
-	ExportNormals = BoolProperty(name="Include Normals", description="Normals", default=True)
-	ExportTangents = BoolProperty(name="Include Tangents", description="Tangents", default=True)
+	#ExportAnim: BoolProperty(name="Animation", description="Animation", default=False)
+	ExportUV: BoolProperty(name="Include UVs", description="Normals", default=True)
+	ExportNormals: BoolProperty(name="Include Normals", description="Normals", default=True)
+	ExportTangents: BoolProperty(name="Include Tangents", description="Tangents", default=True)
 	
 	ExportUVLayers = []
 	ExportUVLayers.append(("1", "Active UV Layer Only", ""))
 	ExportUVLayers.append(("2", "All UV Layers", ""))
-	ExportUVLayer = EnumProperty(name="UV Layers", description="Select which UV Layers to export", items=ExportUVLayers, default="2")
+	ExportUVLayer: EnumProperty(name="UV Layers", description="Select which UV Layers to export", items=ExportUVLayers, default="2")
 		
-	filepath = bpy.props.StringProperty()
+	filepath: bpy.props.StringProperty()
 
 	def execute(self, context):
 		filePath = self.properties.filepath
@@ -175,14 +175,12 @@ class ASExporter(bpy.types.Operator):
 		if not filePath.lower().endswith('.as'):
 			filePath += '.as'
 		try:
-			time1 = time.clock()
 			print('Output file : %s' %filePath)
 			file = open(filePath, 'w')
 			Config = ASExporterSettings(A3DVersionSystem=self.A3DVersionSystem,CompilerOption=self.CompilerOption,ExportMode=self.ExportMode, DocClass=self.DocClass,CopyImgs=self.CopyImgs,ByClass=self.ByClass,ExportAnim=False,ExportUV=self.ExportUV,ExportNormals=self.ExportNormals,ExportTangents=self.ExportTangents,ExportUVLayer=self.ExportUVLayer)
 			ASExport(file,Config,fp)
 			
 			file.close()
-			print(".as export time: %.2f" % (time.clock() - time1))
 		except Exception as e:
 			print(e)
 			file.close()
@@ -1579,34 +1577,34 @@ class A3DExporter(bpy.types.Operator):
 	A3DVersions.append(("3", "2.4", ""))
 	A3DVersions.append(("4", "2.0", ""))
 	#A3DVersions.append(("5", "1.0", ""))
-	A3DVersionSystem = EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D .A3D to export to", items=A3DVersions, default="1")
+	A3DVersionSystem: EnumProperty(name="Alternativa3D", description="Select a version of alternativa3D .A3D to export to", items=A3DVersions, default="1")
 	
 	ExportModes = []
 	ExportModes.append(("1", "Selected Objects", ""))
 	ExportModes.append(("2", "All Objects", ""))
-	ExportMode = EnumProperty(name="Export", description="Select which objects to export", items=ExportModes, default="1")
+	ExportMode: EnumProperty(name="Export", description="Select which objects to export", items=ExportModes, default="1")
 	
 	ExportUVLayers = []
 	ExportUVLayers.append(("1", "Active UV Layer Only", ""))
 	ExportUVLayers.append(("2", "All UV Layers", ""))
-	ExportUVLayer = EnumProperty(name="UV Layers", description="Select which UV Layers to export", items=ExportUVLayers, default="2")
+	ExportUVLayer: EnumProperty(name="UV Layers", description="Select which UV Layers to export", items=ExportUVLayers, default="2")
 	
-	CompressData = BoolProperty(name="Compress Data", description="Zlib Compress data as per .a3d spec", default=True)
+	CompressData: BoolProperty(name="Compress Data", description="Zlib Compress data as per .a3d spec", default=True)
 	
-	#ExportAnim = BoolProperty(name="Animation", description="Animation", default=False)
-	ExportUV = BoolProperty(name="Include UVs", description="UV", default=True)
+	#ExportAnim: BoolProperty(name="Animation", description="Animation", default=False)
+	ExportUV: BoolProperty(name="Include UVs", description="UV", default=True)
 	
-	ExportNormals = BoolProperty(name="Include Normals", description="Normals", default=True)
-	ExportTangents = BoolProperty(name="Include Tangents", description="Tangents", default=True)
-	ExportParentObj = BoolProperty(name="Include Pivot Objects", description="Export meshes with parent objects which contain pivot transformation data", default=False)
-	ExportBoundBoxes = BoolProperty(name="Include Bound Boxes", description="Export with boundbox data", default=True)
-	ExportHiddenItems = BoolProperty(name="Include Hidden Objects", description="Export with hidden item data", default=True)
+	ExportNormals: BoolProperty(name="Include Normals", description="Normals", default=True)
+	ExportTangents: BoolProperty(name="Include Tangents", description="Tangents", default=True)
+	ExportParentObj: BoolProperty(name="Include Pivot Objects", description="Export meshes with parent objects which contain pivot transformation data", default=False)
+	ExportBoundBoxes: BoolProperty(name="Include Bound Boxes", description="Export with boundbox data", default=True)
+	ExportHiddenItems: BoolProperty(name="Include Hidden Objects", description="Export with hidden item data", default=True)
 	
-	CopyImgs = BoolProperty(name="Copy Images", description="Copy images to destination folder of export", default=True)
+	CopyImgs: BoolProperty(name="Copy Images", description="Copy images to destination folder of export", default=True)
 	
-	ExportHierarchy = BoolProperty(name="Include Hierarchy", description="Export data hierarchically", default=True)
+	ExportHierarchy: BoolProperty(name="Include Hierarchy", description="Export data hierarchically", default=True)
 	
-	filepath = bpy.props.StringProperty()
+	filepath: bpy.props.StringProperty()
 
 	def execute(self, context):
 		filePath = self.properties.filepath
@@ -1614,7 +1612,6 @@ class A3DExporter(bpy.types.Operator):
 		if not filePath.lower().endswith('.a3d'):
 			filePath += '.a3d'
 		try:
-			time1 = time.clock()
 			print('Output file : %s' %filePath)
 			file = open(filePath, 'wb')
 			file.close()
@@ -1627,7 +1624,6 @@ class A3DExporter(bpy.types.Operator):
 				A3DExport2(file,Config)
 			
 			file.close()
-			print(".a3d export time: %.2f" % (time.clock() - time1))
 		except Exception as e:
 			print(e)
 			file.close()
@@ -1824,7 +1820,7 @@ def A3DExport2(file,Config):
 				objs_empties.append(obj)
 	
 	#now we have objs, set first selected object to active, so we have some context
-	bpy.context.scene.objects.active = bpy.context.selected_objects[0]
+	bpy.context.view_layer.objects.active = bpy.context.selected_objects[0]
 	
 	ambientLights = []
 	animationClips = []
@@ -1982,8 +1978,8 @@ def A3DExport2(file,Config):
 						if "a3ddistance" in childobj:
 							me = childobj.data
 							
-							childobj.select = True
-							bpy.context.scene.objects.active = childobj
+							childobj.select_set(True)
+							bpy.context.view_layer.objects.active = childobj
 							ConvertQuadsToTris(childobj)
 							
 							a3dmesh = createMesh(Config,childobj,linkedimgdata,linkedimg,linkeddata,linkedmesh,decals,meshes,objects,mesh_objects,boxes,indexBuffers,images,maps,materials,vertexBuffers)
@@ -2075,7 +2071,7 @@ def A3DExport2(file,Config):
 			a3dbox._box = getBoundBox(obj)
 			a3dbox._id = len(boxes)
 
-			if light.type == 'HEMI':
+			if light.type == 'SUN':
 				#ambientlight
 				print("ambientlight")
 
@@ -2861,13 +2857,12 @@ class A3DImporter(bpy.types.Operator):
 	bl_label = "Import A3D (Alternativa)"
 	bl_description = "Import A3D (Alternativa)"
 	
-	ApplyTransforms = BoolProperty(name="Apply Transforms", description="Apply transforms to objects", default=True)
-	ImportLighting = BoolProperty(name="Import Lighting", description="Import the lighting setup", default=True)
-	ImportCameras = BoolProperty(name="Import Cameras", description="Import any scene cameras", default=True)
-	filepath= StringProperty(name="File Path", description="Filepath used for importing the A3D file", maxlen=1024, default="")
+	ApplyTransforms: BoolProperty(name="Apply Transforms", description="Apply transforms to objects", default=True)
+	ImportLighting: BoolProperty(name="Import Lighting", description="Import the lighting setup", default=True)
+	ImportCameras: BoolProperty(name="Import Cameras", description="Import any scene cameras", default=True)
+	filepath: StringProperty(name="File Path", description="Filepath used for importing the A3D file", maxlen=1024, default="")
 
 	def execute(self, context):
-		time1 = time.clock()
 		file = open(self.filepath,'rb')
 		file.seek(0)
 		version = ord(file.read(1))
@@ -2877,7 +2872,6 @@ class A3DImporter(bpy.types.Operator):
 		else:
 			A3DImport2(file,Config)
 		file.close()
-		print(".a3d import time: %.2f" % (time.clock() - time1))
 		return {'FINISHED'}
 	def invoke (self, context, event):
 		wm = context.window_manager
@@ -4929,9 +4923,9 @@ class A3D2AmbientLight:
 			nme = self._name
 		else:
 			nme = "Lamp"
-	
-		lamp = bpy.data.lamps.new(nme,"HEMI") 
-		ob = bpy.data.objects.new(nme, lamp)
+
+		lamp = bpy.data.lights.new(name=nme, type='SUN')
+		ob = bpy.data.objects.new(name=nme, object_data=lamp)
 		
 		lamp.color = self._color
 		lamp.energy = self._intensity
@@ -4946,7 +4940,7 @@ class A3D2AmbientLight:
 			ob.matrix_local = self._transform.getMatrix()
 		else:
 			ob.location = bpy.context.scene.cursor_location
-		bpy.context.scene.objects.link(ob)
+		bpy.context.collection.objects.link(ob)
 		
 		if self._visible == False:
 			ob.hide = False
@@ -5037,9 +5031,9 @@ class A3D2DirectionalLight:
 			nme = self._name
 		else:
 			nme = "Lamp"
-	
-		lamp = bpy.data.lamps.new(nme,"AREA") 
-		ob = bpy.data.objects.new(nme, lamp)
+
+		lamp = bpy.data.lights.new(name=nme, type='AREA')
+		ob = bpy.data.objects.new(name=nme, object_data=lamp)
 		
 		lamp.color = self._color
 		lamp.energy = self._intensity
@@ -5054,7 +5048,7 @@ class A3D2DirectionalLight:
 			ob.matrix_local = self._transform.getMatrix()
 		else:
 			ob.location = bpy.context.scene.cursor_location
-		bpy.context.scene.objects.link(ob)
+		bpy.context.collection.objects.link(ob)
 		
 		if self._visible == False:
 			ob.hide = False
@@ -5156,9 +5150,9 @@ class A3D2OmniLight:
 			nme = self._name
 		else:
 			nme = "Lamp"
-	
-		lamp = bpy.data.lamps.new(nme,"POINT") 
-		ob = bpy.data.objects.new(nme, lamp)
+
+		lamp = bpy.data.lights.new(name=nme, type='POINT')
+		ob = bpy.data.objects.new(name=nme, object_data=lamp)
 		
 		lamp.color = self._color
 		lamp.energy = self._intensity
@@ -5173,7 +5167,7 @@ class A3D2OmniLight:
 			ob.matrix_local = self._transform.getMatrix()
 		else:
 			ob.location = bpy.context.scene.cursor_location
-		bpy.context.scene.objects.link(ob)
+		bpy.context.collection.objects.link(ob)
 		
 		if self._visible == False:
 			ob.hide = False
@@ -5309,9 +5303,9 @@ class A3D2SpotLight:
 			nme = self._name
 		else:
 			nme = "Lamp"
-	
-		lamp = bpy.data.lamps.new(nme,"SPOT") 
-		ob = bpy.data.objects.new(nme, lamp)
+
+		lamp = bpy.data.lights.new(name=nme, type='SPOT')
+		ob = bpy.data.objects.new(name=nme, object_data=lamp)
 		
 		lamp.color = self._color
 		lamp.energy = self._intensity
@@ -5326,7 +5320,7 @@ class A3D2SpotLight:
 			ob.matrix_local = self._transform.getMatrix()
 		else:
 			ob.location = bpy.context.scene.cursor_location
-		bpy.context.scene.objects.link(ob)
+		bpy.context.collection.objects.link(ob)
 		
 		if self._visible == False:
 			ob.hide = False
@@ -5572,7 +5566,7 @@ class A3D2Mesh:
 			ob.location = bpy.context.scene.cursor_location
 		
 		# Link object to scene
-		bpy.context.scene.objects.link(ob)  
+		bpy.context.collection.objects.link(ob)  
 		
 		# Fill the mesh with verts, edges, faces 
 		# from_pydata doesn't work correctly, it swaps vertices in some triangles 
@@ -5589,9 +5583,9 @@ class A3D2Mesh:
 		
 		#select object
 		for object in bpy.data.objects:
-			object.select = False
-		ob.select = True
-		bpy.context.scene.objects.active = ob
+			object.select_set(False)
+		ob.select_set(True)
+		bpy.context.view_layer.objects.active = ob
 		
 		#me.update(calc_edges=True)    # Update mesh with new data
 		
@@ -6002,7 +5996,7 @@ class A3D2Skin:
 			ob.location = bpy.context.scene.cursor_location
 		
 		# Link object to scene
-		bpy.context.scene.objects.link(ob)  
+		bpy.context.collection.objects.link(ob)  
 		
 		# Fill the mesh with verts, edges, faces 
 		# from_pydata doesn't work correctly, it swaps vertices in some triangles 
@@ -6019,9 +6013,9 @@ class A3D2Skin:
 		
 		#select object
 		for object in bpy.data.objects:
-			object.select = False
-		ob.select = True
-		bpy.context.scene.objects.active = ob
+			object.select_set(False)
+		ob.select_set(True)
+		bpy.context.view_layer.objects.active = ob
 		
 		#me.update(calc_edges=True)    # Update mesh with new data
 		
@@ -7524,7 +7518,7 @@ class A3D2Decal:
 			ob.location = bpy.context.scene.cursor_location
 		
 		# Link object to scene
-		bpy.context.scene.objects.link(ob)  
+		bpy.context.collection.objects.link(ob)  
 		
 		# Fill the mesh with verts, edges, faces 
 		# from_pydata doesn't work correctly, it swaps vertices in some triangles 
@@ -7541,9 +7535,9 @@ class A3D2Decal:
 		
 		#select object
 		for object in bpy.data.objects:
-			object.select = False
-		ob.select = True
-		bpy.context.scene.objects.active = ob
+			object.select_set(False)
+		ob.select_set(True)
+		bpy.context.view_layer.objects.active = ob
 		
 		#me.update(calc_edges=True)    # Update mesh with new data
 		
@@ -8048,7 +8042,7 @@ class A3D2Sprite:
 			ob.location = bpy.context.scene.cursor_location
 			
 		ob.rotation_euler = (1.57079633,0,1) 
-		bpy.context.scene.objects.link(ob)  
+		bpy.context.collection.objects.link(ob)  
 		
 		ob["a3dtype"] = "A3DSprite3D"
 		ob["a3dalwaysOnTop"] = self._alwaysOnTop
@@ -8347,7 +8341,7 @@ class A3D2Camera:
 			data.type = 'ORTHO'
 		else:
 			data.type = 'PERSP'
-		bpy.context.scene.objects.link(cam)
+		bpy.context.collection.objects.link(cam)
 		
 class A3D2LOD:
 	def __init__(self,Config):
@@ -8566,7 +8560,7 @@ class AddSprite3D(bpy.types.Operator):
 		
 		ob.location = bpy.context.scene.cursor_location   
 		ob.rotation_euler = (1.57079633,0,1) 
-		bpy.context.scene.objects.link(ob)  
+		bpy.context.collection.objects.link(ob)  
 		
 		ob["a3dtype"] = "A3DSprite3D"
 		ob["a3dalwaysOnTop"] = True
@@ -8631,13 +8625,13 @@ class AddSkybox(bpy.types.Operator):
 		ob.location = bpy.context.scene.cursor_location   
 		
 		# Link object to scene
-		bpy.context.scene.objects.link(ob) 
+		bpy.context.collection.objects.link(ob) 
 
 		# give custom property type
 		ob["a3dtype"] = "A3DSkybox"		
 		
 		# set the skybox to active
-		bpy.context.scene.objects.active = ob
+		bpy.context.view_layer.objects.active = ob
 		
 		# Fill the mesh with verts, edges, faces 
 		me.from_pydata(coords,[],faces)   # edges or faces should be [], or you ask for problems
@@ -8818,7 +8812,7 @@ class AddOccluder(bpy.types.Operator):
 		ob.location = bpy.context.scene.cursor_location   
 		
 		# Link object to scene
-		bpy.context.scene.objects.link(ob)  
+		bpy.context.collection.objects.link(ob)  
 		
 		# give custom property type
 		ob["a3dtype"] = "A3DOccluder"
@@ -8834,15 +8828,15 @@ class AddAmbientLight(bpy.types.Operator):
 	bl_options = {'REGISTER', 'UNDO'}
 		
 	def execute(self, context):
-		lamp = bpy.data.lamps.new("A3DAmbientLight","HEMI") 
+		lamp = bpy.data.lamps.new("A3DAmbientLight","SUN")
 		ob = bpy.data.objects.new("A3DAmbientLight", lamp)
 
 		ob.location = bpy.context.scene.cursor_location
-		bpy.context.scene.objects.link(ob)
+		bpy.context.collection.objects.link(ob)
 	
 		ob["a3dtype"] = "A3DAmbientLight"		
 		
-		bpy.context.scene.objects.active = ob
+		bpy.context.view_layer.objects.active = ob
 		return {'FINISHED'}
 		
 class AddDirectionalLight(bpy.types.Operator):
@@ -8855,11 +8849,11 @@ class AddDirectionalLight(bpy.types.Operator):
 		ob = bpy.data.objects.new("A3DDirectionalLight", lamp)
 
 		ob.location = bpy.context.scene.cursor_location
-		bpy.context.scene.objects.link(ob)
+		bpy.context.collection.objects.link(ob)
 	
 		ob["a3dtype"] = "A3DDirectionalLight"		
 		
-		bpy.context.scene.objects.active = ob
+		bpy.context.view_layer.objects.active = ob
 		return {'FINISHED'}
 
 class AddOmniLight(bpy.types.Operator):
@@ -8872,11 +8866,11 @@ class AddOmniLight(bpy.types.Operator):
 		ob = bpy.data.objects.new("A3DOmniLight", lamp)
 
 		ob.location = bpy.context.scene.cursor_location
-		bpy.context.scene.objects.link(ob)
+		bpy.context.collection.objects.link(ob)
 	
 		ob["a3dtype"] = "A3DOmniLight"		
 		
-		bpy.context.scene.objects.active = ob
+		bpy.context.view_layer.objects.active = ob
 		return {'FINISHED'}
 
 class AddSpotLight(bpy.types.Operator):
@@ -8889,11 +8883,11 @@ class AddSpotLight(bpy.types.Operator):
 		ob = bpy.data.objects.new("A3DSpotLight", lamp)
 
 		ob.location = bpy.context.scene.cursor_location
-		bpy.context.scene.objects.link(ob)
+		bpy.context.collection.objects.link(ob)
 	
 		ob["a3dtype"] = "A3DSpotLight"		
 		
-		bpy.context.scene.objects.active = ob
+		bpy.context.view_layer.objects.active = ob
 		return {'FINISHED'}
 
 #==================================
@@ -8957,8 +8951,8 @@ def addlodchild(objs,distance):
 	mesh.parent = lodcont
 	
 	#select lodcontainer
-	mesh.select = False
-	lodcont.select = True
+	mesh.select_set(False)
+	lodcont.select_set(True)
 	
 	#kennylerma ~ snap, cursor to active
 	original_type = bpy.context.area.type
@@ -8967,8 +8961,8 @@ def addlodchild(objs,distance):
 	bpy.context.area.type = original_type
 	
 	#select lodobj
-	mesh.select = True
-	lodcont.select = False
+	mesh.select_set(True)
+	lodcont.select_set(False)
 	
 	mesh['a3ddistance'] = distance
 	
@@ -8978,15 +8972,15 @@ def addlodchild(objs,distance):
 	bpy.ops.object.origin_set()
 	
 	#select just lodcontainer
-	mesh.select = False
-	lodcont.select = True
+	mesh.select_set(False)
+	lodcont.select_set(True)
 	
 class LODSettings(bpy.types.Operator):
 	bl_idname = 'mesh.lod_settings'
 	bl_label = 'Add Mesh A3D2LOD Child'
 	bl_options = {'REGISTER', 'UNDO'}
 
-	distance = bpy.props.IntProperty(name='Distance', default=300)
+	distance: bpy.props.IntProperty(name='Distance', default=300)
 
 	@classmethod
 	def poll(cls, context):
@@ -9115,20 +9109,41 @@ def menu_func_export(self, context):
 	a3d_path = bpy.data.filepath.replace('.blend', '.a3d')
 	self.layout.operator(ASExporter.bl_idname, text='Alternativa3D Class (.as)').filepath = as_path
 	self.layout.operator(A3DExporter.bl_idname, text='Alternativa3D Binary (.a3d)').filepath = a3d_path
-	
+
+classes = (
+	A3DImporter,
+	ASExporter,
+	A3DExporter,
+	LODSettings,
+	alternativa3DPanel,
+	ConvertMeshToOccluder,
+	ConvertMeshToDecal,
+	AddSpotLight,
+	AddOmniLight,
+	AddDirectionalLight,
+	AddAmbientLight,
+	AddDecal,
+	AddSkybox,
+	AddLOD,
+	AddSprite3D,
+	A3d_submenu
+)
+
 def register():
-	bpy.utils.register_module(__name__)
-	bpy.types.INFO_MT_file_import.append(menu_func_import)
-	bpy.types.INFO_MT_file_export.append(menu_func_export)
-	bpy.types.INFO_MT_mesh_add.append(menu_func)
-	bpy.types.VIEW3D_MT_object_specials.append(menu_func2)
+	for cls in classes:
+		bpy.utils.register_class(cls)
+	bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+	bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
+	bpy.types.VIEW3D_MT_mesh_add.append(menu_func)
+	bpy.types.VIEW3D_MT_object_context_menu.append(menu_func2)
 	
 def unregister():
-	bpy.utils.unregister_module(__name__)
-	bpy.types.INFO_MT_file_import.remove(menu_func_import)
-	bpy.types.INFO_MT_file_export.remove(menu_func_export)
-	bpy.types.INFO_MT_mesh_add.remove(menu_func)
-	bpy.types.VIEW3D_MT_object_specials.remove(menu_func2)	
+	for cls in reversed(classes):
+		bpy.utils.unregister_class(cls)
+	bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
+	bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
+	bpy.types.VIEW3D_MT_mesh_add.remove(menu_func)
+	bpy.types.VIEW3D_MT_object_context_menu.remove(menu_func2)
 
 	
 if __name__ == '__main__':
