@@ -5623,12 +5623,39 @@ class A3D2Mesh:
 						
 						#set diffuse img for uv window
 						diffuseimg = image
-					
-						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = True
+
+						# new texture
+						surf_mat.use_nodes = True
+						if surf_mat.node_tree:
+							surf_mat.node_tree.links.clear()
+							surf_mat.node_tree.nodes.clear()
+
+						nodes = surf_mat.node_tree.nodes
+						links = surf_mat.node_tree.links
+
+						nodeteximg = nodes.new(type='ShaderNodeTexImage')
+						output = nodes.new(type='ShaderNodeOutputMaterial')
+						diffuse = nodes.new(type='ShaderNodeBsdfDiffuse')
+						uvnode = nodes.new(type='ShaderNodeUVMap')
+						if len(uvlayers) > 0:
+							uvnode.uv_map = "UV0"
+
+						nodeteximg.image = image
+
+						link1 = links.new(uvnode.outputs['UV'], nodeteximg.inputs['Vector'])
+						link2 = links.new(nodeteximg.outputs[0], diffuse.inputs['Color'])
+						link3 = links.new(diffuse.outputs['BSDF'], output.inputs['Surface'])
+
+						# node = surf_mat.node_tree.nodes.new('ShaderNodeTexImage')
+						# node.image = image
+						# links = surf_mat.node_tree.links
+						# diff_node = surf_mat.node_tree.nodes.new('Diffuse BSDF')
+						# link = links.new(node.outputs[0], diff_node.inputs[0])
+
+						#mtex = surf_mat.texture_slots.add()
+						#mtex.texture = texture
+						#mtex.texture_coords = 'UV'
+						#mtex.use_map_color_diffuse = True
 						#mtex.uv_layer = uvname
 						
 					if (mat._glossinessMapId is not None) and (mat._glossinessMapId != int("0xFFFFFFFF",16)):
@@ -5644,11 +5671,11 @@ class A3D2Mesh:
 						texture.image = image
 					
 						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.use_map_raymir = True
+						# mtex = surf_mat.texture_slots.add()
+						# mtex.texture = texture
+						# mtex.texture_coords = 'UV'
+						# mtex.use_map_color_diffuse = False
+						# mtex.use_map_raymir = True
 						#mtex.uv_layer = uvname
 						
 					if (mat._lightMapId is not None) and (mat._lightMapId != int("0xFFFFFFFF",16)):
@@ -5664,11 +5691,11 @@ class A3D2Mesh:
 						texture.image = image
 					
 						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.use_map_ambient = True
+						# mtex = surf_mat.texture_slots.add()
+						# mtex.texture = texture
+						# mtex.texture_coords = 'UV'
+						# mtex.use_map_color_diffuse = False
+						# mtex.use_map_ambient = True
 						#mtex.uv_layer = uvname
 						
 					if (mat._normalMapId is not None) and (mat._normalMapId != int("0xFFFFFFFF",16)):
@@ -5684,11 +5711,11 @@ class A3D2Mesh:
 						texture.image = image
 					
 						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.use_map_normal = True
+						# mtex = surf_mat.texture_slots.add()
+						# mtex.texture = texture
+						# mtex.texture_coords = 'UV'
+						# mtex.use_map_color_diffuse = False
+						# mtex.use_map_normal = True
 						#mtex.uv_layer = uvname
 						
 					if (mat._opacityMapId is not None) and (mat._opacityMapId != int("0xFFFFFFFF",16)):
@@ -5704,11 +5731,11 @@ class A3D2Mesh:
 						texture.image = image
 					
 						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.use_map_alpha = True
+						# mtex = surf_mat.texture_slots.add()
+						# mtex.texture = texture
+						# mtex.texture_coords = 'UV'
+						# mtex.use_map_color_diffuse = False
+						# mtex.use_map_alpha = True
 						#mtex.uv_layer = uvname
 						
 					if (mat._reflectionCubeMapId is not None) and (mat._reflectionCubeMapId != int("0xFFFFFFFF",16)):
@@ -5724,10 +5751,10 @@ class A3D2Mesh:
 						texture.image = image
 					
 						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
+						# mtex = surf_mat.texture_slots.add()
+						# mtex.texture = texture
+						# mtex.texture_coords = 'UV'
+						# mtex.use_map_color_diffuse = False
 						#mtex.uv_layer = uvname
 						
 					if (mat._specularMapId is not None) and (mat._specularMapId != int("0xFFFFFFFF",16)):
@@ -5743,11 +5770,11 @@ class A3D2Mesh:
 						texture.image = image
 					
 						#new texture
-						mtex = surf_mat.texture_slots.add()
-						mtex.texture = texture
-						mtex.texture_coords = 'UV'
-						mtex.use_map_color_diffuse = False
-						mtex.use_map_specular = True
+						# mtex = surf_mat.texture_slots.add()
+						# mtex.texture = texture
+						# mtex.texture_coords = 'UV'
+						# mtex.use_map_color_diffuse = False
+						# mtex.use_map_specular = True
 						#mtex.uv_layer = uvname
 		
 		#set norms
@@ -5760,7 +5787,9 @@ class A3D2Mesh:
 		if len(uvlayers) > 0:
 			for uvindex, uvdata in uvlayers.items():
 				uvname = "UV"+str(uvindex)
-				uvlayer = me.uv_textures.new(uvname)
+				# uvlayer = me.uv_textures.new(uvname)
+				me.uv_layers.new(name=uvname, do_init=True)
+
 				uvs = uvdata
 				if checkBMesh() == True:
 					uv_faces = me.uv_layers[uvindex].data
@@ -8333,7 +8362,7 @@ class A3D2Camera:
 		data.lens = self._fov
 		data.shift_x = 0.0
 		data.shift_y = 0.0
-		data.dof_distance = 0.0
+		# data.dof_distance = 0.0
 		data.clip_start = self._nearClipping
 		data.clip_end = self._farClipping
 		data.draw_size = 0.5
