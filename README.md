@@ -11,7 +11,7 @@ What is the alternativa 3d blender tool?
 
 This python script can be installed as an addon to blender. Once installed it will allow you to import/export various formats that are compatible with the flash 3d library [alternativa](http://alternativaplatform.com/en/).
 
-##Functionality
+## Functionality
 
 - Import/Export .A3D files
 - Export 3d models to flash alternativa3d actionscript classes
